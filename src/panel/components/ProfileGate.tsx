@@ -1,0 +1,131 @@
+import { useState } from "react";
+import { X, Camera, Pencil, Trash2, Plus, Check, ShieldCheck } from "lucide-react";
+import { useProfiles, Avatar, fileToAvatar, EXTRA_SECCIONES, type Perfil } from "../profiles";
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button type="button" onClick={() => onChange(!on)} className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-graph/20"}`}>
+      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+    </button>
+  );
+}
+
+export default function ProfileGate() {
+  const { perfiles, activo, gateOpen, pick, add, update, remove } = useProfiles();
+  const [manage, setManage] = useState(false);
+  if (!gateOpen) return null;
+
+  const onPhoto = async (id: string, file?: File) => { if (file) { try { update(id, { foto: await fileToAvatar(file) }); } catch { /* noop */ } } };
+
+  return (
+    <div className="panel-bg fixed inset-0 z-[60] flex flex-col items-center justify-center px-6 py-10">
+      <button onClick={() => pick(activo.id)} aria-label="Cerrar" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full text-graph-400 transition hover:bg-graph/5 hover:text-graph">
+        <X size={20} />
+      </button>
+
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-widest2 text-brand">Potente Propiedades · Panel</div>
+      <h1 className="text-center font-display text-3xl font-semibold tracking-tight text-graph sm:text-4xl">¿Quién está usando Potente?</h1>
+      <p className="mt-2 text-center text-sm text-graph-500">Elegí tu perfil. Cada uno puede poner su foto.</p>
+
+      <div className="mt-10 flex max-w-3xl flex-wrap items-start justify-center gap-7 sm:gap-9">
+        {perfiles.map((p) => (
+          <ProfileTile key={p.id} p={p} manage={manage} active={p.id === activo.id} onPick={() => pick(p.id)} onPhoto={onPhoto} update={update} remove={remove} canRemove={perfiles.length > 1} />
+        ))}
+
+        {/* agregar */}
+        <button onClick={add} className="group flex w-28 flex-col items-center gap-3 sm:w-32">
+          <span className="grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-graph/25 text-graph-400 transition duration-300 ease-out group-hover:scale-105 group-hover:border-brand group-hover:text-brand sm:h-28 sm:w-28">
+            <Plus size={30} />
+          </span>
+          <span className="text-sm font-medium text-graph-400 transition group-hover:text-graph">Agregar perfil</span>
+        </button>
+      </div>
+
+      {/* permisos (solo el admin gestiona) */}
+      {manage && activo.admin && (
+        <div className="mt-9 w-full max-w-2xl rounded-2xl border border-graph/10 bg-paper-100 p-5 text-left shadow-soft">
+          <p className="flex items-center gap-2 font-display text-base font-semibold text-graph"><ShieldCheck size={17} className="text-brand" /> Permisos del equipo</p>
+          <p className="mt-0.5 text-xs text-graph-400">Todos ven Clientes, Cargar propiedad, Consultas, Visitas, Tasaciones y Reportes. Sumales secciones o hacelos administradores.</p>
+          <div className="mt-4 space-y-2.5">
+            {perfiles.map((p) => (
+              <div key={p.id} className="rounded-xl border border-graph/[0.07] bg-graph/[0.02] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2">
+                    <Avatar p={p} size={26} />
+                    <span className="text-sm font-semibold text-graph">{p.nombre}</span>
+                    {p.admin && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand-700 ring-1 ring-inset ring-brand/20">Admin</span>}
+                  </span>
+                  <label className="flex items-center gap-2 text-[11px] font-medium text-graph-500">Administrador<Toggle on={!!p.admin} onChange={(v) => update(p.id, { admin: v })} /></label>
+                </div>
+                {!p.admin && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {EXTRA_SECCIONES.map((s) => {
+                      const on = (p.permisos || []).includes(s.key);
+                      return (
+                        <button key={s.key} onClick={() => {
+                          const cur = new Set(p.permisos || []);
+                          if (on) cur.delete(s.key); else cur.add(s.key);
+                          update(p.id, { permisos: [...cur] });
+                        }} className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${on ? "bg-brand text-white" : "bg-graph/[0.05] text-graph-500 hover:bg-graph/10 hover:text-graph"}`}>{s.label}</button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button onClick={() => setManage((v) => !v)}
+        className={`mt-12 inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-semibold tracking-wide transition ${manage ? "border-brand bg-brand text-white" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>
+        {manage ? <><Check size={15} /> Listo</> : <><Pencil size={14} /> Administrar perfiles</>}
+      </button>
+    </div>
+  );
+}
+
+function ProfileTile({ p, manage, active, onPick, onPhoto, update, remove, canRemove }: {
+  p: Perfil; manage: boolean; active: boolean; onPick: () => void;
+  onPhoto: (id: string, file?: File) => void; update: (id: string, patch: Partial<Perfil>) => void; remove: (id: string) => void; canRemove: boolean;
+}) {
+  return (
+    <div className="flex w-28 flex-col items-center gap-3 sm:w-32">
+      <div className="group relative">
+        <button onClick={manage ? undefined : onPick} disabled={manage}
+          className={`relative grid place-items-center rounded-full ring-2 transition duration-300 ease-out ${active ? "ring-brand" : "ring-transparent"} ${manage ? "" : "group-hover:scale-105 group-hover:ring-brand"}`}>
+          <Avatar p={p} size={112} className="shadow-[0_14px_34px_-16px_rgba(23,26,23,0.5)]" />
+        </button>
+        {/* cambiar foto */}
+        <label title="Cambiar foto" className={`absolute -bottom-1 -right-1 grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-graph/10 bg-paper-100 text-graph-500 shadow-md transition hover:text-brand ${manage ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <Camera size={16} />
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => onPhoto(p.id, e.target.files?.[0])} />
+        </label>
+        {manage && p.foto && (
+          <button onClick={() => update(p.id, { foto: null })} title="Quitar foto" className="absolute -bottom-1 -left-1 grid h-9 w-9 place-items-center rounded-full border border-graph/10 bg-paper-100 text-graph-500 shadow-md transition hover:text-red-600">
+            <X size={15} />
+          </button>
+        )}
+      </div>
+
+      {manage ? (
+        <div className="flex w-full flex-col items-center gap-1">
+          <input value={p.nombre} onChange={(e) => update(p.id, { nombre: e.target.value })}
+            className="w-full rounded-lg border border-graph/15 bg-paper-100 px-2 py-1 text-center text-sm font-semibold text-graph outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/15" />
+          <input value={p.rol} onChange={(e) => update(p.id, { rol: e.target.value })}
+            className="w-full rounded-lg border border-graph/10 bg-paper-100 px-2 py-1 text-center text-[11px] text-graph-500 outline-none focus:border-brand/60" />
+          {canRemove && (
+            <button onClick={() => remove(p.id)} className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-graph-400 transition hover:text-red-600">
+              <Trash2 size={12} /> Eliminar
+            </button>
+          )}
+        </div>
+      ) : (
+        <button onClick={onPick} className="flex flex-col items-center leading-tight">
+          <span className="text-sm font-semibold text-graph">{p.nombre}</span>
+          <span className="text-[11px] text-graph-400">{p.rol}</span>
+        </button>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,231 @@
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import {
+  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Mail, Share2, Heart,
+  BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle,
+} from "lucide-react";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import PropiedadCard from "./components/PropiedadCard";
+import { useLenis } from "./lib/useLenis";
+import { useSEO, jsonLdPropiedad } from "./lib/seo";
+import { useData } from "@/lib/DataProvider";
+import { fmtUSD, fmtHa, fmtNum } from "@/lib/format";
+import { useFavorites } from "./context/FavoritesContext";
+
+const WA = "5492233029591";
+const opLabel: Record<string, string> = { venta: "Venta", alquiler: "Alquiler", arrendamiento: "Arrendamiento" };
+const estadoBadge: Record<string, string> = { reservado: "bg-amber-100 text-amber-800", vendido: "bg-graph/10 text-graph-600" };
+const estadoLabel: Record<string, string> = { reservado: "Reservado", vendido: "Vendido" };
+const NO_IMG = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
+
+export default function PropiedadDetalle() {
+  useLenis();
+  const { id } = useParams();
+  const { getProp, propiedades } = useData();
+  const p = getProp(id || "");
+  const [activa, setActiva] = useState(0);
+  const { esFavorito, toggle } = useFavorites();
+  useEffect(() => { setActiva(0); }, [id]); // resetear la foto activa al navegar a otra propiedad
+
+  // SEO por propiedad: título, descripción y aviso estructurado (RealEstateListing)
+  useSEO({
+    titulo: p ? `${p.titulo} · ${p.zona}, Mar del Plata | Potente Propiedades` : "Propiedad · Potente Propiedades",
+    descripcion: p ? p.descripcion.slice(0, 155) : undefined,
+    path: p ? `/propiedad/${encodeURIComponent(p.id)}` : undefined,
+    jsonLd: p
+      ? jsonLdPropiedad({
+          id: p.id,
+          titulo: p.titulo,
+          descripcion: p.descripcion,
+          zona: p.zona,
+          precioUSD: p.precioUSD,
+          operacion: p.operacion,
+          fotos: p.fotos ?? [],
+          m2totales: p.m2totales,
+          dormitorios: p.dormitorios,
+        })
+      : null,
+  });
+
+  if (!p) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-paper text-graph">
+        <div className="text-center">
+          <p className="font-display text-3xl">Propiedad no encontrada</p>
+          <Link to="/propiedades" className="btn-primary mt-6">Ver el catálogo</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const fav = esFavorito(p.id);
+  const fotos = p.fotos?.length ? p.fotos : [NO_IMG];
+  const fotoActiva = fotos[activa] || fotos[0];
+  const caracs = p.caracteristicas ?? [];
+  const similares = propiedades.filter((x) => x.id !== p.id && x.categoria === p.categoria).slice(0, 3);
+  const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
+
+  const datos: { icon: any; l: string; v: string }[] = [];
+  if (p.categoria === "campo") {
+    if (p.hectareas) datos.push({ icon: Maximize, l: "Superficie", v: fmtHa(p.hectareas) });
+    if (p.aptitud) datos.push({ icon: Sprout, l: "Aptitud", v: p.aptitud });
+  } else {
+    if (p.ambientes) datos.push({ icon: HomeIcon, l: "Ambientes", v: `${p.ambientes}` });
+    if (p.dormitorios) datos.push({ icon: BedDouble, l: "Dormitorios", v: `${p.dormitorios}` });
+    if (p.banos) datos.push({ icon: Bath, l: "Baños", v: `${p.banos}` });
+    if (p.cocheras) datos.push({ icon: Car, l: "Cocheras", v: `${p.cocheras}` });
+    if (p.m2cubiertos) datos.push({ icon: Ruler, l: "M² cubiertos", v: `${fmtNum(p.m2cubiertos)} m²` });
+    if (p.m2totales) datos.push({ icon: Maximize, l: "M² totales", v: `${fmtNum(p.m2totales)} m²` });
+  }
+  datos.push({ icon: Tag, l: "Operación", v: opLabel[p.operacion] });
+  datos.push({ icon: MapPin, l: "Ubicación", v: p.direccion || `${p.zona}, ${p.provincia}` });
+
+  return (
+    <div className="min-h-screen bg-paper text-graph">
+      <div className="grain" />
+      <Navbar variant="solid" />
+
+      <div className="container-x pt-28">
+        <Link to="/propiedades" className="inline-flex items-center gap-2 text-sm text-graph-500 transition hover:text-brand">
+          <ArrowLeft size={16} /> Volver al catálogo
+        </Link>
+      </div>
+
+      <section className="container-x mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div className="relative overflow-hidden rounded-2xl">
+          <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[16/10] w-full object-cover" />
+          <button
+            onClick={() => toggle(p.id)}
+            className={`absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full backdrop-blur transition ${
+              fav ? "bg-brand text-white" : "bg-graph/60 text-white hover:bg-graph/80"
+            }`}
+            aria-label="Favorito"
+          >
+            <Heart size={20} fill={fav ? "currentColor" : "none"} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-4 lg:grid-cols-1">
+          {fotos.slice(0, 3).map((f, i) => (
+            <button
+              key={i}
+              onClick={() => setActiva(i)}
+              className={`overflow-hidden rounded-xl ring-2 transition ${activa === i ? "ring-brand" : "ring-transparent hover:ring-graph/30"}`}
+            >
+              <img src={f} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt="" className="aspect-[16/10] w-full object-cover lg:aspect-[16/9]" />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="container-x mt-12 grid gap-12 pb-12 lg:grid-cols-[1.6fr_1fr]">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">{opLabel[p.operacion]}</span>
+            <span className="rounded-full border border-graph/20 px-3 py-1 text-xs font-medium capitalize text-graph-500">{p.categoria}</span>
+            {p.estado !== "disponible" && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoBadge[p.estado]}`}>{estadoLabel[p.estado]}</span>}
+            {p.esNuevo && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold uppercase text-white">Nuevo</span>}
+            {p.esOportunidad && <span className="rounded-full bg-clay px-3 py-1 text-xs font-bold uppercase text-white">Oportunidad</span>}
+          </div>
+
+          <h1 className="mt-5 font-display text-3xl font-medium tracking-tight leading-tight text-graph md:text-4xl">{p.titulo}</h1>
+          <p className="mt-3 flex items-center gap-2 text-graph-500">
+            <MapPin size={18} className="text-brand" /> {p.direccion ? `${p.direccion} · ` : ""}{p.zona}, {p.provincia}
+          </p>
+
+          <div className="mt-8 grid gap-px overflow-hidden rounded-2xl bg-graph/10 sm:grid-cols-2 lg:grid-cols-3">
+            {datos.map((d, i) => (
+              <div key={i} className="bg-paper-100 p-5">
+                <span className="flex items-center gap-2 text-xs uppercase tracking-widest2 text-graph-400">
+                  <d.icon size={15} className="text-brand" /> {d.l}
+                </span>
+                <p className="mt-2 font-display text-lg capitalize text-graph">{d.v}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10">
+            <h2 className="font-display text-2xl text-graph">Descripción</h2>
+            <p className="mt-4 text-lg leading-relaxed text-graph-500">{p.descripcion}</p>
+          </div>
+
+          {p.video && (
+            <div className="mt-10">
+              <h2 className="font-display text-2xl text-graph">Video</h2>
+              <a href={p.video} target="_blank" rel="noreferrer" className="btn-ghost mt-4 inline-flex w-auto">
+                <PlayCircle size={18} /> Ver video de la propiedad
+              </a>
+            </div>
+          )}
+
+          {caracs.length > 0 && (
+            <div className="mt-10">
+              <h2 className="font-display text-2xl text-graph">Características</h2>
+              <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+                {caracs.map((m) => (
+                  <li key={m} className="flex items-center gap-3 rounded-xl bg-paper-100 px-4 py-3 text-graph-500">
+                    <CheckCircle2 size={18} className="text-brand" /> {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {p.lat && p.lng && (
+            <div className="mt-10">
+              <h2 className="font-display text-2xl text-graph">Ubicación</h2>
+              <div className="mt-5 overflow-hidden rounded-2xl ring-1 ring-graph/10">
+                <iframe
+                  title="mapa"
+                  className="h-[320px] w-full"
+                  loading="lazy"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${p.lng - 0.25}%2C${p.lat - 0.18}%2C${p.lng + 0.25}%2C${p.lat + 0.18}&layer=mapnik&marker=${p.lat}%2C${p.lng}`}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <aside className="lg:sticky lg:top-28 lg:self-start">
+          <div className="rounded-2xl border border-graph/10 bg-paper-100 p-7 shadow-card">
+            <p className="text-xs uppercase tracking-widest2 text-graph-400">{opLabel[p.operacion]}</p>
+            <p className="mt-2 font-display text-4xl font-semibold text-brand">{p.categoria === "campo" ? "A consultar" : fmtUSD(p.precioUSD)}</p>
+
+            <div className="mt-6 space-y-3">
+              <a href={`https://wa.me/${WA}?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn-primary w-full">
+                <Phone size={16} /> Consultar por WhatsApp
+              </a>
+              <a href="mailto:info@potenteprop.com.ar" className="btn-ghost w-full">
+                <Mail size={16} /> Escribir un email
+              </a>
+              <button onClick={() => toggle(p.id)} className={`flex w-full items-center justify-center gap-2 rounded-full border py-2.5 text-sm font-semibold transition ${fav ? "border-brand bg-brand-50 text-brand" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>
+                <Heart size={15} fill={fav ? "currentColor" : "none"} /> {fav ? "En favoritos" : "Guardar en favoritos"}
+              </button>
+            </div>
+
+            <div className="mt-6 border-t border-graph/10 pt-6 text-sm text-graph-500">
+              <p className="font-medium text-graph">Potente Propiedades</p>
+              <p className="mt-1">Av. de los Trabajadores 2439 (Punta Mogotes) · Av. Colón 3537 (Chauvín)</p>
+              <p>223 472-7416 · Lun a Vie 9-18 hs</p>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      {similares.length > 0 && (
+        <section className="border-t border-graph/10 py-20">
+          <div className="container-x">
+            <h2 className="mb-10 font-display text-3xl font-medium tracking-tight text-graph">Propiedades similares</h2>
+            <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
+              {similares.map((x) => (
+                <PropiedadCard key={x.id} p={x} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <Footer />
+    </div>
+  );
+}

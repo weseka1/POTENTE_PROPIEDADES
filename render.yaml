@@ -1,0 +1,20 @@
+# Render Blueprint — Potente Propiedades (Vite + React + server Express)
+# Uso: en Render → New → Blueprint → conectás este repo → carga todo de acá.
+# Web service (no estático) para que el asistente IA viva en /api/asistente.
+# OJO: las claves NO van en el repo; se cargan en Render (sync: false).
+services:
+  - type: web
+    name: potente-propiedades
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false # el asistente Marina (sin esto la web anda igual; el chat avisa que no está configurado)
+      - key: VITE_SUPABASE_URL
+        sync: false # vacías = demo con datos de muestra locales (modo actual)
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false

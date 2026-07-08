@@ -1,0 +1,21 @@
+# Netlify config — Potente Propiedades
+# Habilita las Netlify Functions (el "cerebro" del asistente web) y el fallback SPA.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# El widget llama SIEMPRE a /api/asistente (mismo path en Render y Netlify).
+[[redirects]]
+  from = "/api/asistente"
+  to = "/.netlify/functions/asistente"
+  status = 200
+
+# SPA fallback (además de public/_redirects, por si el deploy no lo toma).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
