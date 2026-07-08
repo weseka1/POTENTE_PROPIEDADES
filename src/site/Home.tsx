@@ -17,6 +17,10 @@ const WHATSAPP = "https://wa.me/5492233029591";
 // El océano 3D se carga en su propio chunk, recién al montar el hero.
 const HeroOcean = lazy(() => import("./components/HeroOcean"));
 
+// Fondo del hero: video real de drone (look cine) o el océano interactivo en
+// shaders (HeroOcean, con la espuma que sigue al mouse). Cambiar acá y listo.
+const HERO_3D = false;
+
 const categoriasHome = [
   { key: "casa", label: "Casas y chalets", icon: HomeIcon, img: "/img/props/casa1.jpg" },
   { key: "departamento", label: "Departamentos", icon: Building2, img: "/img/props/depto1.jpg" },
@@ -88,12 +92,27 @@ export default function Home() {
           <div className="absolute -left-40 top-[-20%] h-[70vh] w-[70vh] animate-drift rounded-full bg-brand-50 blur-3xl" />
           <div className="absolute -right-52 bottom-[-30%] h-[80vh] w-[80vh] animate-drift rounded-full bg-sea-50 blur-3xl [animation-delay:-9s]" />
           {/* el mar */}
-          <Suspense fallback={null}>
-            <HeroOcean />
-          </Suspense>
+          {HERO_3D ? (
+            <Suspense fallback={null}>
+              <HeroOcean />
+            </Suspense>
+          ) : (
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster="/video/hero-poster.jpg"
+              className="h-full w-full object-cover"
+            >
+              <source src="/video/hero.webm" type="video/webm" />
+              <source src="/video/hero.mp4" type="video/mp4" />
+            </video>
+          )}
           {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
-          <div className="absolute inset-0 bg-gradient-to-r from-paper/75 via-paper/15 to-transparent" />
-          <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-paper/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-paper via-paper/45 to-transparent md:from-paper/95" />
+          <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-paper/80 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-paper/60 to-transparent" />
         </div>
 
         {/* toque real estate: ficha flotante en vidrio con parallax */}
