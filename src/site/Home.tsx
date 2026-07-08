@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles,
-  ShieldCheck, MapPin, Phone, Mail, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves,
+  ShieldCheck, MapPin, Phone, Mail, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves, BedDouble, Maximize,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -13,6 +13,9 @@ import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 
 const WHATSAPP = "https://wa.me/5492233029591";
+
+// El océano 3D se carga en su propio chunk, recién al montar el hero.
+const HeroOcean = lazy(() => import("./components/HeroOcean"));
 
 const categoriasHome = [
   { key: "casa", label: "Casas y chalets", icon: HomeIcon, img: "/img/props/casa1.jpg" },
@@ -78,30 +81,26 @@ export default function Home() {
       <div className="grain" />
       <Navbar />
 
-      {/* ===== HERO — tipográfico, horizonte atlántico ===== */}
+      {/* ===== HERO — el Atlántico en vivo (Gerstner + espuma que sigue al mouse) ===== */}
       <section className="relative flex min-h-screen items-center overflow-hidden bg-paper">
         <div className="absolute inset-0" aria-hidden>
-          {/* glows que derivan lento, como reflejo de agua */}
+          {/* fallback estático mientras carga el mar (o si no hay WebGL) */}
           <div className="absolute -left-40 top-[-20%] h-[70vh] w-[70vh] animate-drift rounded-full bg-brand-50 blur-3xl" />
           <div className="absolute -right-52 bottom-[-30%] h-[80vh] w-[80vh] animate-drift rounded-full bg-sea-50 blur-3xl [animation-delay:-9s]" />
-          {/* grilla hairline: el guiño futurista, casi invisible */}
-          <div
-            className="absolute inset-0 opacity-[0.35]"
-            style={{
-              backgroundImage:
-                "linear-gradient(to right, rgba(13,21,33,0.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(13,21,33,0.045) 1px, transparent 1px)",
-              backgroundSize: "72px 72px",
-              maskImage: "radial-gradient(120% 90% at 50% 10%, black 30%, transparent 100%)",
-              WebkitMaskImage: "radial-gradient(120% 90% at 50% 10%, black 30%, transparent 100%)",
-            }}
-          />
-          {/* línea de horizonte: respira de lado a lado */}
-          <div className="absolute inset-x-0 top-[62%] overflow-hidden">
-            <div className="h-px w-full animate-horizon bg-gradient-to-r from-transparent via-sea to-transparent opacity-70" />
-          </div>
+          {/* el mar */}
+          <Suspense fallback={null}>
+            <HeroOcean />
+          </Suspense>
+          {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
+          <div className="absolute inset-0 bg-gradient-to-r from-paper/75 via-paper/15 to-transparent" />
+          <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-paper/70 to-transparent" />
         </div>
 
-        <div className="container-x relative z-10 pt-28">
+        {/* toque real estate: ficha flotante en vidrio con parallax */}
+        <FichaFlotante />
+
+
+        <div className="container-x relative z-10 pb-60 pt-28 md:pb-64">
           <div className="max-w-3xl">
             <p className="eyebrow reveal flex items-center gap-2">
               <span className="h-px w-8 bg-brand" /> Mar del Plata · Punta Mogotes y Chauvín
@@ -111,7 +110,7 @@ export default function Home() {
               encontrando <span className="text-brand">tu lugar</span> <br />
               frente al mar.
             </h1>
-            <p className="reveal mt-7 max-w-xl text-lg leading-relaxed text-graph-500" data-delay="120ms">
+            <p className="reveal mt-7 max-w-xl text-lg leading-relaxed text-graph-700" data-delay="120ms">
               Más de 50 años comprando, vendiendo y alquilando propiedades marplatenses.{" "}
               <span className="font-medium text-graph">Cartera propia, tasaciones con informe y dos oficinas en la ciudad.</span>
             </p>
@@ -151,7 +150,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 animate-bounce text-graph-400"><ChevronDown /></div>
+        <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 animate-bounce text-white/70"><ChevronDown /></div>
       </section>
 
       {/* ===== TRAYECTORIA ===== */}
@@ -364,6 +363,58 @@ export default function Home() {
 
       <Footer />
     </div>
+  );
+}
+
+// Ficha de propiedad flotando sobre el mar: vidrio + parallax 3D con el mouse.
+function FichaFlotante() {
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const cur = { x: 0, y: 0 };
+    const tgt = { x: 0, y: 0 };
+    const onMove = (e: PointerEvent) => {
+      tgt.x = e.clientX / window.innerWidth - 0.5;
+      tgt.y = e.clientY / window.innerHeight - 0.5;
+    };
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      cur.x += (tgt.x - cur.x) * 0.07;
+      cur.y += (tgt.y - cur.y) * 0.07;
+      if (ref.current) {
+        ref.current.style.transform =
+          `perspective(900px) rotateX(${(-cur.y * 7).toFixed(2)}deg) rotateY(${(cur.x * 10).toFixed(2)}deg) translateY(${(-cur.y * 10).toFixed(1)}px)`;
+      }
+    };
+    loop();
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+    };
+  }, []);
+
+  return (
+    <Link
+      ref={ref}
+      to="/propiedad/URB-011"
+      className="group absolute right-[6%] top-[26%] z-10 hidden w-[290px] overflow-hidden rounded-2xl border border-white/40 bg-white/70 shadow-card backdrop-blur-xl transition-shadow duration-300 will-change-transform hover:shadow-[0_30px_70px_-24px_rgba(2,35,82,0.45)] xl:block"
+      aria-label="Ver departamento destacado frente al mar"
+    >
+      <div className="relative h-36 overflow-hidden">
+        <img src="/img/props/depto1.jpg" alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+        <span className="absolute left-3 top-3 rounded-full bg-brand px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Venta</span>
+      </div>
+      <div className="p-4">
+        <p className="font-display text-[15px] font-semibold leading-snug text-graph">Departamento 4 ambientes frente al mar</p>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-graph-500"><MapPin size={12} className="text-brand" /> Varese, Mar del Plata</p>
+        <div className="mt-3 flex items-center gap-4 border-t border-graph/10 pt-3 text-[11px] text-graph-500">
+          <span className="flex items-center gap-1"><BedDouble size={13} className="text-brand" /> 3 dorm.</span>
+          <span className="flex items-center gap-1"><Maximize size={13} className="text-brand" /> 140 m²</span>
+          <span className="ml-auto font-display text-sm font-semibold text-brand">U$S 450.000</span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
