@@ -1,5 +1,6 @@
 import express from "express";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { atenderAsistente } from "../netlify/functions/_core";
 
@@ -11,6 +12,17 @@ import { atenderAsistente } from "../netlify/functions/_core";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(__dirname, "..", "dist");
 const PORT = Number(process.env.PORT || 3000);
+
+// Carga .env.local (KEY=valor) si existe, para correr local sin exportar vars.
+// En Render esto no hace nada: las vars vienen del dashboard.
+try {
+  const env = readFileSync(path.resolve(__dirname, "..", ".env.local"), "utf8");
+  for (const line of env.split(/\r?\n/)) {
+    if (line.trim().startsWith("#")) continue;
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.+?)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+  }
+} catch { /* sin .env.local */ }
 
 const app = express();
 app.use(express.json({ limit: "256kb" }));
