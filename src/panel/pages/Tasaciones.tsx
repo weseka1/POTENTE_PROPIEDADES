@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Plus, Calculator, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Calculator, Clock, CheckCircle2, Pencil } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { hoyISO } from "@/lib/fechas";
-import { fmtUSD, fmtFecha, fmtHa } from "@/lib/format";
-import type { Aptitud, Tasacion } from "@/data/types";
+import { fmtUSD, fmtFecha, fmtNum } from "@/lib/format";
+import type { Tasacion } from "@/data/types";
 import { PageHeader } from "../components/PageShell";
 import { Btn } from "../components/Controls";
 import Badge from "../components/Badge";
@@ -16,12 +16,19 @@ import { cn } from "../ui/cn";
 const inputCls =
   "h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15";
 
+// Estados posibles de una tasación (deriva del tipo, sin inventar campos)
+const ESTADOS_TAS: Tasacion["estado"][] = ["solicitada", "en_proceso", "entregada"];
+
 export default function Tasaciones() {
   const { push } = useToast();
-  const { tasaciones: allTas, addTasacion } = useData();
+  const { tasaciones: allTas, addTasacion, updateTasacion } = useData();
   const [open, setOpen] = useState(false);
 
-  const vacio = { solicitante: "", contacto: "", zona: "", hectareas: "", aptitud: "agrícola" as Aptitud };
+  // edición inline del valor estimado
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const vacio = { solicitante: "", contacto: "", zona: "", metros: "" };
   const [form, setForm] = useState(vacio);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -33,8 +40,8 @@ export default function Tasaciones() {
       solicitante: form.solicitante.trim(),
       contacto: form.contacto.trim(),
       zona: form.zona.trim() || "—",
-      hectareas: Number(form.hectareas) || 0,
-      aptitud: form.aptitud,
+      hectareas: Number(form.metros) || 0, // el campo guarda la superficie (m²) para inmuebles urbanos
+      aptitud: "mixta", // no aplica a inmuebles urbanos; se conserva por compatibilidad del modelo
       valorEstimadoUSD: null,
       estado: "solicitada",
     };
@@ -42,6 +49,23 @@ export default function Tasaciones() {
     setForm(vacio);
     setOpen(false);
     push("Tasación registrada como “Solicitada” ✓", "success");
+  };
+
+  const cambiarEstado = (id: string, estado: Tasacion["estado"]) => {
+    updateTasacion(id, { estado });
+    push(`Tasación movida a “${estadoTasacion[estado].label}”`, "info");
+  };
+
+  const abrirEdicion = (t: Tasacion) => {
+    setEditId(t.id);
+    setDraft(t.valorEstimadoUSD != null ? String(t.valorEstimadoUSD) : "");
+  };
+  const guardarValor = async (t: Tasacion) => {
+    const raw = draft.replace(/[^\d.]/g, "").trim();
+    const nuevo = raw === "" ? null : Number(raw);
+    await updateTasacion(t.id, { valorEstimadoUSD: Number.isFinite(nuevo as number) ? nuevo : null });
+    setEditId(null);
+    push("Valuación actualizada ✓", "success");
   };
 
   const solicitadas = allTas.filter((t) => t.estado === "solicitada").length;
@@ -68,13 +92,12 @@ export default function Tasaciones() {
 
       <div className="pcard overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-graph/[0.07] bg-graph/[0.03] text-left text-xs font-semibold uppercase tracking-wide text-graph-400">
                 <th className="px-5 py-3">Solicitante</th>
                 <th className="px-5 py-3">Zona</th>
                 <th className="px-5 py-3 text-right">Superficie</th>
-                <th className="px-5 py-3">Aptitud</th>
                 <th className="px-5 py-3">Fecha</th>
                 <th className="px-5 py-3 text-right">Valor estimado</th>
                 <th className="px-5 py-3">Estado</th>
@@ -83,6 +106,7 @@ export default function Tasaciones() {
             <tbody className="divide-y divide-graph/[0.07]">
               {allTas.map((t) => {
                 const e = estadoTasacion[t.estado];
+                const editando = editId === t.id;
                 return (
                   <tr key={t.id} className="transition hover:bg-graph/[0.03]">
                     <td className="px-5 py-3.5">
@@ -90,13 +114,51 @@ export default function Tasaciones() {
                       <p className="text-xs text-graph-400">{t.contacto}</p>
                     </td>
                     <td className="px-5 py-3.5 text-graph-500">{t.zona}</td>
-                    <td className="px-5 py-3.5 text-right font-medium text-graph">{fmtHa(t.hectareas)}</td>
-                    <td className="px-5 py-3.5 capitalize text-graph-500">{t.aptitud}</td>
+                    <td className="px-5 py-3.5 text-right font-medium text-graph">{t.hectareas ? `${fmtNum(t.hectareas)} m²` : "—"}</td>
                     <td className="px-5 py-3.5 text-graph-400">{fmtFecha(t.fechaISO)}</td>
-                    <td className={cn("px-5 py-3.5 text-right font-display font-semibold", t.valorEstimadoUSD ? "text-graph" : "text-graph-400")}>
-                      {t.valorEstimadoUSD ? fmtUSD(t.valorEstimadoUSD, { short: true }) : "Pendiente"}
+                    <td className="px-5 py-3.5 text-right">
+                      {editando ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={draft}
+                          onChange={(ev) => setDraft(ev.target.value)}
+                          onBlur={() => guardarValor(t)}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") guardarValor(t);
+                            if (ev.key === "Escape") setEditId(null);
+                          }}
+                          placeholder="U$S"
+                          className="h-8 w-28 rounded-lg border border-brand/40 bg-graph/[0.04] px-2 text-right text-sm text-graph outline-none focus:ring-2 focus:ring-brand/15"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => abrirEdicion(t)}
+                          title="Cargar / editar valuación"
+                          className={cn(
+                            "group inline-flex items-center justify-end gap-1.5 rounded-lg px-2 py-1 font-display font-semibold transition hover:bg-graph/[0.06]",
+                            t.valorEstimadoUSD ? "text-graph" : "text-graph-400"
+                          )}
+                        >
+                          {t.valorEstimadoUSD ? fmtUSD(t.valorEstimadoUSD, { short: true }) : "Pendiente"}
+                          <Pencil size={12} className="text-graph-400 opacity-0 transition group-hover:opacity-100" />
+                        </button>
+                      )}
                     </td>
-                    <td className="px-5 py-3.5"><Badge tone={e.tone} dot>{e.label}</Badge></td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <Badge tone={e.tone} dot>{e.label}</Badge>
+                        <select
+                          value={t.estado}
+                          onChange={(ev) => cambiarEstado(t.id, ev.target.value as Tasacion["estado"])}
+                          className="h-9 rounded-lg border border-graph/10 bg-graph/[0.04] px-2.5 text-xs font-medium text-graph-500 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
+                        >
+                          {ESTADOS_TAS.map((s) => (
+                            <option key={s} value={s} className="bg-paper-100 text-graph">{estadoTasacion[s].label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -128,19 +190,11 @@ export default function Tasaciones() {
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Zona</span>
-            <input className={inputCls} placeholder="Partido / localidad" value={form.zona} onChange={(e) => set("zona", e.target.value)} />
+            <input className={inputCls} placeholder="Barrio / dirección" value={form.zona} onChange={(e) => set("zona", e.target.value)} />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-graph-400">Hectáreas</span>
-            <input type="number" className={inputCls} placeholder="500" value={form.hectareas} onChange={(e) => set("hectareas", e.target.value)} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-graph-400">Aptitud</span>
-            <select className={inputCls} value={form.aptitud} onChange={(e) => set("aptitud", e.target.value)}>
-              <option value="agrícola" className="bg-paper-100 text-graph">Agrícola</option>
-              <option value="ganadera" className="bg-paper-100 text-graph">Ganadera</option>
-              <option value="mixta" className="bg-paper-100 text-graph">Mixta</option>
-            </select>
+          <label className="block sm:col-span-2">
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Superficie (m²)</span>
+            <input type="number" className={inputCls} placeholder="120" value={form.metros} onChange={(e) => set("metros", e.target.value)} />
           </label>
         </form>
       </Modal>

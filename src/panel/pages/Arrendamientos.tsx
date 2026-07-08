@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { AlertTriangle, FileSignature, DollarSign, CalendarX } from "lucide-react";
+import { AlertTriangle, FileSignature, DollarSign, CalendarX, RefreshCw } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
-import { fmtUSD, fmtFecha, fmtHa } from "@/lib/format";
+import { fmtUSD, fmtFecha } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
 import { Btn } from "../components/Controls";
 import Badge from "../components/Badge";
@@ -15,17 +15,23 @@ import type { Arrendamiento } from "@/data/types";
 const inputCls =
   "h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15";
 
+// Estados posibles de un contrato (deriva del tipo, sin inventar campos)
+const ESTADOS_ARR: Arrendamiento["estado"][] = ["vigente", "por_vencer", "vencido"];
+
+// El importe se administra a nivel anual en el modelo; la inmobiliaria urbana razona en mensual.
+const mensualDe = (anualUSD: number) => Math.round(anualUSD / 12);
+
 export default function Arrendamientos() {
   const { push } = useToast();
-  const { arrendamientos: allArr, getProp, propiedades, addArrendamiento } = useData();
+  const { arrendamientos: allArr, getProp, propiedades, addArrendamiento, updateArrendamiento } = useData();
   const [open, setOpen] = useState(false);
 
-  const vacio = { arrendatario: "", campoId: "", hectareas: "", valorAnualUSD: "", inicioISO: "", vencimientoISO: "" };
+  const vacio = { arrendatario: "", campoId: "", metros: "", mensualUSD: "", inicioISO: "", vencimientoISO: "" };
   const [form, setForm] = useState(vacio);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const crear = async () => {
-    if (!form.arrendatario.trim()) { push("Poné el nombre del arrendatario", "error"); return; }
+    if (!form.arrendatario.trim()) { push("Poné el nombre del inquilino", "error"); return; }
     const inicio = form.inicioISO || new Date().toISOString().slice(0, 10);
     let venc = form.vencimientoISO;
     if (!venc) { const d = new Date(inicio); d.setFullYear(d.getFullYear() + 1); venc = d.toISOString().slice(0, 10); }
@@ -33,8 +39,8 @@ export default function Arrendamientos() {
       id: "ARR-" + Date.now().toString(36),
       campoId: form.campoId || (propiedades[0]?.id ?? ""),
       arrendatario: form.arrendatario.trim(),
-      hectareas: Number(form.hectareas) || 0,
-      valorAnualUSD: Number(form.valorAnualUSD) || 0,
+      hectareas: Number(form.metros) || 0, // el campo guarda la superficie (m²) del inmueble urbano
+      valorAnualUSD: (Number(form.mensualUSD) || 0) * 12, // se ingresa el alquiler mensual, se guarda anualizado
       inicioISO: inicio,
       vencimientoISO: venc,
       estado: "vigente",
@@ -45,12 +51,29 @@ export default function Arrendamientos() {
     push("Contrato registrado ✓", "success");
   };
 
-  const ingresosAnuales = allArr
+  const cambiarEstado = (id: string, estado: Arrendamiento["estado"]) => {
+    updateArrendamiento(id, { estado });
+    push(`Contrato movido a “${estadoArrendamiento[estado].label}”`, "info");
+  };
+
+  const renovar = async (a: Arrendamiento) => {
+    const inicio = new Date();
+    const venc = new Date(inicio);
+    venc.setFullYear(venc.getFullYear() + 1);
+    await updateArrendamiento(a.id, {
+      inicioISO: inicio.toISOString().slice(0, 10),
+      vencimientoISO: venc.toISOString().slice(0, 10),
+      estado: "vigente",
+    });
+    push(`Contrato de ${a.arrendatario} renovado por 12 meses ✓`, "success");
+  };
+
+  const ingresosMensuales = allArr
     .filter((a) => a.estado !== "vencido")
-    .reduce((s, a) => s + a.valorAnualUSD, 0);
+    .reduce((s, a) => s + mensualDe(a.valorAnualUSD), 0);
+  const vigentes = allArr.filter((a) => a.estado === "vigente").length;
   const porVencer = allArr.filter((a) => a.estado === "por_vencer").length;
   const vencidos = allArr.filter((a) => a.estado === "vencido").length;
-  const haTotal = allArr.reduce((s, a) => s + a.hectareas, 0);
 
   const alertas = allArr.filter((a) => a.estado !== "vigente");
 
@@ -58,7 +81,7 @@ export default function Arrendamientos() {
     <div>
       <PageHeader
         title="Alquileres y contratos"
-        subtitle={`${allArr.length} contratos · ${fmtHa(haTotal)} bajo administración`}
+        subtitle={`${allArr.length} contratos · ${vigentes} vigentes`}
         actions={
           <Btn variant="primary" onClick={() => setOpen(true)}>
             <FileSignature size={16} /> Nuevo contrato
@@ -67,7 +90,7 @@ export default function Arrendamientos() {
       />
 
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KpiCard label="Ingresos anuales" value={fmtUSD(ingresosAnuales, { short: true })} icon={DollarSign} accent="field" hint="contratos vigentes" delta="+6%" />
+        <KpiCard label="Renta mensual" value={fmtUSD(ingresosMensuales, { short: true })} icon={DollarSign} accent="field" hint="contratos activos" delta="+6%" />
         <KpiCard label="Por vencer" value={`${porVencer}`} icon={AlertTriangle} accent="wheat" hint="renovar pronto" />
         <KpiCard label="Vencidos" value={`${vencidos}`} icon={CalendarX} accent="clay" hint="requieren acción" />
       </div>
@@ -90,15 +113,15 @@ export default function Arrendamientos() {
 
       <div className="pcard overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr className="border-b border-graph/[0.07] bg-graph/[0.03] text-left text-xs font-semibold uppercase tracking-wide text-graph-400">
-                <th className="px-5 py-3">Propiedad / Arrendatario</th>
-                <th className="px-5 py-3 text-right">Superficie</th>
-                <th className="px-5 py-3 text-right">Valor anual</th>
+                <th className="px-5 py-3">Propiedad / Inquilino</th>
+                <th className="px-5 py-3 text-right">Alquiler mensual</th>
                 <th className="px-5 py-3">Inicio</th>
                 <th className="px-5 py-3">Vencimiento</th>
                 <th className="px-5 py-3">Estado</th>
+                <th className="px-5 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-graph/[0.07]">
@@ -118,13 +141,32 @@ export default function Arrendamientos() {
                       </p>
                       <p className="text-xs text-graph-400">{campo?.zona ?? a.campoId} · {a.id}</p>
                     </td>
-                    <td className="px-5 py-3.5 text-right font-medium text-graph">{fmtHa(a.hectareas)}</td>
-                    <td className="px-5 py-3.5 text-right font-display font-semibold text-graph">{fmtUSD(a.valorAnualUSD)}</td>
+                    <td className="px-5 py-3.5 text-right font-display font-semibold text-graph">
+                      {fmtUSD(mensualDe(a.valorAnualUSD))}<span className="text-xs font-normal text-graph-400">/mes</span>
+                    </td>
                     <td className="px-5 py-3.5 text-graph-400">{fmtFecha(a.inicioISO)}</td>
                     <td className={cn("px-5 py-3.5 font-medium", a.estado === "vencido" ? "text-red-700" : a.estado === "por_vencer" ? "text-brand" : "text-graph-400")}>
                       {fmtFecha(a.vencimientoISO)}
                     </td>
-                    <td className="px-5 py-3.5"><Badge tone={e.tone} dot>{e.label}</Badge></td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <Badge tone={e.tone} dot>{e.label}</Badge>
+                        <select
+                          value={a.estado}
+                          onChange={(ev) => cambiarEstado(a.id, ev.target.value as Arrendamiento["estado"])}
+                          className="h-9 rounded-lg border border-graph/10 bg-graph/[0.04] px-2.5 text-xs font-medium text-graph-500 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
+                        >
+                          {ESTADOS_ARR.map((s) => (
+                            <option key={s} value={s} className="bg-paper-100 text-graph">{estadoArrendamiento[s].label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <Btn variant="soft" onClick={() => renovar(a)} className="h-9 px-3 text-xs">
+                        <RefreshCw size={14} /> Renovar
+                      </Btn>
+                    </td>
                   </tr>
                 );
               })}
@@ -147,7 +189,7 @@ export default function Arrendamientos() {
       >
         <form className="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); crear(); }}>
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-xs font-semibold text-graph-400">Arrendatario</span>
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Inquilino</span>
             <input className={inputCls} placeholder="Nombre o razón social" value={form.arrendatario} onChange={(e) => set("arrendatario", e.target.value)} autoFocus />
           </label>
           <label className="block sm:col-span-2">
@@ -160,12 +202,12 @@ export default function Arrendamientos() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-graph-400">Hectáreas</span>
-            <input type="number" className={inputCls} placeholder="500" value={form.hectareas} onChange={(e) => set("hectareas", e.target.value)} />
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Superficie (m²)</span>
+            <input type="number" className={inputCls} placeholder="80" value={form.metros} onChange={(e) => set("metros", e.target.value)} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-graph-400">Valor anual (U$S)</span>
-            <input type="number" className={inputCls} placeholder="80000" value={form.valorAnualUSD} onChange={(e) => set("valorAnualUSD", e.target.value)} />
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Alquiler mensual (U$S)</span>
+            <input type="number" className={inputCls} placeholder="1200" value={form.mensualUSD} onChange={(e) => set("mensualUSD", e.target.value)} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Inicio</span>

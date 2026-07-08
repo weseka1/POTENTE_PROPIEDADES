@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
-import { Phone, Mail, MapPin, Target, Wallet, Briefcase, UserPlus } from "lucide-react";
+import { Phone, Mail, MapPin, Target, Wallet, Briefcase, UserPlus, Pencil, Trash2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
-import type { Cliente, TipoCliente, Aptitud } from "@/data/types";
-import { fmtUSD, fmtFecha, fmtHa } from "@/lib/format";
+import type { Cliente, TipoCliente } from "@/data/types";
+import { fmtUSD, fmtFecha } from "@/lib/format";
 import { PageHeader, EmptyState } from "../components/PageShell";
 import { SearchInput, Segmented, Btn } from "../components/Controls";
 import Badge from "../components/Badge";
@@ -10,48 +10,110 @@ import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { tipoCliente } from "../ui/estados";
 
+// Barrios de referencia de Mar del Plata para el autocompletado de "¿Qué busca?".
+const BARRIOS_MDP = [
+  "Playa Grande", "Güemes", "Centro", "Punta Mogotes", "Chauvín", "Los Troncos",
+  "Stella Maris", "La Perla", "Varese", "San Carlos", "Chapadmalal",
+];
+
+function rangoAmbientes(c: Cliente): string {
+  if (c.buscaHasMin && c.buscaHasMax) return `${c.buscaHasMin}–${c.buscaHasMax} amb.`;
+  if (c.buscaHasMin) return `desde ${c.buscaHasMin} amb.`;
+  if (c.buscaHasMax) return `hasta ${c.buscaHasMax} amb.`;
+  return "";
+}
+
 function busca(c: Cliente): string {
   const partes: string[] = [];
   if (c.buscaZona) partes.push(c.buscaZona);
-  if (c.buscaHasMin || c.buscaHasMax)
-    partes.push(`${fmtHa(c.buscaHasMin ?? 0)}–${fmtHa(c.buscaHasMax ?? 0)}`);
-  if (c.buscaAptitud) partes.push(c.buscaAptitud);
+  const amb = rangoAmbientes(c);
+  if (amb) partes.push(amb);
   return partes.join(" · ");
 }
 
-const BLANK = { nombre: "", tipo: "comprador", telefono: "", email: "", localidad: "", buscaZona: "", buscaHasMin: "", buscaHasMax: "", buscaAptitud: "", presupuestoUSD: "", notas: "" };
+const BLANK = { nombre: "", tipo: "comprador", telefono: "", email: "", localidad: "", buscaZona: "", buscaHasMin: "", buscaHasMax: "", presupuestoUSD: "", notas: "" };
+type FormState = typeof BLANK;
+
+function toForm(c: Cliente): FormState {
+  return {
+    nombre: c.nombre,
+    tipo: c.tipo,
+    telefono: c.telefono,
+    email: c.email,
+    localidad: c.localidad,
+    buscaZona: c.buscaZona ?? "",
+    buscaHasMin: c.buscaHasMin != null ? String(c.buscaHasMin) : "",
+    buscaHasMax: c.buscaHasMax != null ? String(c.buscaHasMax) : "",
+    presupuestoUSD: c.presupuestoUSD != null ? String(c.presupuestoUSD) : "",
+    notas: c.notas ?? "",
+  };
+}
+
+// Campos comunes al alta y a la edición (lo que no es id / operaciones / fecha de alta).
+function datosDesdeForm(form: FormState) {
+  return {
+    nombre: form.nombre.trim(),
+    tipo: form.tipo as TipoCliente,
+    telefono: form.telefono.trim(),
+    email: form.email.trim(),
+    localidad: form.localidad.trim(),
+    buscaZona: form.buscaZona.trim() || undefined,
+    buscaHasMin: form.buscaHasMin ? Number(form.buscaHasMin) : undefined,
+    buscaHasMax: form.buscaHasMax ? Number(form.buscaHasMax) : undefined,
+    presupuestoUSD: form.presupuestoUSD ? Number(form.presupuestoUSD) : undefined,
+    notas: form.notas.trim(),
+  };
+}
 
 export default function CRM() {
   const { push } = useToast();
-  const { clientes: allClientes, addCliente } = useData();
+  const { clientes: allClientes, addCliente, updateCliente, deleteCliente } = useData();
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState("todos");
   const [sel, setSel] = useState<Cliente | null>(null);
+  const [editando, setEditando] = useState(false);
   const [nuevo, setNuevo] = useState(false);
-  const [form, setForm] = useState(BLANK);
-  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const [form, setForm] = useState<FormState>(BLANK);
+  const setF = (k: keyof FormState, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const abrirDetalle = (c: Cliente) => { setSel(c); setEditando(false); };
+  const cerrarDetalle = () => { setSel(null); setEditando(false); };
 
   const guardarCliente = () => {
     if (!form.nombre.trim()) { push("Poné al menos el nombre del cliente", "info"); return; }
     const c: Cliente = {
       id: "CLI-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
-      nombre: form.nombre.trim(),
-      tipo: form.tipo as TipoCliente,
-      telefono: form.telefono.trim(),
-      email: form.email.trim(),
-      localidad: form.localidad.trim(),
-      buscaZona: form.buscaZona.trim() || undefined,
-      buscaHasMin: form.buscaHasMin ? Number(form.buscaHasMin) : undefined,
-      buscaHasMax: form.buscaHasMax ? Number(form.buscaHasMax) : undefined,
-      buscaAptitud: (form.buscaAptitud || undefined) as Aptitud | undefined,
-      presupuestoUSD: form.presupuestoUSD ? Number(form.presupuestoUSD) : undefined,
+      ...datosDesdeForm(form),
       operaciones: 0,
       desdeISO: new Date().toISOString().slice(0, 10),
-      notas: form.notas.trim(),
     };
     addCliente(c);
     push("Cliente agregado ✓", "success");
     setForm(BLANK); setNuevo(false);
+  };
+
+  const empezarEdicion = () => {
+    if (!sel) return;
+    setForm(toForm(sel));
+    setEditando(true);
+  };
+
+  const guardarEdicion = () => {
+    if (!sel) return;
+    if (!form.nombre.trim()) { push("Poné al menos el nombre del cliente", "info"); return; }
+    const patch = datosDesdeForm(form);
+    updateCliente(sel.id, patch);
+    setSel({ ...sel, ...patch });
+    setEditando(false);
+    push("Cambios guardados ✓", "success");
+  };
+
+  const borrarCliente = () => {
+    if (!sel) return;
+    if (!window.confirm(`¿Eliminar a ${sel.nombre} de la cartera de clientes?`)) return;
+    deleteCliente(sel.id);
+    push("Cliente eliminado", "success");
+    cerrarDetalle();
   };
 
   const counts = useMemo(() => {
@@ -76,7 +138,7 @@ export default function CRM() {
         title="Clientes"
         subtitle={`${allClientes.length} clientes · compradores, propietarios e inversores`}
         actions={
-          <Btn variant="primary" onClick={() => setNuevo(true)}>
+          <Btn variant="primary" onClick={() => { setForm(BLANK); setNuevo(true); }}>
             <UserPlus size={16} /> Nuevo cliente
           </Btn>
         }
@@ -106,7 +168,7 @@ export default function CRM() {
             return (
               <button
                 key={c.id}
-                onClick={() => setSel(c)}
+                onClick={() => abrirDetalle(c)}
                 className="group pcard pcard-hover p-5 text-left"
               >
                 <div className="flex items-start justify-between">
@@ -150,15 +212,34 @@ export default function CRM() {
         </div>
       )}
 
-      {/* detalle */}
+      {/* detalle / edición */}
       <Modal
         open={!!sel}
-        onClose={() => setSel(null)}
-        title={sel?.nombre}
-        subtitle={sel ? `${tipoCliente[sel.tipo].label} · ${sel.localidad}` : ""}
+        onClose={cerrarDetalle}
+        title={editando ? "Editar cliente" : sel?.nombre}
+        subtitle={sel ? (editando ? "Actualizá los datos y guardá los cambios." : `${tipoCliente[sel.tipo].label} · ${sel.localidad}`) : ""}
         size="lg"
+        footer={
+          sel && (
+            editando ? (
+              <>
+                <Btn variant="ghost" onClick={() => setEditando(false)}>Cancelar</Btn>
+                <Btn variant="primary" onClick={guardarEdicion}>Guardar cambios</Btn>
+              </>
+            ) : (
+              <>
+                <Btn variant="ghost" className="mr-auto text-red-700 hover:border-red-400/40 hover:text-red-800" onClick={borrarCliente}>
+                  <Trash2 size={15} /> Eliminar
+                </Btn>
+                <Btn variant="primary" onClick={empezarEdicion}>
+                  <Pencil size={15} /> Editar
+                </Btn>
+              </>
+            )
+          )
+        }
       >
-        {sel && (
+        {sel && !editando && (
           <div className="space-y-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Info icon={<Phone size={14} />} label="Teléfono" value={sel.telefono} />
@@ -173,11 +254,8 @@ export default function CRM() {
                   <Target size={12} /> Perfil de búsqueda
                 </p>
                 <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                  {sel.buscaZona && <Mini label="Zona" value={sel.buscaZona} />}
-                  {(sel.buscaHasMin || sel.buscaHasMax) && (
-                    <Mini label="Superficie" value={`${sel.buscaHasMin ?? 0}–${sel.buscaHasMax ?? 0} ha`} />
-                  )}
-                  {sel.buscaAptitud && <Mini label="Aptitud" value={sel.buscaAptitud} />}
+                  {sel.buscaZona && <Mini label="Zona / barrio" value={sel.buscaZona} />}
+                  {rangoAmbientes(sel) && <Mini label="Ambientes" value={rangoAmbientes(sel)} />}
                   {sel.presupuestoUSD && <Mini label="Presupuesto" value={fmtUSD(sel.presupuestoUSD, { short: true })} />}
                 </div>
               </div>
@@ -190,6 +268,8 @@ export default function CRM() {
             </div>
           </div>
         )}
+
+        {sel && editando && <ClienteForm form={form} setF={setF} />}
       </Modal>
 
       {/* alta de cliente */}
@@ -206,69 +286,71 @@ export default function CRM() {
           </>
         }
       >
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Nombre y apellido" full>
-              <input value={form.nombre} onChange={(e) => setF("nombre", e.target.value)} placeholder="Ej: Jorge Lemos" className={INP} autoFocus />
-            </Field>
-            <Field label="Tipo de cliente">
-              <select value={form.tipo} onChange={(e) => setF("tipo", e.target.value)} className={INP}>
-                <option value="comprador">Comprador</option>
-                <option value="propietario">Propietario</option>
-                <option value="inversor">Inversor</option>
-              </select>
-            </Field>
-            <Field label="Localidad">
-              <input value={form.localidad} onChange={(e) => setF("localidad", e.target.value)} placeholder="Ej: Mar del Plata" className={INP} />
-            </Field>
-            <Field label="Teléfono">
-              <input value={form.telefono} onChange={(e) => setF("telefono", e.target.value)} placeholder="Ej: 223 555-1234" className={INP} />
-            </Field>
-            <Field label="Email">
-              <input value={form.email} onChange={(e) => setF("email", e.target.value)} placeholder="cliente@mail.com" className={INP} />
-            </Field>
-          </div>
-
-          <div className="rounded-xl border border-graph/[0.07] bg-graph/[0.02] p-4">
-            <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-graph-400">
-              <Target size={12} className="text-brand" /> Qué busca <span className="font-normal normal-case text-graph-400">(opcional)</span>
-            </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Field label="Zona">
-                <input value={form.buscaZona} onChange={(e) => setF("buscaZona", e.target.value)} placeholder="Playa Grande" className={INP} />
-              </Field>
-              <Field label="Aptitud">
-                <select value={form.buscaAptitud} onChange={(e) => setF("buscaAptitud", e.target.value)} className={INP}>
-                  <option value="">—</option>
-                  <option value="agrícola">Agrícola</option>
-                  <option value="ganadera">Ganadera</option>
-                  <option value="mixta">Mixta</option>
-                </select>
-              </Field>
-              <Field label="Ha (desde)">
-                <input value={form.buscaHasMin} onChange={(e) => setF("buscaHasMin", e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="100" className={INP} />
-              </Field>
-              <Field label="Ha (hasta)">
-                <input value={form.buscaHasMax} onChange={(e) => setF("buscaHasMax", e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="500" className={INP} />
-              </Field>
-            </div>
-            <div className="mt-3">
-              <Field label="Presupuesto (U$S)">
-                <input value={form.presupuestoUSD} onChange={(e) => setF("presupuestoUSD", e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="1500000" className={INP} />
-              </Field>
-            </div>
-          </div>
-
-          <Field label="Notas" full>
-            <textarea value={form.notas} onChange={(e) => setF("notas", e.target.value)} rows={3} placeholder="Datos sueltos, preferencias, de dónde lo conocemos…" className={INP + " h-auto resize-y py-2.5"} />
-          </Field>
-        </div>
+        <ClienteForm form={form} setF={setF} />
       </Modal>
     </div>
   );
 }
 
 const INP = "h-10 w-full rounded-xl border border-graph/15 bg-paper-100 px-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand/60 focus:bg-white focus:ring-2 focus:ring-brand/15";
+
+// Formulario reutilizable de alta y edición de cliente.
+function ClienteForm({ form, setF }: { form: FormState; setF: (k: keyof FormState, v: string) => void }) {
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Nombre y apellido" full>
+          <input value={form.nombre} onChange={(e) => setF("nombre", e.target.value)} placeholder="Ej: Jorge Lemos" className={INP} autoFocus />
+        </Field>
+        <Field label="Tipo de cliente">
+          <select value={form.tipo} onChange={(e) => setF("tipo", e.target.value)} className={INP}>
+            <option value="comprador">Comprador</option>
+            <option value="propietario">Propietario</option>
+            <option value="inversor">Inversor</option>
+          </select>
+        </Field>
+        <Field label="Localidad">
+          <input value={form.localidad} onChange={(e) => setF("localidad", e.target.value)} placeholder="Ej: Mar del Plata" className={INP} />
+        </Field>
+        <Field label="Teléfono">
+          <input value={form.telefono} onChange={(e) => setF("telefono", e.target.value)} placeholder="Ej: 223 555-1234" className={INP} />
+        </Field>
+        <Field label="Email">
+          <input value={form.email} onChange={(e) => setF("email", e.target.value)} placeholder="cliente@mail.com" className={INP} />
+        </Field>
+      </div>
+
+      <div className="rounded-xl border border-graph/[0.07] bg-graph/[0.02] p-4">
+        <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-graph-400">
+          <Target size={12} className="text-brand" /> Qué busca <span className="font-normal normal-case text-graph-400">(opcional)</span>
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="Zona / barrio" full>
+            <input value={form.buscaZona} onChange={(e) => setF("buscaZona", e.target.value)} placeholder="Ej: Playa Grande" list="barrios-mdp" className={INP} />
+            <datalist id="barrios-mdp">
+              {BARRIOS_MDP.map((b) => <option key={b} value={b} />)}
+            </datalist>
+          </Field>
+          <Field label="Ambientes (desde)">
+            <input value={form.buscaHasMin} onChange={(e) => setF("buscaHasMin", e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="2" className={INP} />
+          </Field>
+          <Field label="Ambientes (hasta)">
+            <input value={form.buscaHasMax} onChange={(e) => setF("buscaHasMax", e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="4" className={INP} />
+          </Field>
+        </div>
+        <div className="mt-3">
+          <Field label="Presupuesto (U$S)">
+            <input value={form.presupuestoUSD} onChange={(e) => setF("presupuestoUSD", e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="280000" className={INP} />
+          </Field>
+        </div>
+      </div>
+
+      <Field label="Notas" full>
+        <textarea value={form.notas} onChange={(e) => setF("notas", e.target.value)} rows={3} placeholder="Datos sueltos, preferencias, de dónde lo conocemos…" className={INP + " h-auto resize-y py-2.5"} />
+      </Field>
+    </div>
+  );
+}
 
 function Field({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {
   return (

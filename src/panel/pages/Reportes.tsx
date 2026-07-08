@@ -95,9 +95,9 @@ export default function Reportes() {
 
       autoTable(doc, {
         startY: 138,
-        head: [["Zona", "Propiedades", "Hectáreas", "Valor"]],
-        body: porZona.map((r) => [r.zona, String(r.campos), fmtNum(r.ha), r.valor ? fmtUSD(r.valor, { short: true }) : "—"]),
-        foot: [["Total", String(totProp), fmtHa(totHa), fmtUSD(totVal, { short: true })]],
+        head: [["Zona", "Propiedades", "Ticket prom.", "Valor"]],
+        body: porZona.map((r) => [r.zona, String(r.campos), r.valor && r.campos ? fmtUSD(r.valor / r.campos, { short: true }) : "—", r.valor ? fmtUSD(r.valor, { short: true }) : "—"]),
+        foot: [["Total", String(totProp), "—", fmtUSD(totVal, { short: true })]],
         headStyles: { fillColor: [12, 77, 162], textColor: 255, fontStyle: "bold" },
         footStyles: { fillColor: [240, 237, 228], textColor: 35, fontStyle: "bold" },
         styles: { fontSize: 9, cellPadding: 5 },
@@ -143,9 +143,9 @@ export default function Reportes() {
       rows.push(["Potente Propiedades — Reporte de gestión", hoy.toLocaleDateString("es-AR")]);
       rows.push([]);
       rows.push(["Cartera por zona"]);
-      rows.push(["Zona", "Propiedades", "Hectáreas", "Valor USD"]);
-      porZona.forEach((r) => rows.push([r.zona, r.campos, Math.round(r.ha), Math.round(r.valor)]));
-      rows.push(["Total", totProp, Math.round(totHa), Math.round(totVal)]);
+      rows.push(["Zona", "Propiedades", "Ticket promedio USD", "Valor USD"]);
+      porZona.forEach((r) => rows.push([r.zona, r.campos, r.campos ? Math.round(r.valor / r.campos) : 0, Math.round(r.valor)]));
+      rows.push(["Total", totProp, "", Math.round(totVal)]);
       rows.push([]);
       rows.push(["Conversión por canal"]);
       rows.push(["Canal", "Consultas", "Cerradas", "Conversión %"]);
@@ -208,8 +208,8 @@ export default function Reportes() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* valor por aptitud (barras) */}
-        <ChartCard title="Valor de cartera por aptitud" subtitle="U$S por tipo de campo">
+        {/* valor por tipo (barras) */}
+        <ChartCard title="Valor de cartera por tipo" subtitle="U$S por tipo de propiedad">
           <ResponsiveContainer width="100%" height={230}>
             <BarChart data={valorAptitud}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.ink10} vertical={false} />
@@ -254,7 +254,7 @@ export default function Reportes() {
               <tr className="border-b border-graph/[0.07] bg-graph/[0.03] text-left text-xs font-semibold uppercase tracking-wide text-graph-400">
                 <th className="px-5 py-2.5">Zona</th>
                 <th className="px-5 py-2.5 text-center">Propiedades</th>
-                <th className="px-5 py-2.5 text-right">Hectáreas</th>
+                <th className="px-5 py-2.5 text-right">Ticket prom.</th>
                 <th className="px-5 py-2.5 text-right">Valor</th>
               </tr>
             </thead>
@@ -263,7 +263,7 @@ export default function Reportes() {
                 <tr key={r.zona} className="transition hover:bg-graph/[0.03]">
                   <td className="px-5 py-2.5 font-medium text-graph">{r.zona}</td>
                   <td className="px-5 py-2.5 text-center text-graph-500">{r.campos}</td>
-                  <td className="px-5 py-2.5 text-right text-graph-500">{fmtNum(r.ha)}</td>
+                  <td className="px-5 py-2.5 text-right text-graph-500">{r.valor && r.campos ? fmtUSD(r.valor / r.campos, { short: true }) : "—"}</td>
                   <td className="px-5 py-2.5 text-right font-display font-semibold text-graph">
                     {r.valor ? fmtUSD(r.valor, { short: true }) : "—"}
                   </td>
@@ -274,7 +274,7 @@ export default function Reportes() {
               <tr className="border-t border-graph/[0.07] bg-graph/[0.04] font-semibold text-graph">
                 <td className="px-5 py-2.5">Total</td>
                 <td className="px-5 py-2.5 text-center">{porZona.reduce((a, r) => a + r.campos, 0)}</td>
-                <td className="px-5 py-2.5 text-right">{fmtHa(porZona.reduce((a, r) => a + r.ha, 0))}</td>
+                <td className="px-5 py-2.5 text-right text-graph-400">—</td>
                 <td className="px-5 py-2.5 text-right font-display">{fmtUSD(porZona.reduce((a, r) => a + r.valor, 0), { short: true })}</td>
               </tr>
             </tfoot>

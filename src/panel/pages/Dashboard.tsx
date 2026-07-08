@@ -54,8 +54,8 @@ export default function Dashboard() {
     .sort((a, b) => +new Date(a.fechaISO) - +new Date(b.fechaISO))
     .slice(0, 4);
 
-  // Hectáreas totales: sólo donde exista el dato (propiedades rurales).
-  const hectareasTotales = propiedades.reduce((a, p) => a + (p.hectareas ?? 0), 0);
+  // Superficie total de la cartera en m² (metros totales o cubiertos de cada propiedad).
+  const m2Cartera = propiedades.reduce((a, p) => a + (p.m2totales ?? p.m2cubiertos ?? 0), 0);
   const hoyLargo = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
@@ -174,7 +174,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Cartera por aptitud" subtitle="Valor U$S por tipo de campo">
+            <ChartCard title="Cartera por tipo" subtitle="Valor U$S por tipo de propiedad">
               <ResponsiveContainer width="100%" height={210}>
                 <PieChart>
                   <Pie
@@ -290,7 +290,7 @@ export default function Dashboard() {
           {/* resumen rápido */}
           <div className="rounded-2xl border border-brand/25 bg-gradient-to-br from-brand/[0.12] to-transparent p-5 shadow-soft">
             <p className="text-xs font-semibold uppercase tracking-widest2 text-brand">Cartera total</p>
-            <p className="mt-2 font-display text-2xl font-semibold text-graph">{fmtNum(hectareasTotales)} ha</p>
+            <p className="mt-2 font-display text-2xl font-semibold text-graph">{fmtNum(m2Cartera)} m²</p>
             <p className="mt-1 text-sm text-graph-400">
               {kpis.camposTotal} propiedades · {kpis.clientes} clientes activos
             </p>

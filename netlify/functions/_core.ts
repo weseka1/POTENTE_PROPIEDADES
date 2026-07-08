@@ -38,6 +38,32 @@ function extractJson(text: string): any {
 
 export type ResultadoAsistente = { status: number; data: Record<string, unknown> };
 
+// Chat genérico con system prompt libre (lo usa el Probador del panel).
+// La key vive en el servidor; el navegador no la ve.
+export async function chatGenerico(body: any): Promise<ResultadoAsistente> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { status: 503, data: { error: "El asistente no está configurado en el servidor (falta ANTHROPIC_API_KEY)." } };
+
+  const system = String(body?.system ?? "").slice(0, 8000);
+  const raw = Array.isArray(body?.messages) ? body.messages.slice(-16) : [];
+  const messages = raw
+    .map((m: any) => ({
+      role: (m?.role === "assistant" ? "assistant" : "user") as "assistant" | "user",
+      content: String(m?.content ?? "").slice(0, 4000),
+    }))
+    .filter((m: any) => m.content);
+  if (!messages.length) return { status: 400, data: { error: "Sin mensajes." } };
+
+  const client = new Anthropic({ apiKey });
+  try {
+    const resp = await client.messages.create({ model: "claude-haiku-4-5", max_tokens: 700, system, messages });
+    const text = (resp.content.find((b: any) => b.type === "text") as any)?.text ?? "";
+    return { status: 200, data: { text } };
+  } catch (e: any) {
+    return { status: 502, data: { error: String(e?.message ?? e) } };
+  }
+}
+
 export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { status: 503, data: { error: "El asistente no está configurado (falta ANTHROPIC_API_KEY)." } };

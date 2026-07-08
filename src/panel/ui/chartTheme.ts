@@ -1,22 +1,23 @@
 // Paleta de marca para charts (recharts) — tema CLARO premium (flow Apple).
+// Familia azul atlántico Potente: un solo tono, distintas intensidades (nada de dorado/marrón).
 export const COLORS = {
-  ink: "#171A17", // grafito (tinta)
-  bone: "#171A17", // alias: cualquier texto que usaba "bone" ahora es grafito
-  wheat: "#C9A24E",
-  wheat400: "#D8B566",
+  ink: "#0D1521", // grafito azulado (tinta)
+  bone: "#0D1521", // alias: cualquier texto que usaba "bone" ahora es grafito
+  wheat: "#0C4DA2", // alias histórico → azul marca (serie principal)
+  wheat400: "#2F6FC2",
   field: "#0C4DA2", // azul Potente (un solo azul de marca)
-  field300: "#2F6FC2",
-  clay: "#9C6B3C",
+  field300: "#7FA9DE",
+  clay: "#083469", // alias histórico → navy profundo
   // grilla y ejes sobre fondo claro
-  grid: "rgba(23,26,23,0.07)",
-  axis: "rgba(23,26,23,0.45)",
+  grid: "rgba(13,21,33,0.07)",
+  axis: "rgba(13,21,33,0.45)",
   // alias compatibilidad
-  ink10: "rgba(23,26,23,0.08)",
-  ink60: "rgba(23,26,23,0.55)",
+  ink10: "rgba(13,21,33,0.08)",
+  ink60: "rgba(13,21,33,0.55)",
 };
 
-// Secuencia para series categóricas (torta/donut) — azul de marca al frente, buen contraste en claro.
-export const SERIE = ["#0C4DA2", "#C9A24E", "#9C6B3C", "#2F6FC2", "#1495D8", "#D8B566"];
+// Secuencia para series categóricas (torta/donut) — degradé de azules de marca, buen contraste en claro.
+export const SERIE = ["#0C4DA2", "#1495D8", "#083469", "#2F6FC2", "#7FA9DE", "#0A4189"];
 
 // Tooltip claro premium reutilizable.
 export const tooltipStyle = {

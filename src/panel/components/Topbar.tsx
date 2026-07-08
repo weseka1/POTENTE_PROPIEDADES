@@ -29,7 +29,13 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar propiedades, clientes, consultas…"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && q.trim()) {
+              navigate(`/panel/cartera?q=${encodeURIComponent(q.trim())}`);
+              setQ("");
+            }
+          }}
+          placeholder="Buscar propiedades por título, zona o ID…  (Enter)"
           className="h-9 w-full rounded-xl border border-graph/15 bg-paper-100 pl-9 pr-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60 focus:bg-white focus:ring-2 focus:ring-brand/15"
         />
       </div>

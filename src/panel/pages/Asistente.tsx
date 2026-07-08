@@ -117,6 +117,23 @@ Respondé corto, humano y al grano, como un WhatsApp. NO inventes datos (precios
 }
 
 async function responderConClaude(cfg: IAConfig, msgs: { role: string; content: string }[], key: string): Promise<string> {
+  // Sin key en el navegador → usa el servidor (la clave vive segura ahí, como en producción).
+  if (!key) {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ system: buildSystem(cfg), messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
+    });
+    const data = await res.json().catch(() => ({} as any));
+    if (!res.ok) {
+      const m: string = data?.error || "";
+      if (/no está configurado|ANTHROPIC_API_KEY/i.test(m)) throw new Error("El asistente todavía no está activado en el servidor. Cargá la API key en el deploy (o pegá tu clave abajo) para probarlo.");
+      if (/credit balance/i.test(m)) throw new Error("La cuenta de Anthropic no tiene créditos. Cargá saldo en console.anthropic.com (Plans & Billing).");
+      throw new Error(m || "No se pudo conectar con el asistente.");
+    }
+    return data?.text || "(sin respuesta)";
+  }
+  // Con key propia (avanzado) → llamada directa a Anthropic desde el navegador.
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
@@ -515,13 +532,14 @@ const EJEMPLOS = ["Hola! Tienen departamentos en Playa Grande?", "Busco una casa
 function Probador({ cfg }: { cfg: IAConfig }) {
   const [key, setKey] = useState<string>(() => { try { return localStorage.getItem("potente_anthropic_key") || ""; } catch { return ""; } });
   const [kin, setKin] = useState("");
+  const [avanzado, setAvanzado] = useState(false);
   const [msgs, setMsgs] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const saveKey = () => { const k = kin.trim(); if (!k) return; try { localStorage.setItem("potente_anthropic_key", k); } catch { /* noop */ } setKey(k); setKin(""); };
-  const clearKey = () => { try { localStorage.removeItem("potente_anthropic_key"); } catch { /* noop */ } setKey(""); setMsgs([]); };
+  const saveKey = () => { const k = kin.trim(); if (!k) return; try { localStorage.setItem("potente_anthropic_key", k); } catch { /* noop */ } setKey(k); setKin(""); setAvanzado(false); };
+  const clearKey = () => { try { localStorage.removeItem("potente_anthropic_key"); } catch { /* noop */ } setKey(""); };
 
   const enviar = async (texto?: string) => {
     const q = (texto ?? input).trim(); if (!q || busy) return;
@@ -532,27 +550,25 @@ function Probador({ cfg }: { cfg: IAConfig }) {
     setBusy(false);
   };
 
-  if (!key) {
-    return (
-      <div className="pcard mx-auto max-w-xl p-6">
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand/15 text-brand ring-1 ring-inset ring-brand/25"><KeyRound size={22} /></span>
-        <h2 className="mt-3 font-display text-lg font-semibold text-graph">Conectá el cerebro</h2>
-        <p className="mt-1 text-sm text-graph-500">Pegá tu API key de Anthropic para que la IA responda de verdad con todo lo que cargaste. Se guarda en tu navegador, no en el sistema.</p>
-        <div className="mt-4 flex gap-2">
-          <input value={kin} onChange={(e) => setKin(e.target.value)} type="password" placeholder="sk-ant-..." className="h-10 flex-1 rounded-xl border border-graph/15 bg-paper-100 px-3 text-sm text-graph outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/15" />
-          <button onClick={saveKey} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-600">Activar</button>
-        </div>
-        <p className="mt-3 text-[11px] text-graph-400">Tip: la clave la sacás de console.anthropic.com. Para producción (responder por WhatsApp) la clave va segura en el servidor, no en el navegador.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="pcard mx-auto max-w-2xl overflow-hidden">
       <div className="flex items-center justify-between border-b border-graph/[0.08] px-5 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-graph"><Bot size={17} className="text-brand" /> Probá a {cfg.nombre || "tu IA"} en vivo</span>
-        <button onClick={clearKey} className="text-[11px] font-medium text-graph-400 transition hover:text-graph">Cambiar clave</button>
+        {key ? (
+          <button onClick={clearKey} className="text-[11px] font-medium text-brand transition hover:text-brand-700">Usando tu clave · quitar</button>
+        ) : (
+          <button onClick={() => setAvanzado((v) => !v)} className="text-[11px] font-medium text-graph-400 transition hover:text-graph">Usar mi API key</button>
+        )}
       </div>
+
+      {avanzado && !key && (
+        <div className="flex items-center gap-2 border-b border-graph/[0.08] bg-graph/[0.02] px-5 py-2.5">
+          <KeyRound size={15} className="shrink-0 text-graph-400" />
+          <input value={kin} onChange={(e) => setKin(e.target.value)} type="password" placeholder="sk-ant-…  (opcional: por defecto usa el servidor)"
+            className="h-9 flex-1 rounded-lg border border-graph/15 bg-paper-100 px-3 text-sm text-graph outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/15" />
+          <button onClick={saveKey} className="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-600">Guardar</button>
+        </div>
+      )}
 
       <div className="max-h-[46vh] min-h-[220px] space-y-3 overflow-y-auto bg-graph/[0.015] px-5 py-4">
         {msgs.length === 0 && (

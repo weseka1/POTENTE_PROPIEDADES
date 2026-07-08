@@ -29,11 +29,11 @@ export function canAccess(p: Perfil | undefined, key: string): boolean {
   return (p.permisos || []).includes(key);
 }
 
-const PALETA = ["#0C4DA2", "#C9A24E", "#9C6B3C", "#2F6FC2", "#083469", "#1495D8"];
+const PALETA = ["#0C4DA2", "#1495D8", "#083469", "#2F6FC2", "#0A4189", "#7FA9DE"];
 const DEFAULTS: Perfil[] = [
   { id: "mateo", nombre: "Mateo", rol: "Dirección", foto: null, color: "#0C4DA2", admin: true, permisos: [] },
-  { id: "puntamogotes", nombre: "Punta Mogotes", rol: "Sucursal", foto: null, color: "#C9A24E", admin: false, permisos: [] },
-  { id: "chauvin", nombre: "Chauvín", rol: "Sucursal", foto: null, color: "#9C6B3C", admin: false, permisos: [] },
+  { id: "puntamogotes", nombre: "Punta Mogotes", rol: "Sucursal", foto: null, color: "#1495D8", admin: false, permisos: [] },
+  { id: "chauvin", nombre: "Chauvín", rol: "Sucursal", foto: null, color: "#083469", admin: false, permisos: [] },
 ];
 const LS_PERFILES = "potente_perfiles", LS_ACTIVO = "potente_perfil_activo";
 

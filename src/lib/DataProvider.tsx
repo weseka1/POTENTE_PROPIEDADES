@@ -18,6 +18,44 @@ const seedVisitasR = seedVisitas.map((v) => ({ ...v, fechaISO: rebaseISO(v.fecha
 const seedTasR = seedTas.map((t) => ({ ...t, fechaISO: rebaseISO(t.fechaISO) }));
 const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), vencimientoISO: rebaseISO(a.vencimientoISO) }));
 
+// ===== Persistencia en modo DEMO (sin Supabase) =====
+// Sin base de datos, los cambios del panel viven en localStorage para que
+// sobrevivan al refresh (que Mateo cargue una propiedad y siga ahí). Con Supabase
+// esto no se usa: manda la DB. Versionado para descartar datos si cambian los seeds.
+const SEED_VERSION = "2026-07-08";
+const lsKey = (name: string) => `potente_demo_${name}`;
+
+function loadLocal<T>(name: string, fallback: T): T {
+  if (supabase) return fallback; // con DB, no leemos del cache local
+  try {
+    const raw = localStorage.getItem(lsKey(name));
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed?.v !== SEED_VERSION || !Array.isArray(parsed?.data)) return fallback;
+    return parsed.data as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLocal<T>(name: string, data: T) {
+  if (supabase) return; // con DB, no cacheamos local
+  try {
+    localStorage.setItem(lsKey(name), JSON.stringify({ v: SEED_VERSION, data }));
+  } catch {
+    /* storage lleno o bloqueado → seguimos en memoria */
+  }
+}
+
+// Borra los datos de demo guardados y recarga (botón "Restablecer datos de prueba").
+export function resetDemoData() {
+  try {
+    ["propiedades", "leads", "clientes", "operaciones", "visitas", "tasaciones", "arrendamientos"].forEach((n) =>
+      localStorage.removeItem(lsKey(n))
+    );
+  } catch { /* noop */ }
+}
+
 interface DataCtx {
   loading: boolean;
   online: boolean; // true si la DB respondió
@@ -38,11 +76,13 @@ interface DataCtx {
   updateOperacion: (id: string, patch: Partial<Operacion_>) => Promise<void>;
   addCliente: (c: Cliente) => Promise<void>;
   updateCliente: (id: string, patch: Partial<Cliente>) => Promise<void>;
+  deleteCliente: (id: string) => Promise<void>;
   addVisita: (v: Visita) => Promise<void>;
   updateVisita: (id: string, patch: Partial<Visita>) => Promise<void>;
   addTasacion: (t: Tasacion) => Promise<void>;
   updateTasacion: (id: string, patch: Partial<Tasacion>) => Promise<void>;
   addArrendamiento: (a: Arrendamiento) => Promise<void>;
+  updateArrendamiento: (id: string, patch: Partial<Arrendamiento>) => Promise<void>;
   // asistente IA
   sugerencias: Sugerencia[];
   sugerenciasPendientes: number;
@@ -74,13 +114,23 @@ function computeKpis(propiedades: Propiedad[], leads: Lead[], operaciones: Opera
 export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [online, setOnline] = useState(false);
-  const [propiedades, setPropiedades] = useState<Propiedad[]>(seedPropiedades);
-  const [leads, setLeads] = useState<Lead[]>(seedLeadsR);
-  const [clientes, setClientes] = useState<Cliente[]>(seedClientesR);
-  const [operaciones, setOperaciones] = useState<Operacion_[]>(seedOpsR);
-  const [visitas, setVisitas] = useState<Visita[]>(seedVisitasR);
-  const [tasaciones, setTasaciones] = useState<Tasacion[]>(seedTasR);
-  const [arrendamientos, setArrendamientos] = useState<Arrendamiento[]>(seedArrR);
+  // En modo demo (sin Supabase) rehidratamos desde localStorage; con DB, arrancamos del seed y luego sincroniza.
+  const [propiedades, setPropiedades] = useState<Propiedad[]>(() => loadLocal("propiedades", seedPropiedades));
+  const [leads, setLeads] = useState<Lead[]>(() => loadLocal("leads", seedLeadsR));
+  const [clientes, setClientes] = useState<Cliente[]>(() => loadLocal("clientes", seedClientesR));
+  const [operaciones, setOperaciones] = useState<Operacion_[]>(() => loadLocal("operaciones", seedOpsR));
+  const [visitas, setVisitas] = useState<Visita[]>(() => loadLocal("visitas", seedVisitasR));
+  const [tasaciones, setTasaciones] = useState<Tasacion[]>(() => loadLocal("tasaciones", seedTasR));
+  const [arrendamientos, setArrendamientos] = useState<Arrendamiento[]>(() => loadLocal("arrendamientos", seedArrR));
+
+  // Persistir cada colección en modo demo (no-op si hay Supabase).
+  useEffect(() => { saveLocal("propiedades", propiedades); }, [propiedades]);
+  useEffect(() => { saveLocal("leads", leads); }, [leads]);
+  useEffect(() => { saveLocal("clientes", clientes); }, [clientes]);
+  useEffect(() => { saveLocal("operaciones", operaciones); }, [operaciones]);
+  useEffect(() => { saveLocal("visitas", visitas); }, [visitas]);
+  useEffect(() => { saveLocal("tasaciones", tasaciones); }, [tasaciones]);
+  useEffect(() => { saveLocal("arrendamientos", arrendamientos); }, [arrendamientos]);
 
   // Sincronizar desde Supabase (en segundo plano; si falla, quedan los datos locales)
   useEffect(() => {
@@ -148,6 +198,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setClientes((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await supabase.from("potente_clientes").update(patch).eq("id", id).then(() => {}, () => {});
   };
+  const deleteCliente = async (id: string) => {
+    setClientes((prev) => prev.filter((x) => x.id !== id));
+    if (supabase) await supabase.from("potente_clientes").delete().eq("id", id).then(() => {}, () => {});
+  };
   const addVisita = async (v: Visita) => {
     setVisitas((prev) => [v, ...prev]);
     if (supabase) await supabase.from("potente_visitas").upsert(v).then(() => {}, () => {});
@@ -167,6 +221,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addArrendamiento = async (a: Arrendamiento) => {
     setArrendamientos((prev) => [a, ...prev]);
     if (supabase) await supabase.from("potente_arrendamientos").upsert(a).then(() => {}, () => {});
+  };
+  const updateArrendamiento = async (id: string, patch: Partial<Arrendamiento>) => {
+    setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (supabase) await supabase.from("potente_arrendamientos").update(patch).eq("id", id).then(() => {}, () => {});
   };
 
   // ===== Asistente IA: sugerencias derivadas + las que el humano ya resolvió =====
@@ -211,8 +269,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         loading, online, propiedades, leads, clientes, operaciones, visitas, tasaciones, arrendamientos,
         getProp: (id) => propiedades.find((p) => p.id === id),
-        addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, updateOperacion, addCliente, updateCliente,
-        addVisita, updateVisita, addTasacion, updateTasacion, addArrendamiento,
+        addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, updateOperacion, addCliente, updateCliente, deleteCliente,
+        addVisita, updateVisita, addTasacion, updateTasacion, addArrendamiento, updateArrendamiento,
         sugerencias, sugerenciasPendientes: sugerencias.length, resolverSugerencia,
         kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}

@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { Plus, MapPin, Maximize, Eye, LayoutGrid, List, BedDouble } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
@@ -35,7 +36,9 @@ function specMeta(c: Propiedad): string {
 export default function Cartera() {
   const { propiedades, getProp, updatePropiedad, deletePropiedad } = useData();
   const { push } = useToast();
-  const [q, setQ] = useState("");
+  const [params] = useSearchParams();
+  const [q, setQ] = useState(params.get("q") || "");
+  useEffect(() => { const p = params.get("q"); if (p !== null) setQ(p); }, [params]);
   const [cat, setCat] = useState("todas");
   const [op, setOp] = useState("todas");
   const [est, setEst] = useState("todos");
@@ -74,7 +77,7 @@ export default function Cartera() {
           <>
             <Link
               to="/panel/cargar"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-graph transition hover:bg-brand-600 hover:shadow-soft"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-600 hover:shadow-soft"
             >
               <Plus size={16} /> Nueva propiedad
             </Link>

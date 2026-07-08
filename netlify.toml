@@ -14,6 +14,12 @@
   to = "/.netlify/functions/asistente"
   status = 200
 
+# El Probador del panel usa /api/chat (chat genérico con la key del servidor).
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
+
 # SPA fallback (además de public/_redirects, por si el deploy no lo toma).
 [[redirects]]
   from = "/*"

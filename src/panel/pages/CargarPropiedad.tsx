@@ -8,8 +8,8 @@ import { supabase } from "@/lib/supabase";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
 
 const categorias: { v: Categoria; l: string }[] = [
-  { v: "campo", l: "Campo" }, { v: "casa", l: "Casa" }, { v: "departamento", l: "Departamento" },
-  { v: "lote", l: "Lote" }, { v: "terreno", l: "Terreno" }, { v: "local", l: "Local" },
+  { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "local", l: "Local" },
+  { v: "lote", l: "Lote" }, { v: "terreno", l: "Terreno" }, { v: "campo", l: "Campo" },
 ];
 
 // ── Opciones de la ficha (réplica del papel Potente) ──
@@ -40,7 +40,7 @@ export default function CargarPropiedad() {
   const navigate = useNavigate();
 
   const [f, setF] = useState<any>({
-    categoria: "campo", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires",
+    categoria: "departamento", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires",
     direccion: "", precioUSD: "", precioPorHa: "", hectareas: "", aptitud: "agrícola",
     ambientes: "", dormitorios: "", banos: "", cocheras: "", m2cubiertos: "", m2totales: "",
     descripcion: "", caracteristicas: "", estado: "disponible", destacado: false, esNuevo: true, esOportunidad: false,
@@ -122,7 +122,7 @@ export default function CargarPropiedad() {
       zona: f.zona,
       provincia: f.provincia,
       direccion: f.direccion || undefined,
-      fotos: fotos.length ? fotos : ["/img/campos/u1.jpg"],
+      fotos: fotos.length ? fotos : [esCampo ? "/img/campos/u1.jpg" : "/img/props/depto1.jpg"],
       descripcion: f.descripcion,
       estado: f.estado,
       destacado: f.destacado,
@@ -330,7 +330,7 @@ export default function CargarPropiedad() {
             <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-graph/15 bg-graph/[0.02] py-6 text-center transition hover:border-brand/50 hover:bg-graph/[0.04]">
               <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => subirArchivos(e.target.files, setPlanos, "planos", setSubiendoPlano).then(() => push("Plano subido ✓", "success"))} />
               {subiendoPlano ? <Loader2 size={22} className="animate-spin text-brand" /> : <FileText size={22} className="text-graph-400" />}
-              <span className="text-sm font-medium text-graph-500">{subiendoPlano ? "Subiendo…" : "Subí el plano del campo / propiedad"}</span>
+              <span className="text-sm font-medium text-graph-500">{subiendoPlano ? "Subiendo…" : "Subí el plano de la propiedad"}</span>
               <span className="text-xs text-graph-400">Imagen o PDF</span>
             </label>
             {planos.length > 0 && (
@@ -349,7 +349,7 @@ export default function CargarPropiedad() {
           <section className="pcard p-5">
             <h3 className="mb-3 flex items-center gap-2 font-display text-base font-semibold text-graph"><Video size={16} className="text-brand" /> Video (opcional)</h3>
             <Inp value={f.video} onChange={(v) => set("video", v)} ph="Link de YouTube / drone / recorrido" />
-            <p className="mt-2 text-xs text-graph-400">Pegá el link del video del campo (YouTube, Vimeo o MP4).</p>
+            <p className="mt-2 text-xs text-graph-400">Pegá el link del video de la propiedad (YouTube, Vimeo o MP4).</p>
           </section>
 
           {/* Flags */}

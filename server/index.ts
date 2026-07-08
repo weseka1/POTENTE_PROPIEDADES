@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { atenderAsistente } from "../netlify/functions/_core";
+import { atenderAsistente, chatGenerico } from "../netlify/functions/_core";
 
 // ── Server de producción para Render ──────────────────────────────────────────
 // Sirve el build estático (dist/) + expone el asistente en POST /api/asistente.
@@ -29,6 +29,11 @@ app.use(express.json({ limit: "256kb" }));
 
 app.post("/api/asistente", async (req, res) => {
   const { status, data } = await atenderAsistente(req.body);
+  res.status(status).json(data);
+});
+
+app.post("/api/chat", async (req, res) => {
+  const { status, data } = await chatGenerico(req.body);
   res.status(status).json(data);
 });
 
