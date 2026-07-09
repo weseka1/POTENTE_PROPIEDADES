@@ -7,6 +7,9 @@ import PropiedadCard from "./components/PropiedadCard";
 import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
+import { fmtUSD } from "@/lib/format";
+
+const WHATSAPP = "https://wa.me/5492233029591";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 import { CATEGORIAS } from "@/data/propiedadTypes";
@@ -31,23 +34,35 @@ export default function Catalogo() {
     cat: params.get("cat") || "",
     operacion: params.get("operacion") || "",
     zona: params.get("zona") || "",
+    amb: params.get("amb") || "",
+    max: params.get("max") || "",
     q: params.get("q") || "",
     orden: "destacados",
   });
 
-  // sincronizar categoría si cambia el query param (al clickear nav)
+  // Sincronizar con la URL: el buscador del inicio llega con todo puesto acá.
   useEffect(() => {
-    const cat = params.get("cat") || "";
-    const q = params.get("q") || "";
-    setF((p) => ({ ...p, cat, q: q || p.q }));
+    setF((p) => ({
+      ...p,
+      cat: params.get("cat") || "",
+      operacion: params.get("operacion") || p.operacion,
+      zona: params.get("zona") || p.zona,
+      amb: params.get("amb") || "",
+      max: params.get("max") || "",
+      q: params.get("q") || p.q,
+    }));
   }, [params]);
 
   const resultados = useMemo(() => {
+    const amb = Number(f.amb) || 0;
+    const max = Number(f.max) || 0;
     let r = propiedades.filter(
       (p) =>
         (!f.cat || p.categoria === f.cat) &&
         (!f.operacion || p.operacion === f.operacion) &&
         (!f.zona || p.zona === f.zona) &&
+        (!amb || p.ambientes === amb) &&
+        (!max || (p.precioUSD !== null && p.precioUSD !== undefined && p.precioUSD <= max)) &&
         (!f.q ||
           p.titulo.toLowerCase().includes(f.q.toLowerCase()) ||
           p.zona.toLowerCase().includes(f.q.toLowerCase()))
@@ -69,8 +84,28 @@ export default function Catalogo() {
     else np.delete("cat");
     setParams(np, { replace: true });
   };
-  const limpiar = () => setF({ cat: f.cat, operacion: "", zona: "", q: "", orden: "destacados" });
-  const hayFiltros = f.operacion || f.zona || f.q;
+  const limpiar = () => {
+    setF({ cat: f.cat, operacion: "", zona: "", amb: "", max: "", q: "", orden: "destacados" });
+    const np = new URLSearchParams();
+    if (f.cat) np.set("cat", f.cat);
+    setParams(np, { replace: true });
+  };
+  const hayFiltros = Boolean(f.operacion || f.zona || f.q || f.amb || f.max);
+
+  // Lo que se está aplicando, a la vista y removible de a uno.
+  const quitar = (k: "operacion" | "zona" | "amb" | "max" | "q") => {
+    setF((p) => ({ ...p, [k]: "" }));
+    const np = new URLSearchParams(params);
+    np.delete(k);
+    setParams(np, { replace: true });
+  };
+  const chips: { k: "operacion" | "zona" | "amb" | "max" | "q"; label: string }[] = [
+    ...(f.operacion ? [{ k: "operacion" as const, label: f.operacion === "venta" ? "En venta" : "En alquiler" }] : []),
+    ...(f.zona ? [{ k: "zona" as const, label: f.zona }] : []),
+    ...(f.amb ? [{ k: "amb" as const, label: `${f.amb} ambiente${Number(f.amb) === 1 ? "" : "s"}` }] : []),
+    ...(f.max ? [{ k: "max" as const, label: `hasta ${fmtUSD(Number(f.max), { short: true })}` }] : []),
+    ...(f.q ? [{ k: "q" as const, label: `“${f.q}”` }] : []),
+  ];
 
   return (
     <div className="min-h-screen bg-paper text-graph">
@@ -151,6 +186,24 @@ export default function Catalogo() {
               />
             </div>
           </div>
+
+          {/* Lo que se está aplicando: el visitante ve por qué salen esos resultados. */}
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pb-3">
+              <span className="text-xs text-graph-400">Buscando:</span>
+              {chips.map((c) => (
+                <button
+                  key={c.k}
+                  onClick={() => quitar(c.k)}
+                  className="group inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/[0.07] py-1 pl-3 pr-2 text-xs font-medium capitalize text-brand-700 transition hover:border-brand/50 hover:bg-brand/[0.12]"
+                  title="Quitar este filtro"
+                >
+                  {c.label}
+                  <X size={13} className="text-brand/50 transition group-hover:text-brand" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -160,9 +213,20 @@ export default function Catalogo() {
             {resultados.length} {resultados.length === 1 ? "propiedad" : "propiedades"}
           </p>
           {resultados.length === 0 ? (
-            <div className="py-24 text-center text-graph-500">
-              <p className="font-display text-2xl text-graph">No encontramos propiedades con esos filtros</p>
-              <button onClick={limpiar} className="btn-ghost mt-6">Limpiar filtros</button>
+            <div className="mx-auto max-w-lg py-20 text-center">
+              <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-brand-50 text-brand">
+                <Search size={28} />
+              </span>
+              <p className="mt-5 font-display text-2xl text-graph">No encontramos nada con esa búsqueda</p>
+              <p className="mt-2 text-graph-500">
+                Probá sacando algún filtro, o escribinos y te buscamos nosotros: conocemos propiedades que todavía no están publicadas.
+              </p>
+              <div className="mt-7 flex flex-wrap justify-center gap-3">
+                <button onClick={limpiar} className="btn-ghost">Ver todas las propiedades</button>
+                <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary">
+                  Consultar por WhatsApp
+                </a>
+              </div>
             </div>
           ) : (
             <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">

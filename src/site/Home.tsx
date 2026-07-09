@@ -10,6 +10,7 @@ import PropiedadCard from "./components/PropiedadCard";
 import UISelect from "@/components/Select";
 import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
+import { parseBusqueda, aQueryString, rutaTemporada } from "./lib/parseBusqueda";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 
@@ -64,21 +65,22 @@ export default function Home() {
   const [q, setQ] = useState({ cat: "", zona: "", operacion: "" });
   const [qIA, setQIA] = useState("");
 
-  const buscar = () => {
-    const p = new URLSearchParams();
-    if (q.cat) p.set("cat", q.cat);
-    if (q.zona) p.set("zona", q.zona);
-    if (q.operacion) p.set("operacion", q.operacion);
-    navigate(`/propiedades?${p.toString()}`);
-  };
-
-  // Búsqueda en lenguaje natural: abre a Marina. Si el visitante todavía no escribió
-  // nada, igual le abrimos el chat (que es lo que espera al tocar el botón) y ella saluda.
-  const buscarConIA = (e: React.FormEvent) => {
+  // El buscador BUSCA: entiende lo que se escribe en castellano y lleva a los
+  // resultados filtrados al instante. La IA vive en la burbuja, es otra cosa.
+  const buscar = (e: React.FormEvent) => {
     e.preventDefault();
-    const mensaje = qIA.trim();
-    window.dispatchEvent(new CustomEvent("marina:abrir", { detail: { mensaje } }));
-    setQIA("");
+    const b = parseBusqueda(qIA, zonas);
+    // Si el visitante además tocó un filtro, ese manda.
+    if (q.cat) b.cat = q.cat;
+    if (q.zona) b.zona = q.zona;
+    if (q.operacion) b.operacion = q.operacion;
+    // Habló de verano/quincena → esa es otra sección (y si el barrio tiene página, va ahí).
+    if (b.temporada) {
+      navigate(rutaTemporada(b.zona));
+      return;
+    }
+    const qs = aQueryString(b);
+    navigate(qs ? `/propiedades?${qs}` : "/propiedades");
   };
 
   return (
@@ -141,33 +143,34 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Buscador flotante: IA primero, filtros clásicos después */}
+        {/* Un solo buscador, un solo botón. Escribís como hablás, o usás los filtros. */}
         <div className="container-x absolute inset-x-0 bottom-8 z-10">
-          <div className="reveal rounded-2xl border border-graph/10 bg-paper-100/80 p-4 shadow-card backdrop-blur-md md:p-5" data-delay="320ms">
-            <form onSubmit={buscarConIA} className="flex flex-col gap-3 md:flex-row">
-              <label className="relative flex-1">
-                <Sparkles size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand" />
-                <input
-                  value={qIA}
-                  onChange={(e) => setQIA(e.target.value)}
-                  placeholder="Escribí lo que buscás: “depto de 3 ambientes cerca de Playa Grande hasta 180 mil”"
-                  className="h-[52px] w-full rounded-xl border border-graph/15 bg-paper-100 pl-11 pr-4 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand"
-                  aria-label="Búsqueda con inteligencia artificial"
-                />
-              </label>
-              <button type="submit" className="btn-primary h-[52px] whitespace-nowrap">
-                <Sparkles size={16} /> Preguntale a Marina
-              </button>
-            </form>
+          <form
+            onSubmit={buscar}
+            className="reveal rounded-2xl border border-graph/10 bg-paper-100/80 p-4 shadow-card backdrop-blur-md md:p-5"
+            data-delay="320ms"
+          >
+            <label className="relative block">
+              <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand" />
+              <input
+                value={qIA}
+                onChange={(e) => setQIA(e.target.value)}
+                placeholder="¿Qué estás buscando? Ej: “depto de 3 ambientes en Playa Grande hasta 180 mil”"
+                className="h-[54px] w-full rounded-xl border border-graph/15 bg-paper-100 pl-11 pr-4 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand focus:ring-2 focus:ring-brand/15"
+                aria-label="Buscar propiedades"
+              />
+            </label>
             <div className="mt-3 grid gap-3 border-t border-graph/10 pt-3 md:grid-cols-[1.2fr_1.3fr_1fr_auto]">
               <Select label="Tipo" value={q.cat} onChange={(v) => setQ({ ...q, cat: v })}
                 options={[{ v: "casa", l: "Casas" }, { v: "departamento", l: "Departamentos" }, { v: "local", l: "Locales" }, { v: "lote", l: "Lotes" }]} placeholder="Todos" />
               <Select label="Zona" value={q.zona} onChange={(v) => setQ({ ...q, zona: v })} options={zonas.map((z) => ({ v: z, l: z }))} placeholder="Todas las zonas" />
               <Select label="Operación" value={q.operacion} onChange={(v) => setQ({ ...q, operacion: v })}
                 options={[{ v: "venta", l: "Venta" }, { v: "alquiler", l: "Alquiler" }]} placeholder="Todas" />
-              <button onClick={buscar} className="btn-ghost h-[58px] self-end"><Search size={16} /> Buscar</button>
+              <button type="submit" className="btn-primary h-[58px] self-end whitespace-nowrap">
+                <Search size={16} /> Buscar
+              </button>
             </div>
-          </div>
+          </form>
         </div>
 
         <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 animate-bounce text-white/70"><ChevronDown /></div>
