@@ -33,14 +33,14 @@ export default function Sidebar({
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
-  const { kpis, sugerenciasPendientes } = useData();
+  const { kpis, conversacionesNoLeidas } = useData();
   const { activo } = useProfiles();
   const { signOut } = usePanelAuth();
   const navigate = useNavigate();
   const cerrarSesion = async () => { await signOut(); navigate("/ingresar"); };
   const nav = [
     { to: "/panel", end: true, key: "inicio", label: "Inicio", icon: LayoutDashboard },
-    { to: "/panel/asistente", key: "asistente", label: "Asistente IA", icon: Sparkles, badge: sugerenciasPendientes, ia: true },
+    { to: "/panel/asistente", key: "asistente", label: "Asistente IA", icon: Sparkles, badge: conversacionesNoLeidas, ia: true },
     { to: "/panel/cartera", key: "cartera", label: "Cartera", icon: Map },
     { to: "/panel/fichas", key: "fichas", label: "Fichas", icon: FileText },
     { to: "/panel/cargar", key: "cargar", label: "Cargar propiedad", icon: UploadCloud },

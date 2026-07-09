@@ -7,8 +7,9 @@ import { leads as seedLeads } from "@/data/leads";
 import { clientes as seedClientes } from "@/data/clientes";
 import { operaciones as seedOps, visitas as seedVisitas, tasaciones as seedTas, arrendamientos as seedArr } from "@/data/operaciones";
 import { unidadesTemporada as seedUnidades, reservasTemporada as seedReservas } from "@/data/temporada";
+import { conversaciones as seedConversaciones } from "@/data/conversaciones";
+import type { Conversacion, EstadoConv, MensajeConv } from "@/data/conversaciones";
 import { consultasPorMes as seedConsultasMes } from "@/data/kpis";
-import { generarSugerencias, type Sugerencia } from "./sugerencias";
 import { rebaseISO } from "./fechas";
 
 // Demo "siempre actual": las fechas del dataset de ejemplo se desplazan al día real (ver lib/fechas).
@@ -23,7 +24,7 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // Sin base de datos, los cambios del panel viven en localStorage para que
 // sobrevivan al refresh (que Mateo cargue una propiedad y siga ahí). Con Supabase
 // esto no se usa: manda la DB. Versionado para descartar datos si cambian los seeds.
-const SEED_VERSION = "2026-07-09";
+const SEED_VERSION = "2026-07-09b";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 function loadLocal<T>(name: string, fallback: T): T {
@@ -51,9 +52,10 @@ function saveLocal<T>(name: string, data: T) {
 // Borra los datos de demo guardados y recarga (botón "Restablecer datos de prueba").
 export function resetDemoData() {
   try {
-    ["propiedades", "leads", "clientes", "operaciones", "visitas", "tasaciones", "arrendamientos"].forEach((n) =>
-      localStorage.removeItem(lsKey(n))
-    );
+    [
+      "propiedades", "leads", "clientes", "operaciones", "visitas", "tasaciones", "arrendamientos",
+      "unidades_temporada", "reservas_temporada", "conversaciones",
+    ].forEach((n) => localStorage.removeItem(lsKey(n)));
   } catch { /* noop */ }
 }
 
@@ -97,10 +99,14 @@ interface DataCtx {
   addReservaTemporada: (r: ReservaTemporada) => Promise<void>;
   updateReservaTemporada: (id: string, patch: Partial<ReservaTemporada>) => Promise<void>;
   deleteReservaTemporada: (id: string) => Promise<void>;
-  // asistente IA
-  sugerencias: Sugerencia[];
-  sugerenciasPendientes: number;
-  resolverSugerencia: (id: string) => void;
+  // asistente IA · bandeja de conversaciones
+  conversaciones: Conversacion[];
+  conversacionesNoLeidas: number;
+  marcarLeida: (convId: string) => void;
+  agregarMensaje: (convId: string, msg: MensajeConv) => Promise<void>;
+  actualizarMensaje: (convId: string, msgId: string, patch: Partial<MensajeConv>) => Promise<void>;
+  borrarMensaje: (convId: string, msgId: string) => Promise<void>;
+  setEstadoConversacion: (convId: string, estado: EstadoConv) => Promise<void>;
   // derivados
   kpis: ReturnType<typeof computeKpis>;
   consultasPorMes: typeof seedConsultasMes;
@@ -138,6 +144,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [arrendamientos, setArrendamientos] = useState<Arrendamiento[]>(() => loadLocal("arrendamientos", seedArrR));
   const [unidadesTemporada, setUnidadesTemporada] = useState<UnidadTemporada[]>(() => loadLocal("unidades_temporada", seedUnidades));
   const [reservasTemporada, setReservasTemporada] = useState<ReservaTemporada[]>(() => loadLocal("reservas_temporada", seedReservas));
+  const [conversaciones, setConversaciones] = useState<Conversacion[]>(() => loadLocal("conversaciones", seedConversaciones));
 
   // Persistir cada colección en modo demo (no-op si hay Supabase).
   useEffect(() => { saveLocal("propiedades", propiedades); }, [propiedades]);
@@ -149,6 +156,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveLocal("arrendamientos", arrendamientos); }, [arrendamientos]);
   useEffect(() => { saveLocal("unidades_temporada", unidadesTemporada); }, [unidadesTemporada]);
   useEffect(() => { saveLocal("reservas_temporada", reservasTemporada); }, [reservasTemporada]);
+  useEffect(() => { saveLocal("conversaciones", conversaciones); }, [conversaciones]);
 
   // Sincronizar desde Supabase (en segundo plano; si falla, quedan los datos locales)
   useEffect(() => {
@@ -156,7 +164,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     (async () => {
       if (!supabase) { setLoading(false); return; }
       try {
-        const [p, l, c, o, v, t, a, ut, rt] = await Promise.all([
+        const [p, l, c, o, v, t, a, ut, rt, cv] = await Promise.all([
           supabase.from("potente_propiedades").select("*"),
           supabase.from("potente_leads").select("*"),
           supabase.from("potente_clientes").select("*"),
@@ -166,6 +174,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           supabase.from("potente_arrendamientos").select("*"),
           supabase.from("potente_unidades_temporada").select("*"),
           supabase.from("potente_reservas_temporada").select("*"),
+          supabase.from("potente_conversaciones").select("*"),
         ]);
         if (cancel) return;
         if (p.data?.length) setPropiedades(p.data as Propiedad[]);
@@ -178,6 +187,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // Temporada: si la tabla existe y responde, manda la base (aunque esté vacía).
         if (!ut.error && ut.data) setUnidadesTemporada(ut.data as UnidadTemporada[]);
         if (!rt.error && rt.data) setReservasTemporada(rt.data as ReservaTemporada[]);
+        if (!cv.error && cv.data) setConversaciones(cv.data as Conversacion[]);
         if (!p.error) setOnline(true);
       } catch {
         /* offline → datos locales */
@@ -295,16 +305,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (supabase) await supabase.from("potente_reservas_temporada").update(patch).eq("id", id).then(() => {}, () => {});
   };
 
-  // ===== Asistente IA: sugerencias derivadas + las que el humano ya resolvió =====
-  const [resueltas, setResueltas] = useState<string[]>([]);
-  const resolverSugerencia = (id: string) => setResueltas((p) => (p.includes(id) ? p : [...p, id]));
-  const sugerencias = useMemo(
-    () =>
-      generarSugerencias({ propiedades, leads, clientes, visitas, arrendamientos }).filter(
-        (s) => !resueltas.includes(s.id)
-      ),
-    [propiedades, leads, clientes, visitas, arrendamientos, resueltas]
-  );
+  // ===== Bandeja de conversaciones =====
+  // Toda edición reescribe la conversación completa (los mensajes viven adentro).
+  const guardarConv = async (conv: Conversacion) => {
+    if (supabase) await supabase.from("potente_conversaciones").upsert(conv).then(() => {}, () => {});
+  };
+  const patchConv = async (convId: string, fn: (c: Conversacion) => Conversacion) => {
+    let actualizada: Conversacion | undefined;
+    setConversaciones((prev) =>
+      prev.map((c) => {
+        if (c.id !== convId) return c;
+        actualizada = fn(c);
+        return actualizada;
+      })
+    );
+    if (actualizada) await guardarConv(actualizada);
+  };
+
+  const marcarLeida = (convId: string) =>
+    setConversaciones((prev) => prev.map((c) => (c.id === convId && c.noLeida ? { ...c, noLeida: false } : c)));
+
+  const agregarMensaje = (convId: string, msg: MensajeConv) =>
+    patchConv(convId, (c) => ({ ...c, mensajes: [...c.mensajes, msg], noLeida: false }));
+
+  const actualizarMensaje = (convId: string, msgId: string, patch: Partial<MensajeConv>) =>
+    patchConv(convId, (c) => ({ ...c, mensajes: c.mensajes.map((m) => (m.id === msgId ? { ...m, ...patch } : m)) }));
+
+  const borrarMensaje = (convId: string, msgId: string) =>
+    patchConv(convId, (c) => ({ ...c, mensajes: c.mensajes.filter((m) => m.id !== msgId) }));
+
+  // Al cerrar o devolver a la IA, el motivo de derivación deja de aplicar.
+  const setEstadoConversacion = (convId: string, estado: EstadoConv) =>
+    patchConv(convId, (c) => ({ ...c, estado, noLeida: false, ...(estado === "ia" ? { motivo: undefined } : {}) }));
+
+  const conversacionesNoLeidas = useMemo(() => conversaciones.filter((c) => c.noLeida).length, [conversaciones]);
 
   const kpis = useMemo(() => computeKpis(propiedades, leads, operaciones, clientes), [propiedades, leads, operaciones, clientes]);
 
@@ -340,7 +374,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, deleteLead, updateOperacion, addCliente, updateCliente, deleteCliente,
         addVisita, updateVisita, deleteVisita, addTasacion, updateTasacion, deleteTasacion, addArrendamiento, updateArrendamiento, deleteArrendamiento,
         unidadesTemporada, reservasTemporada, addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada, addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
-        sugerencias, sugerenciasPendientes: sugerencias.length, resolverSugerencia,
+        conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion,
         kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}
     >
