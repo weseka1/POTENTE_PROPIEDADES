@@ -11,6 +11,16 @@ export function fmtNum(n: number): string {
   return n.toLocaleString("es-AR");
 }
 
+// Pesos argentinos — usado por Temporada (el temporario se cobra en ARS).
+export function fmtARS(n: number | null | undefined, opts?: { short?: boolean }): string {
+  if (n === null || n === undefined) return "—";
+  if (opts?.short) {
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+    if (n >= 1_000) return `$${Math.round(n / 1_000)}k`;
+  }
+  return "$" + n.toLocaleString("es-AR");
+}
+
 export function fmtHa(n: number): string {
   return n.toLocaleString("es-AR") + " ha";
 }

@@ -3,6 +3,8 @@ import { useEffect, lazy, Suspense, type ReactNode } from "react";
 import Home from "./site/Home";
 import Catalogo from "./site/Catalogo";
 import PropiedadDetalle from "./site/PropiedadDetalle";
+import Temporada from "./site/Temporada";
+import TemporadaBarrio from "./site/TemporadaBarrio";
 import Favoritos from "./site/Favoritos";
 import Cuenta from "./site/Cuenta";
 import { AuthProvider } from "./site/context/AuthContext";
@@ -65,6 +67,9 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/propiedades" element={<Catalogo />} />
           <Route path="/propiedad/:id" element={<PropiedadDetalle />} />
+          {/* alquiler de temporada (verano) — landing + páginas por barrio (SEO) */}
+          <Route path="/temporada" element={<Temporada />} />
+          <Route path="/temporada/:barrio" element={<TemporadaBarrio />} />
           <Route path="/favoritos" element={<Favoritos />} />
           <Route path="/cuenta" element={<Cuenta />} />
           {/* compatibilidad con rutas viejas */}

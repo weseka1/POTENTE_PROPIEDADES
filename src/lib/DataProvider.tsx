@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { supabase } from "./supabase";
 import type { Propiedad } from "@/data/propiedadTypes";
-import type { Lead, Cliente, Operacion_, Visita, Tasacion, Arrendamiento } from "@/data/types";
+import type { Lead, Cliente, Operacion_, Visita, Tasacion, Arrendamiento, UnidadTemporada, ReservaTemporada } from "@/data/types";
 import { propiedades as seedPropiedades } from "@/data/propiedades";
 import { leads as seedLeads } from "@/data/leads";
 import { clientes as seedClientes } from "@/data/clientes";
 import { operaciones as seedOps, visitas as seedVisitas, tasaciones as seedTas, arrendamientos as seedArr } from "@/data/operaciones";
+import { unidadesTemporada as seedUnidades, reservasTemporada as seedReservas } from "@/data/temporada";
 import { consultasPorMes as seedConsultasMes } from "@/data/kpis";
 import { generarSugerencias, type Sugerencia } from "./sugerencias";
 import { rebaseISO } from "./fechas";
@@ -83,6 +84,12 @@ interface DataCtx {
   updateTasacion: (id: string, patch: Partial<Tasacion>) => Promise<void>;
   addArrendamiento: (a: Arrendamiento) => Promise<void>;
   updateArrendamiento: (id: string, patch: Partial<Arrendamiento>) => Promise<void>;
+  // temporada (alquiler temporario)
+  unidadesTemporada: UnidadTemporada[];
+  reservasTemporada: ReservaTemporada[];
+  updateUnidadTemporada: (id: string, patch: Partial<UnidadTemporada>) => Promise<void>;
+  addReservaTemporada: (r: ReservaTemporada) => Promise<void>;
+  updateReservaTemporada: (id: string, patch: Partial<ReservaTemporada>) => Promise<void>;
   // asistente IA
   sugerencias: Sugerencia[];
   sugerenciasPendientes: number;
@@ -122,6 +129,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [visitas, setVisitas] = useState<Visita[]>(() => loadLocal("visitas", seedVisitasR));
   const [tasaciones, setTasaciones] = useState<Tasacion[]>(() => loadLocal("tasaciones", seedTasR));
   const [arrendamientos, setArrendamientos] = useState<Arrendamiento[]>(() => loadLocal("arrendamientos", seedArrR));
+  const [unidadesTemporada, setUnidadesTemporada] = useState<UnidadTemporada[]>(() => loadLocal("unidades_temporada", seedUnidades));
+  const [reservasTemporada, setReservasTemporada] = useState<ReservaTemporada[]>(() => loadLocal("reservas_temporada", seedReservas));
 
   // Persistir cada colección en modo demo (no-op si hay Supabase).
   useEffect(() => { saveLocal("propiedades", propiedades); }, [propiedades]);
@@ -131,6 +140,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveLocal("visitas", visitas); }, [visitas]);
   useEffect(() => { saveLocal("tasaciones", tasaciones); }, [tasaciones]);
   useEffect(() => { saveLocal("arrendamientos", arrendamientos); }, [arrendamientos]);
+  useEffect(() => { saveLocal("unidades_temporada", unidadesTemporada); }, [unidadesTemporada]);
+  useEffect(() => { saveLocal("reservas_temporada", reservasTemporada); }, [reservasTemporada]);
 
   // Sincronizar desde Supabase (en segundo plano; si falla, quedan los datos locales)
   useEffect(() => {
@@ -226,6 +237,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await supabase.from("potente_arrendamientos").update(patch).eq("id", id).then(() => {}, () => {});
   };
+  const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>) => {
+    setUnidadesTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (supabase) await supabase.from("potente_unidades_temporada").update(patch).eq("id", id).then(() => {}, () => {});
+  };
+  const addReservaTemporada = async (r: ReservaTemporada) => {
+    setReservasTemporada((prev) => [r, ...prev]);
+    if (supabase) await supabase.from("potente_reservas_temporada").upsert(r).then(() => {}, () => {});
+  };
+  const updateReservaTemporada = async (id: string, patch: Partial<ReservaTemporada>) => {
+    setReservasTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (supabase) await supabase.from("potente_reservas_temporada").update(patch).eq("id", id).then(() => {}, () => {});
+  };
 
   // ===== Asistente IA: sugerencias derivadas + las que el humano ya resolvió =====
   const [resueltas, setResueltas] = useState<string[]>([]);
@@ -271,6 +294,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         getProp: (id) => propiedades.find((p) => p.id === id),
         addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, updateOperacion, addCliente, updateCliente, deleteCliente,
         addVisita, updateVisita, addTasacion, updateTasacion, addArrendamiento, updateArrendamiento,
+        unidadesTemporada, reservasTemporada, updateUnidadTemporada, addReservaTemporada, updateReservaTemporada,
         sugerencias, sugerenciasPendientes: sugerencias.length, resolverSugerencia,
         kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}

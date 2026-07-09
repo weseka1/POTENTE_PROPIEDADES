@@ -24,6 +24,7 @@ import Asistente from "./pages/Asistente";
 import CargarPropiedad from "./pages/CargarPropiedad";
 import Fichas from "./pages/Fichas";
 import Planos from "./pages/Planos";
+import Temporada from "./pages/Temporada";
 import Cartera from "./pages/Cartera";
 import Leads from "./pages/Leads";
 import CRM from "./pages/CRM";
@@ -75,6 +76,7 @@ export default function PanelApp() {
                 <Route path="cargar" element={<CargarPropiedad />} />
                 <Route path="fichas" element={<Fichas />} />
                 <Route path="planos" element={<Planos />} />
+                <Route path="temporada" element={<Temporada />} />
                 <Route path="cartera" element={<Cartera />} />
                 <Route path="leads" element={<Leads />} />
                 <Route path="crm" element={<CRM />} />

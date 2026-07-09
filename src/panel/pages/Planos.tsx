@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PenTool } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { PageHeader } from "../components/PageShell";
@@ -6,7 +7,12 @@ import PlanEditor from "../components/PlanEditor";
 
 export default function Planos() {
   const { propiedades } = useData();
-  const [propId, setPropId] = useState("general");
+  const [params] = useSearchParams();
+  // Si viene ?propiedad=<id> desde la ficha, arranca con esa propiedad seleccionada.
+  const [propId, setPropId] = useState(() => {
+    const p = params.get("propiedad");
+    return p && propiedades.some((x) => x.id === p) ? p : "general";
+  });
   const prop = propiedades.find((p) => p.id === propId);
   const nombre = prop?.titulo || "Plano libre";
 

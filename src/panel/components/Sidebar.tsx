@@ -13,7 +13,7 @@ import {
   LogOut,
   Sparkles,
   UploadCloud,
-  PenTool,
+  Sun,
   FileText,
   ChevronsLeft,
 } from "lucide-react";
@@ -44,7 +44,7 @@ export default function Sidebar({
     { to: "/panel/cartera", key: "cartera", label: "Cartera", icon: Map },
     { to: "/panel/fichas", key: "fichas", label: "Fichas", icon: FileText },
     { to: "/panel/cargar", key: "cargar", label: "Cargar propiedad", icon: UploadCloud },
-    { to: "/panel/planos", key: "planos", label: "Planos", icon: PenTool },
+    { to: "/panel/temporada", key: "temporada", label: "Temporada", icon: Sun },
     { to: "/panel/leads", key: "leads", label: "Consultas", icon: Inbox, badge: kpis.leadsNuevos },
     { to: "/panel/crm", key: "crm", label: "Clientes", icon: Users },
     { to: "/panel/pipeline", key: "pipeline", label: "Embudo de ventas", icon: KanbanSquare },

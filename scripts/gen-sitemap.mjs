@@ -11,9 +11,18 @@ const SITE = process.env.SITE_URL || "https://potente-propiedades.onrender.com";
 
 const hoy = new Date().toISOString().slice(0, 10);
 
+// Barrios con página propia de temporada (deben coincidir con BARRIOS_TEMPORADA
+// de src/site/Temporada.tsx). El slug se genera igual: sin tildes, en minúsculas.
+const BARRIOS_TEMPORADA = ["Playa Grande", "Varese", "Güemes", "La Perla", "Chauvín", "Punta Mogotes", "Centro"];
+const slugBarrio = (b) =>
+  b.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "-");
+
 const estaticas = [
   { loc: "/", prioridad: "1.0" },
   { loc: "/propiedades", prioridad: "0.9" },
+  // temporada: la búsqueda arranca en octubre, estas páginas tienen que estar indexadas antes
+  { loc: "/temporada", prioridad: "0.9" },
+  ...BARRIOS_TEMPORADA.map((b) => ({ loc: `/temporada/${slugBarrio(b)}`, prioridad: "0.8" })),
   { loc: "/propiedades?cat=casa", prioridad: "0.8" },
   { loc: "/propiedades?cat=departamento", prioridad: "0.8" },
   { loc: "/propiedades?cat=local", prioridad: "0.7" },

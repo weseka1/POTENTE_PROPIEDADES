@@ -120,3 +120,55 @@ export interface Arrendamiento {
   vencimientoISO: string;
   estado: "vigente" | "por_vencer" | "vencido";
 }
+
+// ===== TEMPORADA (alquiler temporario de verano) =====
+// La unidad de alquiler en la costa argentina es la QUINCENA. El verano se divide
+// en 8 tramos fijos (dic → marzo). Las tarifas y las reservas se cuelgan de estos ids.
+
+export type TemporadaTramoId =
+  | "dic-1" | "dic-2" | "ene-1" | "ene-2" | "feb-1" | "feb-2" | "mar-1" | "mar-2";
+
+export interface TemporadaTramo {
+  id: TemporadaTramoId;
+  label: string; // "1ª quincena de enero"
+  corto: string; // "Ene 1ª"
+  desdeISO: string;
+  hastaISO: string;
+  pico?: boolean; // 2ª de enero = pico de la temporada
+}
+
+// Propiedad ofrecida en temporada. Se apoya en una Propiedad de la cartera (propiedadId).
+export interface UnidadTemporada {
+  id: string;
+  propiedadId: string;
+  ambientes: number;
+  capacidad: number; // personas
+  barrio: string; // Playa Grande, Güemes, La Perla, Varese, Chauvín, Punta Mogotes…
+  frenteAlMar?: boolean;
+  comodidades: string[]; // pileta, parrilla, cochera, wifi, aire…
+  tarifas: Partial<Record<TemporadaTramoId, number>>; // ARS por quincena
+  comisionPct: number; // % de Potente (default 15)
+  activa: boolean; // se muestra en la web pública
+}
+
+export type EstadoReserva =
+  | "senada" // reservada con seña
+  | "confirmada" // saldo + garantía al día
+  | "en_curso" // inquilino adentro
+  | "finalizada"
+  | "cancelada";
+
+export interface ReservaTemporada {
+  id: string;
+  unidadId: string;
+  tramoId: TemporadaTramoId;
+  inquilino: string;
+  contacto: string;
+  personas: number;
+  montoTotalARS: number;
+  senaARS: number;
+  garantiaARS: number;
+  estado: EstadoReserva;
+  creadaISO: string;
+  notas?: string;
+}

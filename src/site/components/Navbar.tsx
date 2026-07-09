@@ -10,6 +10,7 @@ const WHATSAPP = "https://wa.me/5492233029591";
 const cats = [
   { to: "/propiedades?operacion=venta", label: "En venta" },
   { to: "/propiedades?operacion=alquiler", label: "Alquileres" },
+  { to: "/temporada", label: "Temporada" },
   { to: "/propiedades?cat=casa", label: "Casas" },
   { to: "/propiedades?cat=departamento", label: "Deptos" },
   { to: "/#tasaciones", label: "Tasaciones" },

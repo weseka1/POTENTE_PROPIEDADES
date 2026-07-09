@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home, PenTool } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtUSD, fmtHa } from "@/lib/format";
@@ -26,6 +27,7 @@ export default function CampoDrawer({
   onUpdate: (id: string, patch: Partial<Propiedad>) => void;
   onDelete: (id: string) => void;
 }) {
+  const navigate = useNavigate();
   const [activeFoto, setActiveFoto] = useState(0);
   // edición local de los campos editables (se sincroniza al abrir)
   const [titulo, setTitulo] = useState("");
@@ -245,7 +247,7 @@ export default function CampoDrawer({
             </div>
 
             {/* acciones */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1">
               <Btn
                 variant="primary"
                 className="flex-1"
@@ -256,6 +258,12 @@ export default function CampoDrawer({
                 }}
               >
                 <MessageSquare size={15} /> Compartir por WhatsApp
+              </Btn>
+              <Btn
+                variant="ghost"
+                onClick={() => navigate(`/panel/planos?propiedad=${prop.id}`)}
+              >
+                <PenTool size={15} /> Plano
               </Btn>
               <Btn
                 variant="ghost"

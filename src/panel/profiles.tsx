@@ -9,7 +9,7 @@ export const SECCIONES = [
   { key: "cartera", label: "Cartera", basic: false },
   { key: "fichas", label: "Fichas", basic: true },
   { key: "cargar", label: "Cargar propiedad", basic: true },
-  { key: "planos", label: "Planos", basic: false },
+  { key: "temporada", label: "Temporada", basic: false },
   { key: "leads", label: "Consultas", basic: true },
   { key: "crm", label: "Clientes", basic: true },
   { key: "pipeline", label: "Embudo de ventas", basic: false },
