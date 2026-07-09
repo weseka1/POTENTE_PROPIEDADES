@@ -191,7 +191,7 @@ export default function Asistente() {
 
   const metricas = [
     { icon: Inbox, label: "Conversaciones atendidas", value: leads.length },
-    { icon: Clock, label: "Respuesta promedio", value: "14 seg" },
+    { icon: UserCheck, label: "Derivadas a un asesor", value: derivadas },
     { icon: Link2, label: "Canales conectados", value: `${conectados}/${CANALES.length}` },
     { icon: ShieldCheck, label: "Resueltas sin intervención", value: sinHumano + "%" },
   ];

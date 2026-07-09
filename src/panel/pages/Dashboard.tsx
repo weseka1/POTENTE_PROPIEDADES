@@ -58,6 +58,22 @@ export default function Dashboard() {
   const m2Cartera = propiedades.reduce((a, p) => a + (p.m2totales ?? p.m2cubiertos ?? 0), 0);
   const hoyLargo = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+  // Único delta calculable con datos reales: el ingreso de consultas de este mes vs. el mes
+  // anterior, contando por la fecha de cada consulta. Solo se muestra si el mes pasado tiene
+  // consultas (sin base de comparación no inventamos un número). Los demás KPIs no tienen
+  // histórico cargado, así que van sin delta antes que con un número mentiroso.
+  const ahora = new Date();
+  const enMes = (iso: string, y: number, m: number) => {
+    const d = new Date(iso);
+    return d.getFullYear() === y && d.getMonth() === m;
+  };
+  const mesPrevio = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1);
+  const consultasMesActual = leads.filter((l) => enMes(l.fechaISO, ahora.getFullYear(), ahora.getMonth())).length;
+  const consultasMesPrevio = leads.filter((l) => enMes(l.fechaISO, mesPrevio.getFullYear(), mesPrevio.getMonth())).length;
+  const deltaConsultas = consultasMesActual - consultasMesPrevio;
+  const consultasDelta = consultasMesPrevio > 0 && deltaConsultas !== 0 ? `${deltaConsultas > 0 ? "+" : ""}${deltaConsultas}` : undefined;
+  const consultasDeltaDir: "up" | "down" = deltaConsultas >= 0 ? "up" : "down";
+
   return (
     <div>
       <PageHeader
@@ -71,7 +87,6 @@ export default function Dashboard() {
           label="Valor de cartera"
           value={fmtUSD(kpis.valorCarteraUSD, { short: true })}
           icon={Landmark}
-          delta="+8,2%"
           hint="activos en venta"
           accent="wheat"
         />
@@ -79,7 +94,6 @@ export default function Dashboard() {
           label="Propiedades activas"
           value={`${kpis.camposActivos}`}
           icon={Map}
-          delta="+2"
           hint={`de ${kpis.camposTotal} en cartera`}
           accent="field"
         />
@@ -87,15 +101,15 @@ export default function Dashboard() {
           label="Consultas nuevas"
           value={`${kpis.leadsNuevos}`}
           icon={Inbox}
-          delta="+5"
-          hint={`${kpis.leadsTotal} este mes`}
+          delta={consultasDelta}
+          deltaDir={consultasDeltaDir}
+          hint={`${consultasMesActual} este mes`}
           accent="clay"
         />
         <KpiCard
           label="En negociación"
           value={`${kpis.enNegociacion}`}
           icon={Handshake}
-          delta="+1"
           hint="operaciones calientes"
           accent="wheat"
         />
@@ -103,7 +117,6 @@ export default function Dashboard() {
           label="Comisión proyectada"
           value={fmtUSD(kpis.comisionPipelineUSD, { short: true })}
           icon={TrendingUp}
-          delta="+14%"
           hint="proyectado"
           accent="field"
         />
@@ -111,7 +124,6 @@ export default function Dashboard() {
           label="Efectividad"
           value={`${kpis.conversion}%`}
           icon={Percent}
-          delta="+1,3 pts"
           hint="de consulta a venta"
           accent="clay"
         />

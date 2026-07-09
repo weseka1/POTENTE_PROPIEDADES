@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { AlertCircle, UserPlus, MapPin } from "lucide-react";
+import { AlertCircle, UserPlus, MapPin, Trash2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
-import type { EstadoLead } from "@/data/types";
+import type { EstadoLead, Lead } from "@/data/types";
 import { desde } from "@/lib/format";
 import { PageHeader, EmptyState } from "../components/PageShell";
 import { FilterSelect, Segmented } from "../components/Controls";
@@ -15,7 +15,7 @@ const RESPONSABLES = ["Sin asignar", "Mateo", "Punta Mogotes", "Chauvín"];
 
 export default function Leads() {
   const { push } = useToast();
-  const { leads, getProp, updateLead } = useData();
+  const { leads, getProp, updateLead, deleteLead } = useData();
   const [estado, setEstado] = useState("todos");
   const [canal, setCanal] = useState("todos");
 
@@ -26,6 +26,12 @@ export default function Leads() {
   const setAsignado = (id: string, asignado: string) => {
     updateLead(id, { asignado });
     push(`Consulta asignada a ${asignado}`, "success");
+  };
+  const eliminar = (l: Lead) => {
+    if (window.confirm(`¿Eliminar la consulta de ${l.nombre}? No se puede deshacer.`)) {
+      deleteLead(l.id);
+      push("Consulta eliminada", "success");
+    }
   };
 
   const filtrados = useMemo(
@@ -139,6 +145,13 @@ export default function Leads() {
                         ))}
                       </select>
                     </div>
+                    <button
+                      onClick={() => eliminar(l)}
+                      title="Eliminar consulta"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-graph/10 text-graph-400 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-600"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
               </div>

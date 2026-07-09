@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Calculator, Clock, CheckCircle2, Pencil } from "lucide-react";
+import { Plus, Calculator, Clock, CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { hoyISO } from "@/lib/fechas";
 import { fmtUSD, fmtFecha, fmtNum } from "@/lib/format";
@@ -21,7 +21,7 @@ const ESTADOS_TAS: Tasacion["estado"][] = ["solicitada", "en_proceso", "entregad
 
 export default function Tasaciones() {
   const { push } = useToast();
-  const { tasaciones: allTas, addTasacion, updateTasacion } = useData();
+  const { tasaciones: allTas, addTasacion, updateTasacion, deleteTasacion } = useData();
   const [open, setOpen] = useState(false);
 
   // edición inline del valor estimado
@@ -54,6 +54,13 @@ export default function Tasaciones() {
   const cambiarEstado = (id: string, estado: Tasacion["estado"]) => {
     updateTasacion(id, { estado });
     push(`Tasación movida a “${estadoTasacion[estado].label}”`, "info");
+  };
+
+  const eliminar = (t: Tasacion) => {
+    if (window.confirm(`¿Eliminar la tasación de ${t.solicitante}? No se puede deshacer.`)) {
+      deleteTasacion(t.id);
+      push("Tasación eliminada", "success");
+    }
   };
 
   const abrirEdicion = (t: Tasacion) => {
@@ -101,6 +108,7 @@ export default function Tasaciones() {
                 <th className="px-5 py-3">Fecha</th>
                 <th className="px-5 py-3 text-right">Valor estimado</th>
                 <th className="px-5 py-3">Estado</th>
+                <th className="px-5 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-graph/[0.07]">
@@ -158,6 +166,15 @@ export default function Tasaciones() {
                           ))}
                         </select>
                       </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => eliminar(t)}
+                        title="Eliminar tasación"
+                        className="inline-grid h-8 w-8 place-items-center rounded-lg text-graph-400 transition hover:bg-red-500/10 hover:text-red-600"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </td>
                   </tr>
                 );

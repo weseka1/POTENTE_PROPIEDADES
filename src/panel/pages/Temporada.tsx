@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { Building2, Percent, Wallet, BadgeCheck, Waves, Pencil, Users, ArrowRight, Ban, Sparkles } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { Building2, Percent, Wallet, BadgeCheck, Waves, Pencil, Users, ArrowRight, Ban, Sparkles, Plus, Trash2, FileDown, FileSpreadsheet } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import type { ReservaTemporada, EstadoReserva, TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
@@ -30,6 +32,34 @@ const ESTADOS_EDIT: EstadoReserva[] = ["senada", "confirmada", "en_curso", "fina
 type Tab = "grilla" | "tarifario" | "rendicion";
 type NuevaCtx = { unidadId: string; tramoId: TemporadaTramoId };
 type NuevaForm = { inquilino: string; contacto: string; personas: string; monto: string; sena: string; garantia: string };
+// Alta de unidad y edición de unidad (los números viajan como string para el input).
+type NuevaUnidadForm = { propiedadId: string; barrio: string; ambientes: string; capacidad: string; comisionPct: string; frenteAlMar: boolean; comodidades: string[] };
+type EditUnidadForm = { barrio: string; ambientes: string; capacidad: string; comisionPct: string; frenteAlMar: boolean; comodidades: string[]; activa: boolean };
+
+// Comodidades ofrecibles como chips (el "frente al mar" es un toggle aparte → campo frenteAlMar).
+const COMODIDADES = ["wifi", "aire", "cochera", "parrilla", "pileta", "patio", "balcón al mar"] as const;
+
+// Curva del mercado MdP para PRE-cargar el tarifario de una unidad nueva: multiplicador por
+// quincena sobre el valor pico (2ª de enero), que a su vez depende de los ambientes. Después
+// el cliente ajusta cada valor a mano en el Tarifario.
+const CURVA_TMP: Record<TemporadaTramoId, number> = {
+  "dic-1": 0.45, "dic-2": 0.62, "ene-1": 0.9, "ene-2": 1.0,
+  "feb-1": 0.9, "feb-2": 0.78, "mar-1": 0.5, "mar-2": 0.42,
+};
+function picoPorAmbientes(amb: number): number {
+  if (amb <= 1) return 620_000;
+  if (amb === 2) return 900_000;
+  if (amb === 3) return 1_250_000;
+  if (amb === 4) return 1_600_000;
+  return 1_950_000; // 5+ (casas grandes)
+}
+function tarifasCalculadas(amb: number): UnidadTemporada["tarifas"] {
+  const pico = picoPorAmbientes(amb);
+  const out: Partial<Record<TemporadaTramoId, number>> = {};
+  (Object.keys(CURVA_TMP) as TemporadaTramoId[]).forEach((k) => (out[k] = r10k(pico * CURVA_TMP[k])));
+  return out;
+}
+const conComodidad = (arr: string[], c: string) => (arr.includes(c) ? arr.filter((x) => x !== c) : [...arr, c]);
 
 // Apellido / referencia corta del inquilino para la celda ("Familia Gutiérrez" → "Gutiérrez").
 const apellido = (nombre: string) => {
@@ -42,7 +72,8 @@ export default function Temporada() {
   const { push } = useToast();
   const {
     unidadesTemporada, reservasTemporada, propiedades,
-    updateUnidadTemporada, addReservaTemporada, updateReservaTemporada,
+    addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada,
+    addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
   } = useData();
 
   const [tab, setTab] = useState<Tab>("grilla");
@@ -56,6 +87,13 @@ export default function Temporada() {
   // edición inline del tarifario
   const [tEdit, setTEdit] = useState<string | null>(null);
   const [tDraft, setTDraft] = useState("");
+
+  // alta y edición de unidades de temporada
+  const emptyNueva: NuevaUnidadForm = { propiedadId: "", barrio: "", ambientes: "2", capacidad: "4", comisionPct: "15", frenteAlMar: false, comodidades: ["wifi"] };
+  const [sumarOpen, setSumarOpen] = useState(false);
+  const [nueva, setNueva] = useState<NuevaUnidadForm>(emptyNueva);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [edit, setEdit] = useState<EditUnidadForm>({ barrio: "", ambientes: "2", capacidad: "4", comisionPct: "15", frenteAlMar: false, comodidades: [], activa: true });
 
   const propDe = (u: UnidadTemporada): Propiedad | undefined => propiedades.find((p) => p.id === u.propiedadId);
   const tituloCorto = (u: UnidadTemporada) => propDe(u)?.titulo.split(",")[0] ?? u.id;
@@ -145,6 +183,95 @@ export default function Temporada() {
     push("Tarifa actualizada ✓", "success");
   };
 
+  // ── Sumar propiedad a la temporada ──
+  // Candidatas: las de la cartera que todavía no son unidad. Las urbanas (depto/casa) van primero.
+  const disponibles = useMemo(() => {
+    const yaUnidad = new Set(unidadesTemporada.map((u) => u.propiedadId));
+    const rank = (c: string) => (c === "departamento" || c === "casa" ? 0 : 1);
+    return propiedades
+      .filter((p) => !yaUnidad.has(p.id))
+      .sort((a, b) => rank(a.categoria) - rank(b.categoria) || a.titulo.localeCompare(b.titulo));
+  }, [propiedades, unidadesTemporada]);
+  // Tarifas que quedarían pre-cargadas según los ambientes elegidos (preview antes de guardar).
+  const previewTarifas = useMemo(() => tarifasCalculadas(Number(nueva.ambientes) || 1), [nueva.ambientes]);
+
+  const abrirSumar = () => { setNueva(emptyNueva); setSumarOpen(true); };
+  // Al elegir la propiedad pre-cargamos barrio (zona) y ambientes desde su ficha.
+  const elegirPropiedad = (id: string) => {
+    const p = propiedades.find((x) => x.id === id);
+    setNueva((f) => ({
+      ...f,
+      propiedadId: id,
+      barrio: p?.zona ?? f.barrio,
+      ambientes: p?.ambientes != null ? String(p.ambientes) : f.ambientes,
+    }));
+  };
+  const guardarNuevaUnidad = async () => {
+    if (!nueva.propiedadId) { push("Elegí una propiedad de la cartera", "error"); return; }
+    const amb = Number(nueva.ambientes) || 1;
+    const u: UnidadTemporada = {
+      id: "TMP-" + Date.now(),
+      propiedadId: nueva.propiedadId,
+      barrio: nueva.barrio.trim(),
+      ambientes: amb,
+      capacidad: Number(nueva.capacidad) || 1,
+      frenteAlMar: nueva.frenteAlMar,
+      comodidades: nueva.comodidades,
+      tarifas: tarifasCalculadas(amb),
+      comisionPct: Number(nueva.comisionPct) || 15,
+      activa: true,
+      enLimpieza: false,
+    };
+    await addUnidadTemporada(u);
+    setSumarOpen(false);
+    push("Propiedad sumada a la temporada ✓", "success");
+  };
+
+  // ── Editar / quitar una unidad ──
+  const editU = editId ? unidadesTemporada.find((u) => u.id === editId) ?? null : null;
+  const abrirEdit = (u: UnidadTemporada) => {
+    setEdit({
+      barrio: u.barrio,
+      ambientes: String(u.ambientes),
+      capacidad: String(u.capacidad),
+      comisionPct: String(u.comisionPct ?? 15),
+      frenteAlMar: !!u.frenteAlMar,
+      comodidades: u.comodidades ?? [],
+      activa: u.activa,
+    });
+    setEditId(u.id);
+  };
+  const guardarEdit = async () => {
+    if (!editId) return;
+    await updateUnidadTemporada(editId, {
+      barrio: edit.barrio.trim(),
+      ambientes: Number(edit.ambientes) || 1,
+      capacidad: Number(edit.capacidad) || 1,
+      comisionPct: Number(edit.comisionPct) || 15,
+      frenteAlMar: edit.frenteAlMar,
+      comodidades: edit.comodidades,
+      activa: edit.activa,
+    });
+    setEditId(null);
+    push("Unidad actualizada ✓", "success");
+  };
+  const quitarUnidad = async () => {
+    if (!editId) return;
+    if (!window.confirm("¿Quitar esta propiedad de la temporada? También se borran todas sus reservas. Esta acción no se puede deshacer.")) return;
+    await deleteUnidadTemporada(editId);
+    setEditId(null);
+    push("Propiedad quitada de la temporada", "info");
+  };
+
+  // Eliminar una reserva definitivamente (distinto de cancelar, que deja el registro).
+  const eliminarReserva = async () => {
+    if (!detalle) return;
+    if (!window.confirm("¿Eliminar la reserva definitivamente? Se borra del sistema y no queda registro. Si sólo querés liberar la quincena, usá Cancelar.")) return;
+    await deleteReservaTemporada(detalle.id);
+    setDetalleId(null);
+    push("Reserva eliminada", "info");
+  };
+
   // ── Rendición al propietario ──
   const rendicion = useMemo(() => {
     const filas = unidadesTemporada.map((u) => {
@@ -164,11 +291,100 @@ export default function Temporada() {
     return { filas, tot };
   }, [unidadesTemporada, reservasTemporada]);
 
+  // Rendición en PDF (membrete de marca) — lo que la inmobiliaria le manda a cada propietario.
+  const exportarRendicionPDF = () => {
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+      const hoy = new Date();
+      const fechaTxt = hoy.toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
+
+      doc.setFillColor(12, 77, 162);
+      doc.rect(0, 0, W, 72, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+      doc.text("Potente Propiedades · Rendición de temporada", 40, 34);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+      doc.text("Alquiler temporario · Verano 2027 · Mar del Plata", 40, 51);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+      doc.text("Rendición al propietario", W - 40, 34, { align: "right" });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+      doc.text(fechaTxt, W - 40, 51, { align: "right" });
+
+      doc.setTextColor(35, 35, 35); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+      doc.text("Detalle por unidad", 40, 104);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(95, 95, 95);
+      doc.text("Sobre reservas confirmadas, en curso y finalizadas.", 40, 121);
+
+      autoTable(doc, {
+        startY: 138,
+        head: [["Unidad", "Barrio", "Bruto", "Comisión Potente", "Al propietario"]],
+        body: rendicion.filas.map((f) => [
+          tituloCorto(f.u),
+          f.u.barrio,
+          f.bruto ? fmtARS(f.bruto) : "—",
+          f.bruto ? `-${fmtARS(f.comision)} (${f.comisionPct}%)` : "—",
+          f.bruto ? fmtARS(f.alPropietario) : "—",
+        ]),
+        foot: [["Total general", "", fmtARS(rendicion.tot.bruto), `-${fmtARS(rendicion.tot.comision)}`, fmtARS(rendicion.tot.prop)]],
+        headStyles: { fillColor: [12, 77, 162], textColor: 255, fontStyle: "bold" },
+        footStyles: { fillColor: [240, 237, 228], textColor: 35, fontStyle: "bold" },
+        styles: { fontSize: 9, cellPadding: 5 },
+        alternateRowStyles: { fillColor: [248, 246, 240] },
+        columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+        margin: { left: 40, right: 40 },
+      });
+
+      const ph = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+      doc.text("Generado por el panel de Potente Propiedades · potenteprop.com.ar", 40, ph - 24);
+
+      doc.save(`Potente-Rendicion-${hoy.toISOString().slice(0, 10)}.pdf`);
+      push("Rendición PDF descargada ✓", "success");
+    } catch {
+      push("No se pudo generar el PDF", "error");
+    }
+  };
+
+  // Rendición en Excel: CSV (separador ; para Excel en español) con BOM para los acentos.
+  const exportarRendicionExcel = () => {
+    try {
+      const hoy = new Date();
+      const esc = (v: any) => {
+        const s = String(v ?? "");
+        return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const rows: (string | number)[][] = [];
+      rows.push(["Potente Propiedades — Rendición de temporada", hoy.toLocaleDateString("es-AR")]);
+      rows.push([]);
+      rows.push(["Unidad", "Barrio", "Bruto ARS", "Comisión Potente ARS", "Comisión %", "Al propietario ARS"]);
+      rendicion.filas.forEach((f) => rows.push([tituloCorto(f.u), f.u.barrio, f.bruto, f.comision, f.comisionPct, f.alPropietario]));
+      rows.push(["Total general", "", rendicion.tot.bruto, rendicion.tot.comision, "", rendicion.tot.prop]);
+
+      const csv = "﻿" + rows.map((r) => r.map(esc).join(";")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Potente-Rendicion-${hoy.toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      push("Rendición Excel descargada ✓", "success");
+    } catch {
+      push("No se pudo generar el Excel", "error");
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Temporada · Verano 2027"
         subtitle="Grilla de disponibilidad, tarifario y rendición del alquiler temporario en la costa"
+        actions={
+          <Btn variant="primary" onClick={abrirSumar}>
+            <Plus size={16} /> Sumar propiedad
+          </Btn>
+        }
       />
 
       {/* KPIs */}
@@ -238,7 +454,7 @@ export default function Temporada() {
                   {unidadesTemporada.map((u) => {
                     const p = propDe(u);
                     return (
-                      <tr key={u.id} className="group">
+                      <tr key={u.id} className={cn("group", !u.activa && "opacity-55")}>
                         <td className="sticky left-0 z-10 border-b border-graph/[0.06] bg-paper-100 px-4 py-2.5 group-hover:bg-graph/[0.02]">
                           <div className="flex items-center gap-2.5">
                             <Thumb src={p?.fotos?.[0]} alt={tituloCorto(u)} mar={u.frenteAlMar} />
@@ -247,21 +463,37 @@ export default function Temporada() {
                               <p className="mt-0.5 truncate text-[11px] text-graph-400">
                                 {u.barrio} · {u.ambientes} amb · {u.capacidad} pers
                               </p>
-                            </div>
-                            {/* Turnover: marcar la unidad "en limpieza" entre un inquilino y el siguiente. */}
-                            <button
-                              onClick={() => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
-                              title={u.enLimpieza ? "Limpieza y llaves pendientes — tocá para marcar lista" : "Marcar en limpieza (turnover)"}
-                              className={cn(
-                                "ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-lg ring-1 ring-inset transition",
-                                u.enLimpieza
-                                  ? "bg-amber-500/15 text-amber-700 ring-amber-500/30"
-                                  : "text-graph-400 opacity-0 ring-transparent hover:bg-graph/[0.06] hover:text-graph group-hover:opacity-100"
+                              {!u.activa && (
+                                <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-graph/15 bg-graph/[0.06] px-2 py-0.5 text-[10px] font-semibold text-graph-500">
+                                  No publicada
+                                </span>
                               )}
-                              aria-label="Marcar en limpieza"
-                            >
-                              <Sparkles size={14} />
-                            </button>
+                            </div>
+                            <div className="ml-auto flex shrink-0 items-center gap-1">
+                              {/* Editar / quitar la unidad. */}
+                              <button
+                                onClick={() => abrirEdit(u)}
+                                title="Editar unidad"
+                                className="grid h-7 w-7 place-items-center rounded-lg text-graph-400 opacity-0 ring-1 ring-inset ring-transparent transition hover:bg-graph/[0.06] hover:text-graph group-hover:opacity-100"
+                                aria-label="Editar unidad"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              {/* Turnover: marcar la unidad "en limpieza" entre un inquilino y el siguiente. */}
+                              <button
+                                onClick={() => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
+                                title={u.enLimpieza ? "Limpieza y llaves pendientes — tocá para marcar lista" : "Marcar en limpieza (turnover)"}
+                                className={cn(
+                                  "grid h-7 w-7 place-items-center rounded-lg ring-1 ring-inset transition",
+                                  u.enLimpieza
+                                    ? "bg-amber-500/15 text-amber-700 ring-amber-500/30"
+                                    : "text-graph-400 opacity-0 ring-transparent hover:bg-graph/[0.06] hover:text-graph group-hover:opacity-100"
+                                )}
+                                aria-label="Marcar en limpieza"
+                              >
+                                <Sparkles size={14} />
+                              </button>
+                            </div>
                           </div>
                         </td>
                         {TRAMOS.map((t) => {
@@ -381,9 +613,19 @@ export default function Temporada() {
 
       {tab === "rendicion" && (
         <div className="pcard overflow-hidden">
-          <div className="border-b border-graph/[0.07] px-5 py-3.5">
-            <p className="text-sm font-semibold text-graph">Rendición al propietario</p>
-            <p className="mt-0.5 text-xs text-graph-400">Sobre reservas confirmadas, en curso y finalizadas. Comisión de Potente según cada unidad.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-graph/[0.07] px-5 py-3.5">
+            <div>
+              <p className="text-sm font-semibold text-graph">Rendición al propietario</p>
+              <p className="mt-0.5 text-xs text-graph-400">Sobre reservas confirmadas, en curso y finalizadas. Comisión de Potente según cada unidad.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Btn variant="ghost" onClick={exportarRendicionExcel}>
+                <FileSpreadsheet size={16} /> Exportar Excel
+              </Btn>
+              <Btn variant="primary" onClick={exportarRendicionPDF}>
+                <FileDown size={16} /> Exportar PDF
+              </Btn>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
@@ -485,6 +727,9 @@ export default function Temporada() {
         subtitle={detalle ? `${tituloCorto(unidadesTemporada.find((u) => u.id === detalle.unidadId)!)} · ${tramoById(detalle.tramoId).label}` : undefined}
         footer={
           <>
+            <Btn variant="ghost" onClick={eliminarReserva} className="text-red-600 hover:border-red-400/50 hover:text-red-700">
+              <Trash2 size={15} /> Eliminar
+            </Btn>
             <Btn variant="ghost" onClick={cancelarReserva} className="text-red-600 hover:border-red-400/50 hover:text-red-700">
               <Ban size={15} /> Cancelar reserva
             </Btn>
@@ -534,6 +779,149 @@ export default function Temporada() {
           );
         })()}
       </Modal>
+
+      {/* ── Modal Sumar propiedad a la temporada ── */}
+      <Modal
+        open={sumarOpen}
+        onClose={() => setSumarOpen(false)}
+        title="Sumar propiedad a la temporada"
+        subtitle="Elegí una propiedad de la cartera y queda publicada para el verano"
+        size="lg"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setSumarOpen(false)}>Cancelar</Btn>
+            <Btn variant="primary" onClick={guardarNuevaUnidad}>Sumar a la temporada</Btn>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Propiedad de la cartera</span>
+            <select
+              value={nueva.propiedadId}
+              onChange={(e) => elegirPropiedad(e.target.value)}
+              className="h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm font-medium text-graph outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
+            >
+              <option value="" className="bg-paper-100 text-graph">Elegí una propiedad…</option>
+              {disponibles.map((p) => (
+                <option key={p.id} value={p.id} className="bg-paper-100 text-graph">
+                  {p.titulo.split(",")[0]} · {p.zona}
+                </option>
+              ))}
+            </select>
+            {disponibles.length === 0 && (
+              <span className="mt-1 block text-[11px] text-graph-400">Todas las propiedades de la cartera ya están en la temporada.</span>
+            )}
+          </label>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Barrio</span>
+              <input className={INP} placeholder="Playa Grande, Güemes…" value={nueva.barrio} onChange={(e) => setNueva((f) => ({ ...f, barrio: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Ambientes</span>
+              <input type="number" min={1} className={INP} value={nueva.ambientes} onChange={(e) => setNueva((f) => ({ ...f, ambientes: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Capacidad (personas)</span>
+              <input type="number" min={1} className={INP} value={nueva.capacidad} onChange={(e) => setNueva((f) => ({ ...f, capacidad: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Comisión Potente (%)</span>
+              <input type="number" min={0} className={INP} value={nueva.comisionPct} onChange={(e) => setNueva((f) => ({ ...f, comisionPct: e.target.value }))} />
+            </label>
+          </div>
+
+          <Toggle
+            checked={nueva.frenteAlMar}
+            onChange={(v) => setNueva((f) => ({ ...f, frenteAlMar: v }))}
+            label="Frente al mar"
+            hint="Se destaca en la web y suele valer más"
+          />
+
+          <div>
+            <span className="mb-2 block text-xs font-semibold text-graph-400">Comodidades</span>
+            <Chips selected={nueva.comodidades} onToggle={(c) => setNueva((f) => ({ ...f, comodidades: conComodidad(f.comodidades, c) }))} />
+          </div>
+
+          {/* Preview de las tarifas que quedan pre-cargadas (después se editan en el Tarifario). */}
+          <div className="rounded-xl border border-graph/10 bg-graph/[0.02] p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
+              <span className="text-xs font-semibold text-graph">Tarifas iniciales por quincena</span>
+              <span className="text-[11px] text-graph-400">calculadas con la curva del mercado · las editás después en el Tarifario</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {TRAMOS.map((t) => (
+                <div key={t.id} className={cn("rounded-lg border px-2 py-1.5 text-center", t.pico ? "border-brand/30 bg-brand/[0.05]" : "border-graph/10 bg-graph/[0.02]")}>
+                  <p className="text-[10px] uppercase tracking-wide text-graph-400">{t.corto}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-graph">{fmtARS(previewTarifas[t.id], { short: true })}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal Editar unidad ── */}
+      <Modal
+        open={!!editU}
+        onClose={() => setEditId(null)}
+        title="Editar unidad"
+        subtitle={editU ? tituloCorto(editU) : undefined}
+        size="lg"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={quitarUnidad} className="text-red-600 hover:border-red-400/50 hover:text-red-700">
+              <Trash2 size={15} /> Quitar de temporada
+            </Btn>
+            <Btn variant="primary" onClick={guardarEdit}>Guardar cambios</Btn>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Barrio</span>
+              <input className={INP} value={edit.barrio} onChange={(e) => setEdit((f) => ({ ...f, barrio: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Ambientes</span>
+              <input type="number" min={1} className={INP} value={edit.ambientes} onChange={(e) => setEdit((f) => ({ ...f, ambientes: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Capacidad (personas)</span>
+              <input type="number" min={1} className={INP} value={edit.capacidad} onChange={(e) => setEdit((f) => ({ ...f, capacidad: e.target.value }))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Comisión Potente (%)</span>
+              <input type="number" min={0} className={INP} value={edit.comisionPct} onChange={(e) => setEdit((f) => ({ ...f, comisionPct: e.target.value }))} />
+            </label>
+          </div>
+
+          <Toggle
+            checked={edit.frenteAlMar}
+            onChange={(v) => setEdit((f) => ({ ...f, frenteAlMar: v }))}
+            label="Frente al mar"
+          />
+
+          <div>
+            <span className="mb-2 block text-xs font-semibold text-graph-400">Comodidades</span>
+            <Chips selected={edit.comodidades} onToggle={(c) => setEdit((f) => ({ ...f, comodidades: conComodidad(f.comodidades, c) }))} />
+          </div>
+
+          <Toggle
+            checked={edit.activa}
+            onChange={(v) => setEdit((f) => ({ ...f, activa: v }))}
+            label="Publicada en la web"
+            hint="Si la apagás, deja de mostrarse en la web pública (sigue disponible en el panel)."
+          />
+
+          <p className="text-[11px] text-graph-400">
+            Las tarifas de esta unidad se ajustan en la pestaña Tarifario.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -560,5 +948,51 @@ function Dato({ label, value, strong }: { label: string; value: string; strong?:
       <p className="text-[11px] font-medium text-graph-400">{label}</p>
       <p className={cn("mt-0.5 font-display font-semibold", strong ? "text-brand-700" : "text-graph")}>{value}</p>
     </div>
+  );
+}
+
+// Comodidades como chips seleccionables (azul de marca cuando están activas).
+function Chips({ selected, onToggle }: { selected: string[]; onToggle: (c: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {COMODIDADES.map((c) => {
+        const on = selected.includes(c);
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onToggle(c)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition first-letter:uppercase",
+              on
+                ? "border-brand/40 bg-brand/[0.08] text-brand-700"
+                : "border-graph/12 bg-graph/[0.03] text-graph-500 hover:border-graph/25 hover:text-graph"
+            )}
+          >
+            {c}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Interruptor sí/no con label y ayuda; azul de marca al estar encendido.
+function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-graph/10 bg-graph/[0.03] px-3.5 py-3 text-left transition hover:border-graph/20"
+      aria-pressed={checked}
+    >
+      <span>
+        <span className="block text-sm font-semibold text-graph">{label}</span>
+        {hint && <span className="mt-0.5 block text-xs text-graph-400">{hint}</span>}
+      </span>
+      <span className={cn("relative h-6 w-11 shrink-0 rounded-full transition", checked ? "bg-brand" : "bg-graph/20")}>
+        <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", checked ? "left-[22px]" : "left-0.5")} />
+      </span>
+    </button>
   );
 }

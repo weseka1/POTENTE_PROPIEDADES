@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Clock, MapPin, User, Plus, Check, X, CheckCircle2,
-  ChevronLeft, ChevronRight, CalendarDays, List, CalendarRange,
+  ChevronLeft, ChevronRight, CalendarDays, List, CalendarRange, Trash2,
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import type { Visita } from "@/data/types";
@@ -34,7 +34,7 @@ const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 export default function Agenda() {
-  const { visitas: allVisitas, getProp, propiedades, addVisita, updateVisita } = useData();
+  const { visitas: allVisitas, getProp, propiedades, addVisita, updateVisita, deleteVisita } = useData();
   const { push } = useToast();
 
   const [view, setView] = useState<"semana" | "lista">("semana");
@@ -84,6 +84,13 @@ export default function Agenda() {
   };
 
   const cambiar = (v: Visita, estado: Visita["estado"], msg: string) => { updateVisita(v.id, { estado }); push(msg, "success"); };
+  // Cancelar deja registro; eliminar borra la visita del todo (queda disponible en cualquier estado).
+  const eliminar = (v: Visita) => {
+    if (window.confirm(`¿Eliminar la visita de ${v.clienteNombre}? No se puede deshacer.`)) {
+      deleteVisita(v.id);
+      push("Visita eliminada", "success");
+    }
+  };
 
   const rango = `${weekStart.getDate()} ${MESES[weekStart.getMonth()].slice(0, 3)} — ${addDays(weekStart, 6).getDate()} ${MESES[addDays(weekStart, 6).getMonth()].slice(0, 3)}`;
 
@@ -150,7 +157,7 @@ export default function Agenda() {
                               </div>
                               <p className="mt-0.5 truncate text-xs font-semibold leading-tight text-graph">{v.clienteNombre}</p>
                               <p className="truncate text-[10px] text-graph-400">{campo?.titulo ?? v.campoId}</p>
-                              <Acciones v={v} cambiar={cambiar} compact />
+                              <Acciones v={v} cambiar={cambiar} eliminar={eliminar} compact />
                             </div>
                           );
                         })}
@@ -164,7 +171,7 @@ export default function Agenda() {
               )}
             </div>
           ) : (
-            <ListaView porFecha={porFecha} getProp={getProp} cambiar={cambiar} />
+            <ListaView porFecha={porFecha} getProp={getProp} cambiar={cambiar} eliminar={eliminar} />
           )}
         </div>
 
@@ -220,32 +227,38 @@ export default function Agenda() {
   );
 }
 
-// ── acciones de una visita (confirmar / realizar / cancelar) ──
-function Acciones({ v, cambiar, compact }: { v: Visita; cambiar: (v: Visita, e: Visita["estado"], m: string) => void; compact?: boolean }) {
-  if (v.estado === "realizada" || v.estado === "cancelada") return null;
+// ── acciones de una visita (confirmar / realizar / cancelar / eliminar) ──
+function Acciones({ v, cambiar, eliminar, compact }: { v: Visita; cambiar: (v: Visita, e: Visita["estado"], m: string) => void; eliminar: (v: Visita) => void; compact?: boolean }) {
+  // Una visita realizada o cancelada ya no cambia de estado, pero siempre se puede eliminar.
+  const terminal = v.estado === "realizada" || v.estado === "cancelada";
   const s = compact ? "grid h-6 w-6 place-items-center rounded-md" : "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold";
   return (
     <div className={cn("mt-1.5 flex items-center gap-1", compact && "opacity-0 transition group-hover:opacity-100")}>
-      {v.estado === "agendada" && (
+      {!terminal && v.estado === "agendada" && (
         <button title="Confirmar" onClick={() => cambiar(v, "confirmada", "Visita confirmada ✓")} className={cn(s, "bg-brand/10 text-brand hover:bg-brand/20")}>
           <Check size={12} />{!compact && " Confirmar"}
         </button>
       )}
-      {v.estado === "confirmada" && (
+      {!terminal && v.estado === "confirmada" && (
         <button title="Marcar realizada" onClick={() => cambiar(v, "realizada", "Marcada como realizada ✓")} className={cn(s, "bg-sky-500/10 text-sky-700 hover:bg-sky-500/20")}>
           <CheckCircle2 size={12} />{!compact && " Realizada"}
         </button>
       )}
-      <button title="Cancelar" onClick={() => cambiar(v, "cancelada", "Visita cancelada")} className={cn(s, "text-graph-400 hover:bg-red-500/10 hover:text-red-600")}>
-        <X size={12} />{!compact && " Cancelar"}
+      {!terminal && (
+        <button title="Cancelar" onClick={() => cambiar(v, "cancelada", "Visita cancelada")} className={cn(s, "text-graph-400 hover:bg-amber-500/10 hover:text-amber-600")}>
+          <X size={12} />{!compact && " Cancelar"}
+        </button>
+      )}
+      <button title="Eliminar" onClick={() => eliminar(v)} className={cn(s, "text-graph-400 hover:bg-red-500/10 hover:text-red-600")}>
+        <Trash2 size={12} />{!compact && " Eliminar"}
       </button>
     </div>
   );
 }
 
 // ── vista lista (timeline agrupado por día) ──
-function ListaView({ porFecha, getProp, cambiar }: {
-  porFecha: Map<string, Visita[]>; getProp: (id: string) => any; cambiar: (v: Visita, e: Visita["estado"], m: string) => void;
+function ListaView({ porFecha, getProp, cambiar, eliminar }: {
+  porFecha: Map<string, Visita[]>; getProp: (id: string) => any; cambiar: (v: Visita, e: Visita["estado"], m: string) => void; eliminar: (v: Visita) => void;
 }) {
   const dias = Array.from(porFecha.keys()).sort();
   return (
@@ -284,7 +297,7 @@ function ListaView({ porFecha, getProp, cambiar }: {
                       <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold", st.chip, st.text)}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", st.dot)} /> {st.label}
                       </span>
-                      <Acciones v={v} cambiar={cambiar} />
+                      <Acciones v={v} cambiar={cambiar} eliminar={eliminar} />
                     </div>
                   </div>
                 );

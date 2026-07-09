@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, FileSignature, DollarSign, CalendarX, RefreshCw } from "lucide-react";
+import { AlertTriangle, FileSignature, DollarSign, CalendarX, RefreshCw, Trash2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { fmtUSD, fmtFecha } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
@@ -23,7 +23,7 @@ const mensualDe = (anualUSD: number) => Math.round(anualUSD / 12);
 
 export default function Arrendamientos() {
   const { push } = useToast();
-  const { arrendamientos: allArr, getProp, propiedades, addArrendamiento, updateArrendamiento } = useData();
+  const { arrendamientos: allArr, getProp, propiedades, addArrendamiento, updateArrendamiento, deleteArrendamiento } = useData();
   const [open, setOpen] = useState(false);
 
   const vacio = { arrendatario: "", campoId: "", metros: "", mensualUSD: "", inicioISO: "", vencimientoISO: "" };
@@ -54,6 +54,13 @@ export default function Arrendamientos() {
   const cambiarEstado = (id: string, estado: Arrendamiento["estado"]) => {
     updateArrendamiento(id, { estado });
     push(`Contrato movido a “${estadoArrendamiento[estado].label}”`, "info");
+  };
+
+  const eliminar = (a: Arrendamiento) => {
+    if (window.confirm(`¿Eliminar el contrato de ${a.arrendatario}? No se puede deshacer.`)) {
+      deleteArrendamiento(a.id);
+      push("Contrato eliminado", "success");
+    }
   };
 
   const renovar = async (a: Arrendamiento) => {
@@ -90,7 +97,7 @@ export default function Arrendamientos() {
       />
 
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KpiCard label="Renta mensual" value={fmtUSD(ingresosMensuales, { short: true })} icon={DollarSign} accent="field" hint="contratos activos" delta="+6%" />
+        <KpiCard label="Renta mensual" value={fmtUSD(ingresosMensuales, { short: true })} icon={DollarSign} accent="field" hint="contratos activos" />
         <KpiCard label="Por vencer" value={`${porVencer}`} icon={AlertTriangle} accent="wheat" hint="renovar pronto" />
         <KpiCard label="Vencidos" value={`${vencidos}`} icon={CalendarX} accent="clay" hint="requieren acción" />
       </div>
@@ -163,9 +170,18 @@ export default function Arrendamientos() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <Btn variant="soft" onClick={() => renovar(a)} className="h-9 px-3 text-xs">
-                        <RefreshCw size={14} /> Renovar
-                      </Btn>
+                      <div className="flex items-center justify-end gap-2">
+                        <Btn variant="soft" onClick={() => renovar(a)} className="h-9 px-3 text-xs">
+                          <RefreshCw size={14} /> Renovar
+                        </Btn>
+                        <button
+                          onClick={() => eliminar(a)}
+                          title="Eliminar contrato"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-graph/10 text-graph-400 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-600"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

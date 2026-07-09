@@ -74,22 +74,29 @@ interface DataCtx {
   deletePropiedad: (id: string) => Promise<void>;
   addLead: (l: Lead) => Promise<void>;
   updateLead: (id: string, patch: Partial<Lead>) => Promise<void>;
+  deleteLead: (id: string) => Promise<void>;
   updateOperacion: (id: string, patch: Partial<Operacion_>) => Promise<void>;
   addCliente: (c: Cliente) => Promise<void>;
   updateCliente: (id: string, patch: Partial<Cliente>) => Promise<void>;
   deleteCliente: (id: string) => Promise<void>;
   addVisita: (v: Visita) => Promise<void>;
   updateVisita: (id: string, patch: Partial<Visita>) => Promise<void>;
+  deleteVisita: (id: string) => Promise<void>;
   addTasacion: (t: Tasacion) => Promise<void>;
   updateTasacion: (id: string, patch: Partial<Tasacion>) => Promise<void>;
+  deleteTasacion: (id: string) => Promise<void>;
   addArrendamiento: (a: Arrendamiento) => Promise<void>;
   updateArrendamiento: (id: string, patch: Partial<Arrendamiento>) => Promise<void>;
+  deleteArrendamiento: (id: string) => Promise<void>;
   // temporada (alquiler temporario)
   unidadesTemporada: UnidadTemporada[];
   reservasTemporada: ReservaTemporada[];
+  addUnidadTemporada: (u: UnidadTemporada) => Promise<void>;
   updateUnidadTemporada: (id: string, patch: Partial<UnidadTemporada>) => Promise<void>;
+  deleteUnidadTemporada: (id: string) => Promise<void>;
   addReservaTemporada: (r: ReservaTemporada) => Promise<void>;
   updateReservaTemporada: (id: string, patch: Partial<ReservaTemporada>) => Promise<void>;
+  deleteReservaTemporada: (id: string) => Promise<void>;
   // asistente IA
   sugerencias: Sugerencia[];
   sugerenciasPendientes: number;
@@ -149,7 +156,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     (async () => {
       if (!supabase) { setLoading(false); return; }
       try {
-        const [p, l, c, o, v, t, a] = await Promise.all([
+        const [p, l, c, o, v, t, a, ut, rt] = await Promise.all([
           supabase.from("potente_propiedades").select("*"),
           supabase.from("potente_leads").select("*"),
           supabase.from("potente_clientes").select("*"),
@@ -157,6 +164,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           supabase.from("potente_visitas").select("*"),
           supabase.from("potente_tasaciones").select("*"),
           supabase.from("potente_arrendamientos").select("*"),
+          supabase.from("potente_unidades_temporada").select("*"),
+          supabase.from("potente_reservas_temporada").select("*"),
         ]);
         if (cancel) return;
         if (p.data?.length) setPropiedades(p.data as Propiedad[]);
@@ -166,6 +175,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (v.data) setVisitas(v.data as Visita[]);
         if (t.data) setTasaciones(t.data as Tasacion[]);
         if (a.data) setArrendamientos(a.data as Arrendamiento[]);
+        // Temporada: si la tabla existe y responde, manda la base (aunque esté vacía).
+        if (!ut.error && ut.data) setUnidadesTemporada(ut.data as UnidadTemporada[]);
+        if (!rt.error && rt.data) setReservasTemporada(rt.data as ReservaTemporada[]);
         if (!p.error) setOnline(true);
       } catch {
         /* offline → datos locales */
@@ -237,9 +249,42 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await supabase.from("potente_arrendamientos").update(patch).eq("id", id).then(() => {}, () => {});
   };
+  const addUnidadTemporada = async (u: UnidadTemporada) => {
+    setUnidadesTemporada((prev) => [u, ...prev]);
+    if (supabase) await supabase.from("potente_unidades_temporada").upsert(u).then(() => {}, () => {});
+  };
   const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>) => {
     setUnidadesTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await supabase.from("potente_unidades_temporada").update(patch).eq("id", id).then(() => {}, () => {});
+  };
+  // Sacar una unidad de temporada también borra sus reservas (no dejamos huérfanas).
+  const deleteUnidadTemporada = async (id: string) => {
+    setUnidadesTemporada((prev) => prev.filter((x) => x.id !== id));
+    setReservasTemporada((prev) => prev.filter((r) => r.unidadId !== id));
+    if (supabase) {
+      await supabase.from("potente_reservas_temporada").delete().eq("unidadId", id).then(() => {}, () => {});
+      await supabase.from("potente_unidades_temporada").delete().eq("id", id).then(() => {}, () => {});
+    }
+  };
+  const deleteReservaTemporada = async (id: string) => {
+    setReservasTemporada((prev) => prev.filter((x) => x.id !== id));
+    if (supabase) await supabase.from("potente_reservas_temporada").delete().eq("id", id).then(() => {}, () => {});
+  };
+  const deleteLead = async (id: string) => {
+    setLeads((prev) => prev.filter((x) => x.id !== id));
+    if (supabase) await supabase.from("potente_leads").delete().eq("id", id).then(() => {}, () => {});
+  };
+  const deleteTasacion = async (id: string) => {
+    setTasaciones((prev) => prev.filter((x) => x.id !== id));
+    if (supabase) await supabase.from("potente_tasaciones").delete().eq("id", id).then(() => {}, () => {});
+  };
+  const deleteVisita = async (id: string) => {
+    setVisitas((prev) => prev.filter((x) => x.id !== id));
+    if (supabase) await supabase.from("potente_visitas").delete().eq("id", id).then(() => {}, () => {});
+  };
+  const deleteArrendamiento = async (id: string) => {
+    setArrendamientos((prev) => prev.filter((x) => x.id !== id));
+    if (supabase) await supabase.from("potente_arrendamientos").delete().eq("id", id).then(() => {}, () => {});
   };
   const addReservaTemporada = async (r: ReservaTemporada) => {
     setReservasTemporada((prev) => [r, ...prev]);
@@ -292,9 +337,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         loading, online, propiedades, leads, clientes, operaciones, visitas, tasaciones, arrendamientos,
         getProp: (id) => propiedades.find((p) => p.id === id),
-        addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, updateOperacion, addCliente, updateCliente, deleteCliente,
-        addVisita, updateVisita, addTasacion, updateTasacion, addArrendamiento, updateArrendamiento,
-        unidadesTemporada, reservasTemporada, updateUnidadTemporada, addReservaTemporada, updateReservaTemporada,
+        addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, deleteLead, updateOperacion, addCliente, updateCliente, deleteCliente,
+        addVisita, updateVisita, deleteVisita, addTasacion, updateTasacion, deleteTasacion, addArrendamiento, updateArrendamiento, deleteArrendamiento,
+        unidadesTemporada, reservasTemporada, addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada, addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
         sugerencias, sugerenciasPendientes: sugerencias.length, resolverSugerencia,
         kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}
