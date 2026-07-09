@@ -95,6 +95,7 @@ export default function Catalogo() {
           <div className="mt-7 flex max-w-xl items-center gap-3 rounded-xl border border-white/15 bg-graph/40 px-4 backdrop-blur">
             <Search size={18} className="text-white/50" />
             <input
+              id="buscador-catalogo"
               value={f.q}
               onChange={(e) => set("q", e.target.value)}
               placeholder="Buscá por título o zona…"

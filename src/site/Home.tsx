@@ -72,11 +72,11 @@ export default function Home() {
     navigate(`/propiedades?${p.toString()}`);
   };
 
-  // Búsqueda en lenguaje natural: abre a Marina (el asistente) con la consulta ya escrita.
+  // Búsqueda en lenguaje natural: abre a Marina. Si el visitante todavía no escribió
+  // nada, igual le abrimos el chat (que es lo que espera al tocar el botón) y ella saluda.
   const buscarConIA = (e: React.FormEvent) => {
     e.preventDefault();
     const mensaje = qIA.trim();
-    if (!mensaje) return;
     window.dispatchEvent(new CustomEvent("marina:abrir", { detail: { mensaje } }));
     setQIA("");
   };

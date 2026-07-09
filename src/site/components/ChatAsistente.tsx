@@ -41,12 +41,15 @@ export default function ChatAsistente() {
   // El buscador IA del hero abre a Marina con la consulta ya escrita:
   // window.dispatchEvent(new CustomEvent("marina:abrir", { detail: { mensaje } }))
   const enviarRef = useRef<(t?: string) => void>(() => {});
+  const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const onAbrir = (e: Event) => {
       const detalle = (e as CustomEvent).detail as { mensaje?: string } | undefined;
       setOpen(true);
       const mensaje = detalle?.mensaje?.trim();
       if (mensaje) enviarRef.current(mensaje);
+      // Sin mensaje: el visitante tocó "Preguntale a Marina" para empezar → foco en el input.
+      else setTimeout(() => inputRef.current?.focus(), 250);
     };
     window.addEventListener("marina:abrir", onAbrir);
     return () => window.removeEventListener("marina:abrir", onAbrir);
@@ -219,6 +222,7 @@ export default function ChatAsistente() {
           {/* input */}
           <div className="flex items-center gap-2 border-t border-graph/10 bg-white px-3 py-2.5">
             <input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") enviar(); }}

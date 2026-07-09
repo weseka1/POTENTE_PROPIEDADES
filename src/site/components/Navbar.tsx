@@ -76,7 +76,11 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate("/propiedades")}
+              onClick={() => {
+                // Lleva al catálogo y deja el cursor en el buscador (si ya estamos ahí, solo enfoca).
+                navigate("/propiedades");
+                setTimeout(() => document.getElementById("buscador-catalogo")?.focus(), 350);
+              }}
               aria-label="Buscar"
               className="grid h-10 w-10 place-items-center rounded-full text-graph-500 transition hover:bg-graph/5 hover:text-brand"
             >
