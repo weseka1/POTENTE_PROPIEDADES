@@ -49,9 +49,10 @@ function tarifasDesde(amb: number, factor = 1): UnidadTemporada["tarifas"] {
 
 // Unidades en temporada: se apoyan en propiedades urbanas de la cartera (propiedadId).
 // factor: ajuste fino por ubicación/calidad (frente al mar y Playa Grande valen más).
-type Semilla = { id: string; propiedadId: string; amb: number; cap: number; barrio: string; mar?: boolean; com: string[]; factor?: number };
+type Semilla = { id: string; propiedadId: string; amb: number; cap: number; barrio: string; mar?: boolean; com: string[]; factor?: number; limpieza?: boolean };
 const SEMILLAS: Semilla[] = [
-  { id: "TMP-01", propiedadId: "URB-015", amb: 3, cap: 5, barrio: "Playa Grande", mar: true, com: ["wifi", "aire", "cochera", "frente al mar"], factor: 1.15 },
+  // TMP-01 salió una reserva finalizada (Godoy, dic 2ª) → queda en turnover: limpieza y llaves.
+  { id: "TMP-01", propiedadId: "URB-015", amb: 3, cap: 5, barrio: "Playa Grande", mar: true, com: ["wifi", "aire", "cochera", "frente al mar"], factor: 1.15, limpieza: true },
   { id: "TMP-02", propiedadId: "URB-011", amb: 4, cap: 6, barrio: "Varese", mar: true, com: ["wifi", "aire", "cochera", "balcón al mar"], factor: 1.2 },
   { id: "TMP-03", propiedadId: "URB-010", amb: 3, cap: 4, barrio: "Playa Grande", com: ["wifi", "aire", "cochera"], factor: 1.1 },
   { id: "TMP-04", propiedadId: "URB-014", amb: 3, cap: 5, barrio: "Güemes", com: ["wifi", "aire", "parrilla"] },
@@ -75,6 +76,7 @@ export const unidadesTemporada: UnidadTemporada[] = SEMILLAS.map((s) => ({
   tarifas: tarifasDesde(s.amb, s.factor ?? 1),
   comisionPct: 15,
   activa: true,
+  enLimpieza: s.limpieza ?? false,
 }));
 
 // Precio de un tramo para una unidad (helper compartido con la web).

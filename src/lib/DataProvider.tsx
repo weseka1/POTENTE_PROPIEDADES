@@ -23,7 +23,7 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // Sin base de datos, los cambios del panel viven en localStorage para que
 // sobrevivan al refresh (que Mateo cargue una propiedad y siga ahí). Con Supabase
 // esto no se usa: manda la DB. Versionado para descartar datos si cambian los seeds.
-const SEED_VERSION = "2026-07-08";
+const SEED_VERSION = "2026-07-09";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 function loadLocal<T>(name: string, fallback: T): T {

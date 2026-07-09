@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Building2, Percent, Wallet, BadgeCheck, Waves, Pencil, Users, ArrowRight, Ban } from "lucide-react";
+import { Building2, Percent, Wallet, BadgeCheck, Waves, Pencil, Users, ArrowRight, Ban, Sparkles } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import type { ReservaTemporada, EstadoReserva, TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
@@ -204,6 +204,9 @@ export default function Temporada() {
                 <span className={cn("h-2.5 w-2.5 rounded-full", EST[e].dot)} /> {EST[e].label}
               </span>
             ))}
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-graph-500">
+              <Sparkles size={12} className="text-amber-600" /> En limpieza
+            </span>
             <span className="ml-auto text-[11px] text-graph-400">Tocá una celda libre para reservar · una ocupada para ver el detalle</span>
           </div>
 
@@ -245,6 +248,20 @@ export default function Temporada() {
                                 {u.barrio} · {u.ambientes} amb · {u.capacidad} pers
                               </p>
                             </div>
+                            {/* Turnover: marcar la unidad "en limpieza" entre un inquilino y el siguiente. */}
+                            <button
+                              onClick={() => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
+                              title={u.enLimpieza ? "Limpieza y llaves pendientes — tocá para marcar lista" : "Marcar en limpieza (turnover)"}
+                              className={cn(
+                                "ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-lg ring-1 ring-inset transition",
+                                u.enLimpieza
+                                  ? "bg-amber-500/15 text-amber-700 ring-amber-500/30"
+                                  : "text-graph-400 opacity-0 ring-transparent hover:bg-graph/[0.06] hover:text-graph group-hover:opacity-100"
+                              )}
+                              aria-label="Marcar en limpieza"
+                            >
+                              <Sparkles size={14} />
+                            </button>
                           </div>
                         </td>
                         {TRAMOS.map((t) => {

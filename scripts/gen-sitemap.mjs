@@ -11,9 +11,10 @@ const SITE = process.env.SITE_URL || "https://potente-propiedades.onrender.com";
 
 const hoy = new Date().toISOString().slice(0, 10);
 
-// Barrios con página propia de temporada (deben coincidir con BARRIOS_TEMPORADA
-// de src/site/Temporada.tsx). El slug se genera igual: sin tildes, en minúsculas.
-const BARRIOS_TEMPORADA = ["Playa Grande", "Varese", "Güemes", "La Perla", "Chauvín", "Punta Mogotes", "Centro"];
+// Barrios con página propia de temporada. DEBE coincidir exactamente con
+// BARRIOS_TEMPORADA de src/site/Temporada.tsx: un slug de más acá = URL en el
+// sitemap que redirige, y Google penaliza eso.
+const BARRIOS_TEMPORADA = ["Playa Grande", "Varese", "Güemes", "La Perla", "Chauvín", "Punta Mogotes"];
 const slugBarrio = (b) =>
   b.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "-");
 

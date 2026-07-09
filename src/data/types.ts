@@ -149,6 +149,9 @@ export interface UnidadTemporada {
   tarifas: Partial<Record<TemporadaTramoId, number>>; // ARS por quincena
   comisionPct: number; // % de Potente (default 15)
   activa: boolean; // se muestra en la web pública
+  // Turnover: entre el inquilino que se va y el que entra hay que limpiar y pasar llaves.
+  // Se marca a mano desde la grilla; es el dolor #3 de la operación de temporada.
+  enLimpieza?: boolean;
 }
 
 export type EstadoReserva =
