@@ -36,13 +36,38 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const solid = variant === "solid" || scrolled;
+  // Con el menú mobile abierto la barra tiene que ser sólida sí o sí: si no, los
+  // links quedan flotando sobre el hero y no se lee nada.
+  const solid = variant === "solid" || scrolled || open;
+
+  // Cerrar el menú al pasar a escritorio y con Escape; bloquear el scroll de fondo.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onResize = () => window.innerWidth >= 1024 && setOpen(false);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
 
   return (
     <>
+      {/* velo detrás del menú mobile: separa el menú del contenido */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 bg-brand-950/40 backdrop-blur-sm lg:hidden"
+          aria-hidden
+        />
+      )}
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
-          solid ? "border-b border-graph/10 bg-paper/85 py-3 backdrop-blur-xl" : "bg-gradient-to-b from-paper/80 to-transparent py-4"
+          solid ? "border-b border-graph/10 bg-paper/95 py-3 backdrop-blur-xl" : "bg-gradient-to-b from-paper/80 to-transparent py-4"
         }`}
       >
         <nav className="container-x flex items-center justify-between gap-4">
@@ -153,7 +178,8 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
         </nav>
 
         {open && (
-          <div className="container-x mt-3 flex flex-col gap-1 border-t border-graph/10 pt-3 lg:hidden">
+          <div className="mt-3 max-h-[calc(100vh-5.5rem)] overflow-y-auto border-t border-graph/10 bg-paper-100 pb-6 pt-3 shadow-[0_24px_50px_-20px_rgba(13,21,33,0.35)] lg:hidden">
+            <div className="container-x flex flex-col gap-1">
             {cats.map((c) =>
               c.to.includes("#") ? (
                 <a key={c.to} href={c.to} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-graph-500 hover:bg-graph/5">
@@ -165,7 +191,7 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
                 </Link>
               )
             )}
-            <div className="mt-2 flex gap-2">
+            <div className="mt-3 flex gap-2 border-t border-graph/10 pt-4">
               {user ? (
                 <>
                   <Link to="/cuenta" onClick={() => setOpen(false)} className="btn-ghost flex-1">Mi cuenta</Link>
@@ -178,7 +204,8 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
                 </>
               )}
             </div>
-            <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary mt-2">Consultar por WhatsApp</a>
+            <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary mt-2 w-full">Consultar por WhatsApp</a>
+            </div>
           </div>
         )}
       </header>
