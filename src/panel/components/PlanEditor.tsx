@@ -7,6 +7,7 @@ import {
   Columns2, Layers, Plus, Copy, Maximize2, Minimize2,
 } from "lucide-react";
 import Plan3D from "./Plan3D";
+import Select from "@/components/Select";
 
 type Pt = { x: number; y: number };
 type Shape = {
@@ -866,6 +867,36 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
 
         {/* acciones (arriba derecha) */}
         <div className="absolute border border-graph/10 bg-paper-100 right-3 top-3 z-30 flex items-center gap-1 rounded-2xl p-1.5 shadow-[0_18px_44px_-22px_rgba(23,26,23,0.4)]">
+          {!view3d && (
+            <>
+              {/* escala + unidad (acá arriba para que el menú del selector no lo corte la barra de abajo) */}
+              <span data-tip="Escala: cuántos metros mide cada cuadro de la grilla" data-tip-side="bottom" className="relative inline-flex">
+                <Select
+                  value={String(mPerCell)}
+                  onChange={(v) => setMPerCell(+v)}
+                  options={scaleOpts.map((s) => ({ value: String(s.m), label: `1 cuadro = ${s.label}` }))}
+                  size="sm"
+                  align="right"
+                  triggerClassName="!text-xs"
+                />
+              </span>
+              <span data-tip="Unidad de superficie (m² o hectáreas)" data-tip-side="bottom" className="relative inline-flex">
+                <Select
+                  value={unit}
+                  onChange={(v) => setUnit(v as any)}
+                  options={[
+                    { value: "auto", label: "m² / ha" },
+                    { value: "m2", label: "m²" },
+                    { value: "ha", label: "ha" },
+                  ]}
+                  size="sm"
+                  align="right"
+                  triggerClassName="!text-xs"
+                />
+              </span>
+              <div className="mx-0.5 h-5 w-px bg-graph/10" />
+            </>
+          )}
           {!view3d && <button onClick={doExample} data-tip="Cargar una planta de ejemplo" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Home size={16} /></button>}
           <button onClick={() => (view3d ? setView3d(false) : go3d())} data-tip={view3d ? "Volver al plano 2D" : "Ver el plano en 3D"} data-tip-side="bottom"
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand/40 px-3 text-sm font-semibold text-brand transition hover:bg-brand/10"><Box size={15} /> {view3d ? "2D" : "3D"}</button>
@@ -899,15 +930,6 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
             <button onClick={() => setSnap((v) => !v)} data-tip="Imán: las líneas se pegan a la grilla para que queden perfectas" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${snap ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Magnet size={16} /></button>
             <button onClick={() => setMeasures((v) => !v)} data-tip="Mostrar u ocultar las medidas de cada pared" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${measures ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Ruler size={16} /></button>
             <button onClick={() => setBgPanel((v) => !v)} data-tip="Imagen de fondo para calcar (satelital del campo o foto)" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${bg?.has || bgPanel ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><ImageIcon size={16} /></button>
-            <div className="h-5 w-px bg-graph/10" />
-            <select value={mPerCell} onChange={(e) => setMPerCell(+e.target.value)} data-tip="Escala: cuántos metros mide cada cuadro de la grilla" data-tip-side="top" className="rounded-lg border border-graph/10 bg-paper-100 px-2 py-1 text-xs text-graph outline-none focus:border-brand/60">
-              {scaleOpts.map((s) => <option key={s.m} value={s.m} className="bg-paper-100 text-graph">1 cuadro = {s.label}</option>)}
-            </select>
-            <select value={unit} onChange={(e) => setUnit(e.target.value as any)} data-tip="Unidad de superficie (m² o hectáreas)" data-tip-side="top" className="rounded-lg border border-graph/10 bg-paper-100 px-2 py-1 text-xs text-graph outline-none focus:border-brand/60">
-              <option value="auto" className="bg-paper-100 text-graph">m² / ha</option>
-              <option value="m2" className="bg-paper-100 text-graph">m²</option>
-              <option value="ha" className="bg-paper-100 text-graph">ha</option>
-            </select>
           </div>
         )}
 

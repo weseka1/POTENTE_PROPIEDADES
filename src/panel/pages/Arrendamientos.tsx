@@ -4,6 +4,7 @@ import { useData } from "@/lib/DataProvider";
 import { fmtUSD, fmtFecha } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
 import { Btn } from "../components/Controls";
+import Select from "@/components/Select";
 import Badge from "../components/Badge";
 import KpiCard from "../components/KpiCard";
 import Modal from "../components/Modal";
@@ -158,15 +159,15 @@ export default function Arrendamientos() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <Badge tone={e.tone} dot>{e.label}</Badge>
-                        <select
+                        <Select
                           value={a.estado}
-                          onChange={(ev) => cambiarEstado(a.id, ev.target.value as Arrendamiento["estado"])}
-                          className="h-9 rounded-lg border border-graph/10 bg-graph/[0.04] px-2.5 text-xs font-medium text-graph-500 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
-                        >
-                          {ESTADOS_ARR.map((s) => (
-                            <option key={s} value={s} className="bg-paper-100 text-graph">{estadoArrendamiento[s].label}</option>
-                          ))}
-                        </select>
+                          onChange={(v) => cambiarEstado(a.id, v as Arrendamiento["estado"])}
+                          options={ESTADOS_ARR.map((s) => ({ value: s, label: estadoArrendamiento[s].label }))}
+                          size="sm"
+                          align="right"
+                          className="w-36"
+                          triggerClassName="font-medium text-graph-500"
+                        />
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
@@ -210,12 +211,15 @@ export default function Arrendamientos() {
           </label>
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Propiedad</span>
-            <select className={inputCls} value={form.campoId} onChange={(e) => set("campoId", e.target.value)}>
-              <option value="" className="bg-paper-100 text-graph">Elegí una propiedad…</option>
-              {propiedades.map((p) => (
-                <option key={p.id} value={p.id} className="bg-paper-100 text-graph">{p.titulo} · {p.zona}</option>
-              ))}
-            </select>
+            <Select
+              value={form.campoId}
+              onChange={(v) => set("campoId", v)}
+              placeholder="Elegí una propiedad…"
+              options={[
+                { value: "", label: "Elegí una propiedad…" },
+                ...propiedades.map((p) => ({ value: p.id, label: `${p.titulo} · ${p.zona}` })),
+              ]}
+            />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Superficie (m²)</span>

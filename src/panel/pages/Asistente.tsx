@@ -3,7 +3,7 @@ import {
   Sparkles, BookOpen, SlidersHorizontal, Plus, Trash2, Clock, UserCheck,
   Inbox, TrendingUp, Bot, ShieldCheck, Power, Link2, Activity,
   MessageCircle, Instagram, MessageSquare, Globe, Mail, Phone, Wand2, Zap,
-  Send, Loader2, KeyRound, Upload,
+  Send, Loader2, KeyRound, Upload, Check,
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "../components/Toast";
@@ -11,6 +11,8 @@ import { PageHeader } from "../components/PageShell";
 import { canalLabel } from "../ui/estados";
 import ChannelIcon from "../components/ChannelIcon";
 import Modal from "../components/Modal";
+import type { Sugerencia } from "@/lib/sugerencias";
+import Select from "@/components/Select";
 
 /* ===================== Configuración del cerebro de la IA (self-service) ===================== */
 type IAConfig = {
@@ -85,6 +87,7 @@ function Switch({ on, onChange, size = "md" }: { on: boolean; onChange: (v: bool
 }
 
 const TABS = [
+  { key: "sugerencias", label: "Trabajo del día", Icon: Wand2 },
   { key: "canales", label: "Canales", Icon: Link2 },
   { key: "cerebro", label: "Cerebro", Icon: BookOpen },
   { key: "comportamiento", label: "Comportamiento", Icon: SlidersHorizontal },
@@ -150,11 +153,57 @@ async function responderConClaude(cfg: IAConfig, msgs: { role: string; content: 
 }
 
 export default function Asistente() {
-  const { leads, propiedades } = useData();
+  const {
+    leads, propiedades,
+    sugerencias, resolverSugerencia,
+    updateLead, addVisita, updateVisita, updateArrendamiento,
+  } = useData();
   const { push } = useToast();
   const [cfg, setCfg] = useIAConfig();
-  const [tab, setTab] = useState("canales");
+  const [tab, setTab] = useState("sugerencias");
   const [conn, setConn] = useState<(typeof CANALES)[number] | null>(null);
+
+  // ── Trabajo del día: la IA propone, el humano confirma y la acción se ejecuta ──
+  const ejecutarSugerencia = (s: Sugerencia) => {
+    switch (s.tipo) {
+      case "responder_lead":
+        if (s.refId) updateLead(s.refId, { estado: "contactado" });
+        push("Respuesta enviada · la consulta pasó a Contactado", "success");
+        break;
+      case "agendar_visita":
+        if (s.refId && s.fechaSugerida && s.horaSugerida) {
+          addVisita({
+            id: "VIS-" + Date.now(),
+            fechaISO: s.fechaSugerida,
+            hora: s.horaSugerida,
+            campoId: s.propiedadId ?? "",
+            clienteNombre: s.clienteNombre ?? "",
+            responsable: "Mateo",
+            estado: "agendada",
+          });
+        }
+        push("Visita agendada · la vas a ver en la Agenda", "success");
+        break;
+      case "confirmar_visita":
+        if (s.refId) updateVisita(s.refId, { estado: "confirmada" });
+        push("Visita confirmada ✓", "success");
+        break;
+      case "seguimiento":
+        if (s.refId) updateLead(s.refId, { estado: "contactado" });
+        push("Seguimiento enviado", "success");
+        break;
+      case "vencimiento":
+        if (s.refId) updateArrendamiento(s.refId, { estado: "por_vencer" });
+        push("Aviso registrado", "success");
+        break;
+    }
+    resolverSugerencia(s.id);
+  };
+
+  const descartarSugerencia = (s: Sugerencia) => {
+    resolverSugerencia(s.id);
+    push("Sugerencia descartada", "info");
+  };
 
   const set = (patch: Partial<IAConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const setRegla = (k: string, v: boolean) => setCfg((c) => ({ ...c, reglas: { ...c.reglas, [k]: v } }));
@@ -244,6 +293,77 @@ export default function Asistente() {
           </button>
         ))}
       </div>
+
+      {/* ===================== TRABAJO DEL DÍA (sugerencias) ===================== */}
+      {tab === "sugerencias" && (
+        <div className="space-y-4">
+          <div className="pcard flex flex-wrap items-center justify-between gap-3 p-5">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-graph">
+                {sugerencias.length ? `Tenés ${sugerencias.length} ${sugerencias.length === 1 ? "acción pendiente" : "acciones pendientes"}` : "Estás al día"}
+              </h2>
+              <p className="mt-0.5 text-sm text-graph-500">
+                La IA revisa las consultas, la agenda y los contratos, y te deja el trabajo preparado. Vos confirmás.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand/20">
+              <Sparkles size={12} /> Revisado recién
+            </span>
+          </div>
+
+          {sugerencias.length === 0 ? (
+            <div className="pcard py-16 text-center">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Check size={26} /></span>
+              <p className="mt-4 font-display text-lg text-graph">No quedó nada pendiente</p>
+              <p className="mt-1 text-sm text-graph-400">Cuando entre una consulta nueva o venza un contrato, lo vas a ver acá.</p>
+            </div>
+          ) : (
+            sugerencias.map((s) => (
+              <div key={s.id} className="pcard pcard-hover p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          s.prioridad === "alta"
+                            ? "bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25"
+                            : "bg-graph/[0.06] text-graph-500"
+                        }`}
+                      >
+                        {s.prioridad === "alta" ? "Urgente" : "Puede esperar"}
+                      </span>
+                      <h3 className="truncate font-display text-base font-semibold text-graph">{s.titulo}</h3>
+                    </div>
+                    <p className="mt-1 text-sm text-graph-500">{s.contexto}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => descartarSugerencia(s)}
+                      className="rounded-xl px-3 py-2 text-xs font-semibold text-graph-400 transition hover:bg-graph/[0.05] hover:text-graph"
+                    >
+                      Descartar
+                    </button>
+                    <button
+                      onClick={() => ejecutarSugerencia(s)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand px-3.5 text-xs font-semibold text-white transition hover:bg-brand-600"
+                    >
+                      <Check size={14} /> {s.cta}
+                    </button>
+                  </div>
+                </div>
+
+                {/* lo que la IA dejó preparado */}
+                <div className="mt-4 rounded-xl border border-graph/[0.08] bg-graph/[0.02] p-4">
+                  <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-graph-400">
+                    <Wand2 size={12} className="text-brand" /> Lo que preparó la IA
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-graph">{s.propuesta}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* ========================= CANALES ========================= */}
       {tab === "canales" && (
@@ -365,10 +485,14 @@ export default function Asistente() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Field label="Nombre del asistente"><input value={cfg.nombre} onChange={(e) => set({ nombre: e.target.value })} placeholder="Marina" className={INP} /></Field>
               <Field label="Tono">
-                <select value={cfg.tono} onChange={(e) => set({ tono: e.target.value as IAConfig["tono"] })} className={INP}>
-                  <option value="cercano">Cercano y profesional</option>
-                  <option value="formal">Formal (usted)</option>
-                </select>
+                <Select
+                  value={cfg.tono}
+                  onChange={(v) => set({ tono: v as IAConfig["tono"] })}
+                  options={[
+                    { value: "cercano", label: "Cercano y profesional" },
+                    { value: "formal", label: "Formal (usted)" },
+                  ]}
+                />
               </Field>
               <Field label="Idioma"><input value={cfg.idioma} onChange={(e) => set({ idioma: e.target.value })} className={INP} /></Field>
               <Field label="Firma"><input value={cfg.firma} onChange={(e) => set({ firma: e.target.value })} className={INP} /></Field>

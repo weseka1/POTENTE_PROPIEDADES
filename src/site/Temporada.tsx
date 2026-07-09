@@ -10,6 +10,7 @@ import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
+import UISelect from "@/components/Select";
 import { TRAMOS, tramoById, tarifaDe } from "@/data/temporada";
 import type { TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
@@ -162,19 +163,16 @@ function Select({
   placeholder: string;
 }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1.5 block text-[11px] uppercase tracking-widest2 text-graph-400">{label}</span>
-      <select
+      <UISelect
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-[46px] w-full rounded-lg border border-graph/15 bg-paper-100 px-3 text-sm text-graph outline-none transition focus:border-brand"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o.v} value={o.v}>{o.l}</option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        placeholder={placeholder}
+        options={[{ value: "", label: placeholder }, ...options.map((o) => ({ value: o.v, label: o.l }))]}
+        triggerClassName="h-[46px] rounded-lg"
+      />
+    </div>
   );
 }
 

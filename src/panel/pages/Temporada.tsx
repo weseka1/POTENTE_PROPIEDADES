@@ -9,6 +9,7 @@ import { TRAMOS, tramoById, tarifaDe } from "@/data/temporada";
 import { fmtARS } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
 import { Btn, Segmented } from "../components/Controls";
+import Select from "@/components/Select";
 import Modal from "../components/Modal";
 import KpiCard from "../components/KpiCard";
 import { useToast } from "../components/Toast";
@@ -761,15 +762,12 @@ export default function Temporada() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-graph-400">Estado de la reserva</span>
-                <select
+                <Select
                   value={detalle.estado}
-                  onChange={(e) => cambiarEstado(e.target.value as EstadoReserva)}
-                  className="h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm font-medium text-graph outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
-                >
-                  {ESTADOS_EDIT.map((s) => (
-                    <option key={s} value={s} className="bg-paper-100 text-graph">{EST[s].label}</option>
-                  ))}
-                </select>
+                  onChange={(v) => cambiarEstado(v as EstadoReserva)}
+                  options={ESTADOS_EDIT.map((s) => ({ value: s, label: EST[s].label }))}
+                  triggerClassName="font-medium"
+                />
               </label>
 
               <p className="flex items-center gap-1.5 text-[11px] text-graph-400">
@@ -797,18 +795,16 @@ export default function Temporada() {
         <div className="space-y-4">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Propiedad de la cartera</span>
-            <select
+            <Select
               value={nueva.propiedadId}
-              onChange={(e) => elegirPropiedad(e.target.value)}
-              className="h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm font-medium text-graph outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
-            >
-              <option value="" className="bg-paper-100 text-graph">Elegí una propiedad…</option>
-              {disponibles.map((p) => (
-                <option key={p.id} value={p.id} className="bg-paper-100 text-graph">
-                  {p.titulo.split(",")[0]} · {p.zona}
-                </option>
-              ))}
-            </select>
+              onChange={elegirPropiedad}
+              placeholder="Elegí una propiedad…"
+              triggerClassName="font-medium"
+              options={[
+                { value: "", label: "Elegí una propiedad…" },
+                ...disponibles.map((p) => ({ value: p.id, label: `${p.titulo.split(",")[0]} · ${p.zona}` })),
+              ]}
+            />
             {disponibles.length === 0 && (
               <span className="mt-1 block text-[11px] text-graph-400">Todas las propiedades de la cartera ya están en la temporada.</span>
             )}

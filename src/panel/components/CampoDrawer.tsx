@@ -8,13 +8,11 @@ import Drawer from "./Drawer";
 import Badge from "./Badge";
 import CampoThumb from "./CampoThumb";
 import { Btn } from "./Controls";
+import Select from "@/components/Select";
 import { estadoCampo } from "../ui/estados";
 import { cn } from "../ui/cn";
 
 const catLabel = (cat: string) => CATEGORIAS.find((c) => c.key === cat)?.label ?? cat;
-
-const inputCls =
-  "h-9 w-full rounded-lg border border-graph/10 bg-graph/[0.04] px-2.5 text-sm text-graph outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15";
 
 export default function CampoDrawer({
   prop,
@@ -170,15 +168,16 @@ export default function CampoDrawer({
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-graph-400">Estado</span>
-                <select
+                <Select
                   value={prop.estado}
-                  onChange={(ev) => onUpdate(prop.id, { estado: ev.target.value as Propiedad["estado"] })}
-                  className={inputCls}
-                >
-                  <option value="disponible" className="bg-paper-100 text-graph">Disponible</option>
-                  <option value="reservado" className="bg-paper-100 text-graph">Reservado</option>
-                  <option value="vendido" className="bg-paper-100 text-graph">Vendido</option>
-                </select>
+                  onChange={(v) => onUpdate(prop.id, { estado: v as Propiedad["estado"] })}
+                  size="sm"
+                  options={[
+                    { value: "disponible", label: "Disponible" },
+                    { value: "reservado", label: "Reservado" },
+                    { value: "vendido", label: "Vendido" },
+                  ]}
+                />
               </label>
               <div className="block">
                 <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-graph-400">Destacado</span>

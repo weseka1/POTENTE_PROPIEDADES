@@ -5,6 +5,7 @@ import type { Cliente, TipoCliente } from "@/data/types";
 import { fmtUSD, fmtFecha } from "@/lib/format";
 import { PageHeader, EmptyState } from "../components/PageShell";
 import { SearchInput, Segmented, Btn } from "../components/Controls";
+import Select from "@/components/Select";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
@@ -303,11 +304,15 @@ function ClienteForm({ form, setF }: { form: FormState; setF: (k: keyof FormStat
           <input value={form.nombre} onChange={(e) => setF("nombre", e.target.value)} placeholder="Ej: Jorge Lemos" className={INP} autoFocus />
         </Field>
         <Field label="Tipo de cliente">
-          <select value={form.tipo} onChange={(e) => setF("tipo", e.target.value)} className={INP}>
-            <option value="comprador">Comprador</option>
-            <option value="propietario">Propietario</option>
-            <option value="inversor">Inversor</option>
-          </select>
+          <Select
+            value={form.tipo}
+            onChange={(v) => setF("tipo", v)}
+            options={[
+              { value: "comprador", label: "Comprador" },
+              { value: "propietario", label: "Propietario" },
+              { value: "inversor", label: "Inversor" },
+            ]}
+          />
         </Field>
         <Field label="Localidad">
           <input value={form.localidad} onChange={(e) => setF("localidad", e.target.value)} placeholder="Ej: Mar del Plata" className={INP} />

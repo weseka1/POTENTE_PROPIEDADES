@@ -11,21 +11,39 @@ import { useFavorites } from "./context/FavoritesContext";
 import { useData } from "@/lib/DataProvider";
 import { fmtFecha } from "@/lib/format";
 
-// Consultas de ejemplo del usuario logueado
-const misConsultas = [
-  { id: "C-1", propiedad: "Establecimiento agrícola 1.240 ha — Coronel Dorrego", fecha: "2026-06-22", estado: "Respondida" },
-  { id: "C-2", propiedad: "Casa en venta — 19 de Mayo al 500", fecha: "2026-06-20", estado: "En gestión" },
-];
+// Cómo se le muestra al visitante el estado interno de su consulta.
+const ESTADO_PUBLICO: Record<string, { label: string; clase: string }> = {
+  nueva:       { label: "Enviada",          clase: "bg-graph/[0.06] text-graph-500" },
+  contactado:  { label: "Respondida",       clase: "bg-brand-50 text-brand" },
+  visita:      { label: "Visita agendada",  clase: "bg-sea-50 text-sea" },
+  negociacion: { label: "En gestión",       clase: "bg-amber-500/12 text-amber-700" },
+  cerrado:     { label: "Cerrada",          clase: "bg-brand-950/[0.07] text-brand-950" },
+  perdido:     { label: "Cerrada",          clase: "bg-graph/[0.06] text-graph-400" },
+};
 
 export default function Cuenta() {
   useLenis();
   const { user, salir } = useAuth();
   const { favoritos } = useFavorites();
-  const { propiedades } = useData();
+  const { propiedades, leads } = useData();
   const [authOpen, setAuthOpen] = useState(false);
   const [tab, setTab] = useState<"favoritos" | "consultas" | "datos">("favoritos");
 
   const favs = propiedades.filter((p) => favoritos.includes(p.id));
+
+  // Las consultas del visitante son las que dejó desde la web o el asistente:
+  // se identifican por el contacto (mail o teléfono) con el que se registró.
+  const misConsultas = leads.filter((l) => {
+    if (!user) return false;
+    const c = (l.contacto || "").trim().toLowerCase();
+    if (!c) return false;
+    const mail = (user.email || "").trim().toLowerCase();
+    const tel = (user.telefono || "").replace(/\D/g, "");
+    return (mail && c === mail) || (tel.length >= 6 && c.replace(/\D/g, "").endsWith(tel.slice(-8)));
+  });
+
+  const tituloDe = (campoId: string | null) =>
+    (campoId && propiedades.find((p) => p.id === campoId)?.titulo) || "Consulta general";
 
   if (!user) {
     return (
@@ -103,21 +121,25 @@ export default function Cuenta() {
             </div>
           ))}
 
-        {tab === "consultas" && (
-          <div className="overflow-hidden rounded-2xl border border-graph/10">
-            {misConsultas.map((c, i) => (
-              <div key={c.id} className={`flex flex-wrap items-center justify-between gap-3 p-5 ${i > 0 ? "border-t border-graph/10" : ""} bg-paper-100`}>
-                <div>
-                  <p className="font-medium text-graph">{c.propiedad}</p>
-                  <p className="text-sm text-graph-400">Consulta enviada el {fmtFecha(c.fecha)}</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.estado === "Respondida" ? "bg-brand-50 text-brand" : "bg-brand-50 text-brand"}`}>
-                  {c.estado}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        {tab === "consultas" &&
+          (misConsultas.length === 0 ? (
+            <Empty texto="Todavía no nos hiciste ninguna consulta. Cuando escribas por una propiedad, la vas a ver acá." />
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-graph/10">
+              {misConsultas.map((c, i) => {
+                const e = ESTADO_PUBLICO[c.estado] ?? ESTADO_PUBLICO.nueva;
+                return (
+                  <div key={c.id} className={`flex flex-wrap items-center justify-between gap-3 p-5 ${i > 0 ? "border-t border-graph/10" : ""} bg-paper-100`}>
+                    <div>
+                      <p className="font-medium text-graph">{tituloDe(c.campoId)}</p>
+                      <p className="text-sm text-graph-400">Consulta enviada el {fmtFecha(c.fechaISO)}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${e.clase}`}>{e.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
 
         {tab === "datos" && (
           <div className="max-w-lg space-y-4 rounded-2xl border border-graph/10 bg-paper-100 p-7">

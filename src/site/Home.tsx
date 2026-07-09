@@ -7,6 +7,7 @@ import {
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
+import UISelect from "@/components/Select";
 import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
 import { useReveal } from "@/lib/hooks";
@@ -439,13 +440,15 @@ function FichaFlotante() {
 
 function Select({ label, value, onChange, options, placeholder }: { label: string; value: string; onChange: (v: string) => void; options: { v: string; l: string }[]; placeholder: string }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1.5 block text-[11px] uppercase tracking-widest2 text-graph-400">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-[42px] w-full rounded-lg border border-graph/15 bg-paper-100 px-3 text-sm text-graph outline-none transition focus:border-brand">
-        <option value="">{placeholder}</option>
-        {options.map((o) => (<option key={o.v} value={o.v}>{o.l}</option>))}
-      </select>
-    </label>
+      <UISelect
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        options={[{ value: "", label: placeholder }, ...options.map((o) => ({ value: o.v, label: o.l }))]}
+      />
+    </div>
   );
 }
 

@@ -6,6 +6,7 @@ import { fmtUSD, fmtFecha, fmtNum } from "@/lib/format";
 import type { Tasacion } from "@/data/types";
 import { PageHeader } from "../components/PageShell";
 import { Btn } from "../components/Controls";
+import Select from "@/components/Select";
 import Badge from "../components/Badge";
 import KpiCard from "../components/KpiCard";
 import Modal from "../components/Modal";
@@ -156,15 +157,15 @@ export default function Tasaciones() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <Badge tone={e.tone} dot>{e.label}</Badge>
-                        <select
+                        <Select
                           value={t.estado}
-                          onChange={(ev) => cambiarEstado(t.id, ev.target.value as Tasacion["estado"])}
-                          className="h-9 rounded-lg border border-graph/10 bg-graph/[0.04] px-2.5 text-xs font-medium text-graph-500 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
-                        >
-                          {ESTADOS_TAS.map((s) => (
-                            <option key={s} value={s} className="bg-paper-100 text-graph">{estadoTasacion[s].label}</option>
-                          ))}
-                        </select>
+                          onChange={(v) => cambiarEstado(t.id, v as Tasacion["estado"])}
+                          options={ESTADOS_TAS.map((s) => ({ value: s, label: estadoTasacion[s].label }))}
+                          size="sm"
+                          align="right"
+                          className="w-36"
+                          triggerClassName="font-medium text-graph-500"
+                        />
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">

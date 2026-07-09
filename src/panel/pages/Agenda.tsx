@@ -7,6 +7,7 @@ import { useData } from "@/lib/DataProvider";
 import type { Visita } from "@/data/types";
 import { PageHeader } from "../components/PageShell";
 import { Btn } from "../components/Controls";
+import Select from "@/components/Select";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { cn } from "../ui/cn";
@@ -204,10 +205,15 @@ export default function Agenda() {
           </label>
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Propiedad</span>
-            <select className={INP} value={form.campoId} onChange={(e) => set("campoId", e.target.value)}>
-              <option value="" className="bg-paper-100 text-graph">Elegí una propiedad…</option>
-              {propiedades.map((p) => (<option key={p.id} value={p.id} className="bg-paper-100 text-graph">{p.titulo} · {p.zona}</option>))}
-            </select>
+            <Select
+              value={form.campoId}
+              onChange={(v) => set("campoId", v)}
+              placeholder="Elegí una propiedad…"
+              options={[
+                { value: "", label: "Elegí una propiedad…" },
+                ...propiedades.map((p) => ({ value: p.id, label: `${p.titulo} · ${p.zona}` })),
+              ]}
+            />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Fecha</span>

@@ -3,6 +3,7 @@
 // Se usa en la sección "Fichas" del panel. Lo interno queda marcado "no se publica".
 import { Lock, ClipboardCheck, Ruler, FileText } from "lucide-react";
 import type { Ficha } from "@/data/propiedadTypes";
+import Select from "@/components/Select";
 
 // ── Opciones (réplica del papel) ──
 export const TIPOS_CAMPO = [
@@ -49,9 +50,11 @@ export function Inp({ value, onChange, ph, type = "text" }: { value: any; onChan
 }
 export function Sel({ value, onChange, opts }: { value: string; onChange: (v: string) => void; opts: { v: string; l: string }[] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph outline-none transition focus:border-brand/60">
-      {opts.map((o) => <option key={o.v} value={o.v} className="bg-paper-100 text-graph">{o.l}</option>)}
-    </select>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={opts.map((o) => ({ value: o.v, label: o.l }))}
+    />
   );
 }
 export function Toggle({ label, v, on }: { label: string; v: boolean; on: () => void }) {

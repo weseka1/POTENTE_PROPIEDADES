@@ -4,6 +4,7 @@ import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Hom
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
+import Select from "@/components/Select";
 import { supabase } from "@/lib/supabase";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
 
@@ -390,9 +391,11 @@ function Inp({ value, onChange, ph, type = "text" }: { value: any; onChange: (v:
 }
 function Sel({ value, onChange, opts }: { value: string; onChange: (v: string) => void; opts: { v: string; l: string }[] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph outline-none transition focus:border-brand/60">
-      {opts.map((o) => <option key={o.v} value={o.v} className="bg-paper-100 text-graph">{o.l}</option>)}
-    </select>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={opts.map((o) => ({ value: o.v, label: o.l }))}
+    />
   );
 }
 function Toggle({ label, v, on }: { label: string; v: boolean; on: () => void }) {

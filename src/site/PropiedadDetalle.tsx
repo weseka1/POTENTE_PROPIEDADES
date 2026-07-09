@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Mail, Share2, Heart,
+  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Mail, Heart,
   BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle,
 } from "lucide-react";
 import Navbar from "./components/Navbar";

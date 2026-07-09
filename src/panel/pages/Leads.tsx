@@ -6,6 +6,7 @@ import { desde } from "@/lib/format";
 import { PageHeader, EmptyState } from "../components/PageShell";
 import { FilterSelect, Segmented } from "../components/Controls";
 import Badge from "../components/Badge";
+import Select from "@/components/Select";
 import ChannelIcon from "../components/ChannelIcon";
 import { useToast } from "../components/Toast";
 import { estadoLead, ESTADOS_LEAD, canalLabel } from "../ui/estados";
@@ -124,26 +125,25 @@ export default function Leads() {
                   {/* controles */}
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <Badge tone={e.tone} dot>{e.label}</Badge>
-                    <select
+                    <Select
                       value={l.estado}
-                      onChange={(ev) => setEstadoLead_(l.id, ev.target.value as EstadoLead)}
-                      className="h-9 rounded-lg border border-graph/10 bg-graph/[0.04] px-2.5 text-xs font-medium text-graph-500 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
-                    >
-                      {ESTADOS_LEAD.map((s) => (
-                        <option key={s} value={s} className="bg-paper-100 text-graph">{estadoLead[s].label}</option>
-                      ))}
-                    </select>
-                    <div className="relative">
-                      <UserPlus size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-graph-400" />
-                      <select
+                      onChange={(v) => setEstadoLead_(l.id, v as EstadoLead)}
+                      options={ESTADOS_LEAD.map((s) => ({ value: s, label: estadoLead[s].label }))}
+                      size="sm"
+                      align="right"
+                      className="w-36"
+                      triggerClassName="font-medium text-graph-500"
+                    />
+                    <div className="relative w-44">
+                      <UserPlus size={13} className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-graph-400" />
+                      <Select
                         value={l.asignado}
-                        onChange={(ev) => setAsignado(l.id, ev.target.value)}
-                        className="h-9 rounded-lg border border-graph/10 bg-graph/[0.04] pl-7 pr-2.5 text-xs font-medium text-graph-500 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
-                      >
-                        {RESPONSABLES.map((r) => (
-                          <option key={r} value={r} className="bg-paper-100 text-graph">{r}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => setAsignado(l.id, v)}
+                        options={RESPONSABLES.map((r) => ({ value: r, label: r }))}
+                        size="sm"
+                        align="right"
+                        triggerClassName="pl-7 font-medium text-graph-500"
+                      />
                     </div>
                     <button
                       onClick={() => eliminar(l)}

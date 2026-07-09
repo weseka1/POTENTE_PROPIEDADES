@@ -6,6 +6,7 @@ import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
 import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
+import UISelect from "@/components/Select";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 import { CATEGORIAS } from "@/data/propiedadTypes";
@@ -181,18 +182,19 @@ export default function Catalogo() {
 
 type Opt = string | { v: string; l: string };
 function FSelect({ value, onChange, options, ph, noEmpty }: { value: string; onChange: (v: string) => void; options: Opt[]; ph: string; noEmpty?: boolean }) {
+  const opciones = [
+    ...(noEmpty ? [] : [{ value: "", label: ph }]),
+    ...options.map((o) => (typeof o === "string" ? { value: o, label: o } : { value: o.v, label: o.l })),
+  ];
   return (
-    <select
+    <UISelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-9 rounded-lg border border-graph/15 bg-paper-100 px-3 text-sm capitalize text-graph outline-none transition focus:border-brand focus:ring-brand/15"
-    >
-      {!noEmpty && <option value="">{ph}</option>}
-      {options.map((o) => {
-        const v = typeof o === "string" ? o : o.v;
-        const l = typeof o === "string" ? o : o.l;
-        return <option key={v} value={v} className="capitalize">{l}</option>;
-      })}
-    </select>
+      onChange={onChange}
+      options={opciones}
+      placeholder={ph}
+      size="sm"
+      className="min-w-[9.5rem]"
+      triggerClassName="capitalize rounded-lg"
+    />
   );
 }

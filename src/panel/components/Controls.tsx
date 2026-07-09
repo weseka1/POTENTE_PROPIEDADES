@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { cn } from "../ui/cn";
+import Select from "@/components/Select";
 
 // ---- Buscador ----
 export function SearchInput({
@@ -39,20 +40,13 @@ export function FilterSelect({
   className?: string;
 }) {
   return (
-    <select
+    <Select
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "h-10 rounded-xl border border-graph/10 bg-graph/[0.04] px-3 pr-8 text-sm font-medium text-graph outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15",
-        className
-      )}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value} className="bg-paper-100 text-graph">
-          {o.label}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={options}
+      className={className}
+      triggerClassName="font-medium"
+    />
   );
 }
 
