@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles,
+  ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles, SlidersHorizontal,
   ShieldCheck, MapPin, Phone, Mail, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves, BedDouble, Maximize,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
@@ -64,6 +64,7 @@ export default function Home() {
   const countByCat = (cat: string) => propiedades.filter((p) => p.categoria === cat).length;
   const [q, setQ] = useState({ cat: "", zona: "", operacion: "" });
   const [qIA, setQIA] = useState("");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   // El buscador BUSCA: entiende lo que se escribe en castellano y lleva a los
   // resultados filtrados al instante. La IA vive en la burbuja, es otra cosa.
@@ -89,7 +90,7 @@ export default function Home() {
       <Navbar />
 
       {/* ===== HERO — el Atlántico en vivo (Gerstner + espuma que sigue al mouse) ===== */}
-      <section className="relative flex min-h-screen items-center overflow-hidden bg-paper">
+      <section className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-paper md:block md:items-center">
         <div className="absolute inset-0" aria-hidden>
           {/* fallback estático mientras carga el mar (o si no hay WebGL) */}
           <div className="absolute -left-40 top-[-20%] h-[70vh] w-[70vh] animate-drift rounded-full bg-brand-50 blur-3xl" />
@@ -122,7 +123,7 @@ export default function Home() {
         <FichaFlotante />
 
 
-        <div className="container-x relative z-10 pb-60 pt-28 md:pb-64">
+        <div className="container-x relative z-10 pt-28 md:pb-64 md:pt-52">
           <div className="max-w-3xl">
             <p className="eyebrow reveal flex items-center gap-2">
               <span className="h-px w-8 bg-brand" /> Mar del Plata · Punta Mogotes y Chauvín
@@ -143,30 +144,49 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Un solo buscador, un solo botón. Escribís como hablás, o usás los filtros. */}
-        <div className="container-x absolute inset-x-0 bottom-8 z-10">
+        {/* Un solo buscador, un solo botón. En el celular vive en el flujo (no tapa el hero);
+            en escritorio flota sobre el video. Los filtros se despliegan si el visitante quiere. */}
+        <div className="container-x relative z-10 mt-10 pb-12 md:absolute md:inset-x-0 md:bottom-8 md:mt-0 md:pb-0">
           <form
             onSubmit={buscar}
-            className="reveal rounded-2xl border border-graph/10 bg-paper-100/80 p-4 shadow-card backdrop-blur-md md:p-5"
+            className="reveal rounded-2xl border border-graph/10 bg-paper-100/90 p-4 shadow-card backdrop-blur-md md:bg-paper-100/80 md:p-5"
             data-delay="320ms"
           >
-            <label className="relative block">
-              <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand" />
-              <input
-                value={qIA}
-                onChange={(e) => setQIA(e.target.value)}
-                placeholder="¿Qué estás buscando? Ej: “depto de 3 ambientes en Playa Grande hasta 180 mil”"
-                className="h-[54px] w-full rounded-xl border border-graph/15 bg-paper-100 pl-11 pr-4 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand focus:ring-2 focus:ring-brand/15"
-                aria-label="Buscar propiedades"
-              />
-            </label>
-            <div className="mt-3 grid gap-3 border-t border-graph/10 pt-3 md:grid-cols-[1.2fr_1.3fr_1fr_auto]">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <label className="relative block flex-1">
+                <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand" />
+                <input
+                  value={qIA}
+                  onChange={(e) => setQIA(e.target.value)}
+                  placeholder="¿Qué buscás? Ej: “depto 3 ambientes en Playa Grande”"
+                  className="h-[54px] w-full rounded-xl border border-graph/15 bg-paper-100 pl-11 pr-4 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand focus:ring-2 focus:ring-brand/15"
+                  aria-label="Buscar propiedades"
+                />
+              </label>
+              <button type="submit" className="btn-primary h-[54px] whitespace-nowrap md:hidden">
+                <Search size={16} /> Buscar
+              </button>
+            </div>
+
+            {/* En el celular los filtros están plegados: el visitante ve una sola cosa. */}
+            <button
+              type="button"
+              onClick={() => setFiltrosAbiertos((v) => !v)}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-graph-500 transition hover:text-brand md:hidden"
+              aria-expanded={filtrosAbiertos}
+            >
+              <SlidersHorizontal size={13} /> {filtrosAbiertos ? "Ocultar filtros" : "Más filtros"}
+            </button>
+
+            <div
+              className={`${filtrosAbiertos ? "grid" : "hidden"} mt-3 gap-3 border-t border-graph/10 pt-3 md:grid md:grid-cols-[1.2fr_1.3fr_1fr_auto]`}
+            >
               <Select label="Tipo" value={q.cat} onChange={(v) => setQ({ ...q, cat: v })}
                 options={[{ v: "casa", l: "Casas" }, { v: "departamento", l: "Departamentos" }, { v: "local", l: "Locales" }, { v: "lote", l: "Lotes" }]} placeholder="Todos" />
               <Select label="Zona" value={q.zona} onChange={(v) => setQ({ ...q, zona: v })} options={zonas.map((z) => ({ v: z, l: z }))} placeholder="Todas las zonas" />
               <Select label="Operación" value={q.operacion} onChange={(v) => setQ({ ...q, operacion: v })}
                 options={[{ v: "venta", l: "Venta" }, { v: "alquiler", l: "Alquiler" }]} placeholder="Todas" />
-              <button type="submit" className="btn-primary h-[58px] self-end whitespace-nowrap">
+              <button type="submit" className="btn-primary hidden h-[58px] self-end whitespace-nowrap md:inline-flex">
                 <Search size={16} /> Buscar
               </button>
             </div>

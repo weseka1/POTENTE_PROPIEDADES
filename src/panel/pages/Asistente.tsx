@@ -3,7 +3,7 @@ import {
   Sparkles, BookOpen, SlidersHorizontal, Plus, Trash2, Clock, UserCheck,
   Inbox, TrendingUp, Bot, ShieldCheck, Power, Link2, Activity,
   MessageCircle, Instagram, MessageSquare, Globe, Mail, Phone, Wand2, Zap,
-  Send, Loader2, KeyRound, Upload, Check,
+  Send, Loader2, KeyRound, Upload, Check, Copy,
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "../components/Toast";
@@ -154,50 +154,87 @@ async function responderConClaude(cfg: IAConfig, msgs: { role: string; content: 
 
 export default function Asistente() {
   const {
-    leads, propiedades,
+    leads, propiedades, clientes, visitas, arrendamientos,
     sugerencias, resolverSugerencia,
-    updateLead, addVisita, updateVisita, updateArrendamiento,
+    updateLead, addVisita, updateVisita,
   } = useData();
   const { push } = useToast();
   const [cfg, setCfg] = useIAConfig();
   const [tab, setTab] = useState("sugerencias");
   const [conn, setConn] = useState<(typeof CANALES)[number] | null>(null);
+  // El borrador es editable antes de mandarlo: la IA propone, la persona corrige.
+  const [borradores, setBorradores] = useState<Record<string, string>>({});
+  const textoDe = (s: Sugerencia) => borradores[s.id] ?? s.propuesta;
 
-  // ── Trabajo del día: la IA propone, el humano confirma y la acción se ejecuta ──
+  // ── A quién hay que escribirle, según de dónde salga la sugerencia ──
+  const contactoDeNombre = (nombre?: string) => {
+    if (!nombre) return "";
+    const c = clientes.find((x) => x.nombre.toLowerCase() === nombre.toLowerCase());
+    return c?.telefono || c?.email || "";
+  };
+  const contactoDe = (s: Sugerencia): string => {
+    if (s.tipo === "responder_lead" || s.tipo === "seguimiento" || s.tipo === "agendar_visita")
+      return leads.find((l) => l.id === s.refId)?.contacto ?? "";
+    if (s.tipo === "confirmar_visita")
+      return contactoDeNombre(visitas.find((v) => v.id === s.refId)?.clienteNombre);
+    if (s.tipo === "vencimiento")
+      return contactoDeNombre(arrendamientos.find((a) => a.id === s.refId)?.arrendatario);
+    return "";
+  };
+
+  // Por dónde se le escribe: WhatsApp si dejó teléfono, mail si dejó mail.
+  type Canal = { via: "whatsapp" | "mail" | "ninguno"; href?: string };
+  const canalDe = (s: Sugerencia): Canal => {
+    const c = contactoDe(s).trim();
+    if (!c) return { via: "ninguno" };
+    const texto = encodeURIComponent(textoDe(s));
+    if (c.includes("@")) return { via: "mail", href: `mailto:${c}?subject=${encodeURIComponent("Potente Propiedades")}&body=${texto}` };
+    const digitos = c.replace(/\D/g, "");
+    if (digitos.length >= 8) return { via: "whatsapp", href: `https://wa.me/${digitos}?text=${texto}` };
+    return { via: "ninguno" };
+  };
+
+  // ── Trabajo del día: la IA redacta, la persona manda y el estado se actualiza ──
+  // Nada se envía solo: se abre el canal real con el mensaje listo.
   const ejecutarSugerencia = (s: Sugerencia) => {
-    switch (s.tipo) {
-      case "responder_lead":
-        if (s.refId) updateLead(s.refId, { estado: "contactado" });
-        push("Respuesta enviada · la consulta pasó a Contactado", "success");
-        break;
-      case "agendar_visita":
-        if (s.refId && s.fechaSugerida && s.horaSugerida) {
-          addVisita({
-            id: "VIS-" + Date.now(),
-            fechaISO: s.fechaSugerida,
-            hora: s.horaSugerida,
-            campoId: s.propiedadId ?? "",
-            clienteNombre: s.clienteNombre ?? "",
-            responsable: "Mateo",
-            estado: "agendada",
-          });
-        }
-        push("Visita agendada · la vas a ver en la Agenda", "success");
-        break;
-      case "confirmar_visita":
-        if (s.refId) updateVisita(s.refId, { estado: "confirmada" });
-        push("Visita confirmada ✓", "success");
-        break;
-      case "seguimiento":
-        if (s.refId) updateLead(s.refId, { estado: "contactado" });
-        push("Seguimiento enviado", "success");
-        break;
-      case "vencimiento":
-        if (s.refId) updateArrendamiento(s.refId, { estado: "por_vencer" });
-        push("Aviso registrado", "success");
-        break;
+    if (s.tipo === "agendar_visita") {
+      if (s.fechaSugerida && s.horaSugerida) {
+        addVisita({
+          id: "VIS-" + Date.now(),
+          fechaISO: s.fechaSugerida,
+          hora: s.horaSugerida,
+          campoId: s.propiedadId ?? "",
+          clienteNombre: s.clienteNombre ?? "",
+          responsable: "Mateo",
+          estado: "agendada",
+        });
+      }
+      push("Visita agendada · la vas a ver en la Agenda", "success");
+      resolverSugerencia(s.id);
+      return;
+    }
+
+    const canal = canalDe(s);
+    if (canal.via === "ninguno") {
+      navigator.clipboard?.writeText(textoDe(s));
+      push("No hay teléfono ni mail cargado. Copiamos el mensaje al portapapeles.", "info");
+    } else {
+      window.open(canal.href, "_blank", "noopener");
+      push(canal.via === "whatsapp" ? "Se abrió WhatsApp con el mensaje listo para enviar" : "Se abrió tu correo con el mensaje listo", "success");
+    }
+
+    // El estado se mueve solo donde corresponde (un contrato vencido no vuelve a "por vencer").
+    if (s.tipo === "responder_lead" || s.tipo === "seguimiento") {
+      if (s.refId) updateLead(s.refId, { estado: "contactado" });
+    } else if (s.tipo === "confirmar_visita") {
+      if (s.refId) updateVisita(s.refId, { estado: "confirmada" });
     }
     resolverSugerencia(s.id);
+  };
+
+  const copiarSugerencia = (s: Sugerencia) => {
+    navigator.clipboard?.writeText(textoDe(s));
+    push("Mensaje copiado", "info");
   };
 
   const descartarSugerencia = (s: Sugerencia) => {
@@ -250,7 +287,7 @@ export default function Asistente() {
     <div>
       <PageHeader
         title="Asistente IA"
-        subtitle="El cerebro de tu IA. Conectala a tus canales, enseñale tu negocio y definí cómo trabaja. Todo se configura acá — no tenés que aprobar mensajes."
+        subtitle="El cerebro de tu IA. Conectala a tus canales, enseñale tu negocio y definí cómo trabaja. Los mensajes a clientes te los deja escritos; los mandás vos."
       />
 
       {/* ===== Estado del cerebro ===== */}
@@ -303,7 +340,7 @@ export default function Asistente() {
                 {sugerencias.length ? `Tenés ${sugerencias.length} ${sugerencias.length === 1 ? "acción pendiente" : "acciones pendientes"}` : "Estás al día"}
               </h2>
               <p className="mt-0.5 text-sm text-graph-500">
-                La IA revisa las consultas, la agenda y los contratos, y te deja el trabajo preparado. Vos confirmás.
+                La IA revisa las consultas, la agenda y los contratos, y te deja el mensaje escrito. Vos lo mirás y lo mandás.
               </p>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand/20">
@@ -318,49 +355,82 @@ export default function Asistente() {
               <p className="mt-1 text-sm text-graph-400">Cuando entre una consulta nueva o venza un contrato, lo vas a ver acá.</p>
             </div>
           ) : (
-            sugerencias.map((s) => (
-              <div key={s.id} className="pcard pcard-hover p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          s.prioridad === "alta"
-                            ? "bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25"
-                            : "bg-graph/[0.06] text-graph-500"
-                        }`}
-                      >
-                        {s.prioridad === "alta" ? "Urgente" : "Puede esperar"}
-                      </span>
-                      <h3 className="truncate font-display text-base font-semibold text-graph">{s.titulo}</h3>
+            sugerencias.map((s) => {
+              const canal = canalDe(s);
+              const esAgenda = s.tipo === "agendar_visita";
+              const label = esAgenda
+                ? s.cta
+                : canal.via === "whatsapp"
+                ? "Abrir WhatsApp"
+                : canal.via === "mail"
+                ? "Abrir el mail"
+                : "Copiar mensaje";
+              const Icono = esAgenda ? Check : canal.via === "mail" ? Mail : canal.via === "whatsapp" ? MessageCircle : Copy;
+              return (
+                <div key={s.id} className="pcard pcard-hover p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            s.prioridad === "alta"
+                              ? "bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25"
+                              : "bg-graph/[0.06] text-graph-500"
+                          }`}
+                        >
+                          {s.prioridad === "alta" ? "Urgente" : "Puede esperar"}
+                        </span>
+                        <h3 className="truncate font-display text-base font-semibold text-graph">{s.titulo}</h3>
+                      </div>
+                      <p className="mt-1 text-sm text-graph-500">{s.contexto}</p>
                     </div>
-                    <p className="mt-1 text-sm text-graph-500">{s.contexto}</p>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        onClick={() => descartarSugerencia(s)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold text-graph-400 transition hover:bg-graph/[0.05] hover:text-graph"
+                      >
+                        Descartar
+                      </button>
+                      {!esAgenda && (
+                        <button
+                          onClick={() => copiarSugerencia(s)}
+                          title="Copiar el mensaje"
+                          className="grid h-9 w-9 place-items-center rounded-xl border border-graph/15 text-graph-500 transition hover:border-brand/40 hover:text-brand"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => ejecutarSugerencia(s)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand px-3.5 text-xs font-semibold text-white transition hover:bg-brand-600"
+                      >
+                        <Icono size={14} /> {label}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      onClick={() => descartarSugerencia(s)}
-                      className="rounded-xl px-3 py-2 text-xs font-semibold text-graph-400 transition hover:bg-graph/[0.05] hover:text-graph"
-                    >
-                      Descartar
-                    </button>
-                    <button
-                      onClick={() => ejecutarSugerencia(s)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand px-3.5 text-xs font-semibold text-white transition hover:bg-brand-600"
-                    >
-                      <Check size={14} /> {s.cta}
-                    </button>
-                  </div>
-                </div>
 
-                {/* lo que la IA dejó preparado */}
-                <div className="mt-4 rounded-xl border border-graph/[0.08] bg-graph/[0.02] p-4">
-                  <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-graph-400">
-                    <Wand2 size={12} className="text-brand" /> Lo que preparó la IA
-                  </p>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-graph">{s.propuesta}</p>
+                  {/* El borrador, editable: la IA lo escribe, la persona lo corrige y lo manda. */}
+                  {!esAgenda && (
+                    <div className="mt-4 rounded-xl border border-graph/[0.08] bg-graph/[0.02] p-4">
+                      <p className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-graph-400">
+                        <span className="flex items-center gap-1.5">
+                          <Wand2 size={12} className="text-brand" /> Borrador — editalo si querés
+                        </span>
+                        <span className="font-normal normal-case tracking-normal text-graph-400">
+                          {canal.via === "whatsapp" ? "Se abre WhatsApp" : canal.via === "mail" ? "Se abre tu correo" : "Sin contacto cargado"}
+                        </span>
+                      </p>
+                      <textarea
+                        value={textoDe(s)}
+                        onChange={(e) => setBorradores((b) => ({ ...b, [s.id]: e.target.value }))}
+                        rows={3}
+                        className="w-full resize-y rounded-lg border border-transparent bg-transparent text-sm leading-relaxed text-graph outline-none transition focus:border-brand/40 focus:bg-paper-100 focus:px-3 focus:py-2"
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
