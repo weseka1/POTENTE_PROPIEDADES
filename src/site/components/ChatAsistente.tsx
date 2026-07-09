@@ -121,10 +121,16 @@ export default function ChatAsistente() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Abrir asistente"
-          className="fixed bottom-5 right-5 z-[60] grid h-14 w-14 place-items-center rounded-full bg-brand text-white shadow-[0_12px_30px_-8px_rgba(12,77,162,0.7)] transition hover:scale-105 hover:bg-brand-600"
+          className="group fixed bottom-5 right-5 z-[60] flex h-14 items-center overflow-hidden rounded-full bg-brand pl-[15px] pr-[15px] text-white shadow-[0_12px_30px_-8px_rgba(12,77,162,0.7)] transition-[width,padding,box-shadow] duration-[600ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-brand-600 hover:pr-6 hover:shadow-[0_18px_40px_-10px_rgba(12,77,162,0.85)]"
         >
-          <MessageCircle size={24} />
-          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-sea-300" />
+          {/* aro que respira: avisa que está viva sin molestar */}
+          <span className="pointer-events-none absolute inset-0 animate-ping rounded-full bg-brand/30 [animation-duration:2.8s]" />
+          <MessageCircle size={24} className="relative shrink-0" />
+          {/* el nombre se desliza al pasar el mouse */}
+          <span className="relative ml-0 max-w-0 whitespace-nowrap text-sm font-semibold opacity-0 transition-[max-width,margin,opacity] duration-[600ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:ml-2.5 group-hover:max-w-[13rem] group-hover:opacity-100">
+            Preguntale a Marina
+          </span>
+          <span className="absolute right-2.5 top-2.5 h-3 w-3 rounded-full border-2 border-white bg-sea-300 transition-opacity duration-300 group-hover:opacity-0" />
         </button>
       )}
 

@@ -72,11 +72,70 @@ html.lenis body {
   .eyebrow {
     @apply text-xs font-semibold uppercase tracking-widest2 text-brand;
   }
+  /* Botones de la web: al pasar el mouse se levantan apenas y un destello
+     los recorre de izquierda a derecha. Easing expo — se siente caro, no de plantilla. */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-brand px-7 py-3 text-sm font-semibold text-white transition hover:bg-brand-600 hover:shadow-soft;
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full bg-brand px-7 py-3 text-sm font-semibold text-white;
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.3s ease;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-graph/20 px-7 py-3 text-sm font-semibold text-graph transition hover:border-brand hover:text-brand;
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full border border-graph/20 px-7 py-3 text-sm font-semibold text-graph;
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.3s ease, color 0.3s ease;
+  }
+  .btn-primary:hover {
+    @apply bg-brand-600;
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px -12px rgba(12, 77, 162, 0.65);
+  }
+  .btn-ghost:hover {
+    @apply border-brand text-brand;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px -14px rgba(13, 21, 33, 0.35);
+  }
+  .btn-primary:active,
+  .btn-ghost:active {
+    transform: translateY(0);
+    transition-duration: 0.1s;
+  }
+  /* el destello que se desliza por encima del botón */
+  .btn-primary::after,
+  .btn-ghost::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transform: translateX(-130%) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+    transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .btn-ghost::after {
+    background: linear-gradient(90deg, transparent, rgba(12, 77, 162, 0.16), transparent);
+  }
+  .btn-primary:hover::after,
+  .btn-ghost:hover::after {
+    transform: translateX(130%) skewX(-18deg);
+  }
+  /* la flecha del final acompaña el gesto (los íconos que van adelante no se mueven) */
+  .btn-primary > svg:last-child:not(:first-child),
+  .btn-ghost > svg:last-child:not(:first-child) {
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .btn-primary:hover > svg:last-child:not(:first-child),
+  .btn-ghost:hover > svg:last-child:not(:first-child) {
+    transform: translateX(3px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary,
+    .btn-ghost,
+    .btn-primary::after,
+    .btn-ghost::after,
+    .btn-primary > svg:last-child:not(:first-child),
+    .btn-ghost > svg:last-child:not(:first-child) {
+      transition: none;
+      transform: none;
+    }
   }
   .link-underline {
     @apply relative after:absolute after:-bottom-0.5 after:left-0 after:h-px after:w-0 after:bg-brand after:transition-all hover:after:w-full;
