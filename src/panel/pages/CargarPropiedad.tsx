@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Home as HomeIcon, Sprout, FileText, User, Ruler, ClipboardCheck } from "lucide-react";
+import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Home as HomeIcon, Sprout, FileText, User, Ruler, ClipboardCheck, Lock } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
@@ -271,9 +271,15 @@ export default function CargarPropiedad() {
             </section>
           )}
 
-          {/* Propietario / captación */}
+          {/* Propietario / captación — datos internos, nunca se publican en la web. */}
           <section className="pcard p-5">
-            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-graph"><User size={16} className="text-brand" /> Propietario y captación</h3>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 font-display text-base font-semibold text-graph"><User size={16} className="text-brand" /> Propietario y captación</h3>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/12 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/25">
+                <Lock size={11} /> Privado · no se muestra en la web
+              </span>
+            </div>
+            <p className="-mt-2 mb-4 text-[12px] text-graph-400">Estos datos quedan solo para tu equipo (como en la ficha de papel). El aviso público nunca muestra al dueño ni a quién captó.</p>
             <div className="grid gap-4 sm:grid-cols-3">
               <Campo label="Propietario"><Inp value={f.ficha.propietario} onChange={(v) => setFicha("propietario", v)} ph="Nombre del dueño" /></Campo>
               <Campo label="Contacto"><Inp value={f.ficha.contacto} onChange={(v) => setFicha("contacto", v)} ph="Teléfono / email" /></Campo>
