@@ -7,6 +7,7 @@ import { FileText, Search, Plus, ArrowLeft, Save, Loader2, X, Trash2, ChevronRig
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import { supabase } from "@/lib/supabase";
+import { cargarDemo, guardarDemo } from "@/lib/DataProvider";
 import type { Ficha } from "@/data/propiedadTypes";
 import { Campo, Inp, Sel, FichaSecciones } from "../components/fichaUI";
 import { descargarFichaPDF } from "../lib/fichaPDF";
@@ -18,10 +19,14 @@ const TIPO_OPTS = [{ v: "campo", l: "Campo" }, { v: "urbano", l: "Urbano / Propi
 
 export default function Fichas() {
   const { push } = useToast();
-  const [fichas, setFichas] = useState<FichaRow[]>([]);
+  // Sin base de datos las fichas viven en el navegador, igual que el resto del panel.
+  // Antes solo existían en memoria: se creaba una, se refrescaba y desaparecía.
+  const [fichas, setFichas] = useState<FichaRow[]>(() => cargarDemo<FichaRow[]>("fichas", []));
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<FichaRow | null>(null);
+
+  useEffect(() => { guardarDemo("fichas", fichas); }, [fichas]);
 
   useEffect(() => {
     let cancel = false;

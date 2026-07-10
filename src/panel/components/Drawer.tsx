@@ -18,7 +18,16 @@ export default function Drawer({ open, onClose, children, width = "max-w-xl" }: 
   }, [open, onClose]);
 
   return (
-    <div className={cn("fixed inset-0 z-50", open ? "" : "pointer-events-none")}>
+    // Cerrado, el panel sigue en el DOM para poder animar la salida. Sin `invisible`
+    // sus botones quedan alcanzables con Tab aunque no se vean. El delay deja que
+    // termine el deslizamiento antes de ocultarlo.
+    <div
+      aria-hidden={!open}
+      className={cn(
+        "fixed inset-0 z-50 transition-[visibility] duration-0",
+        open ? "visible" : "invisible pointer-events-none delay-300"
+      )}
+    >
       <div
         className={cn(
           "absolute inset-0 bg-graph/70 backdrop-blur-sm transition-opacity duration-300",

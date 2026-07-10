@@ -841,12 +841,12 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
         {!view3d && (
           <div className="absolute border border-graph/10 bg-paper-100 left-3 top-3 z-30 grid grid-cols-2 gap-1 rounded-2xl p-1.5 shadow-[0_18px_44px_-22px_rgba(23,26,23,0.4)]">
             {TOOLS.map(({ t, Icon, label }) => (
-              <button key={t} data-tip={label} data-tip-side="right" onClick={() => setTool(t)}
+              <button key={t} data-tip={label} aria-label={label} data-tip-side="right" onClick={() => setTool(t)}
                 className={`grid h-10 w-10 place-items-center rounded-xl transition ${tool === t ? "bg-brand text-white shadow-[0_8px_18px_-8px_rgba(12,77,162,0.7)]" : "text-graph-500 hover:bg-graph/[0.06] hover:text-graph"}`}>
                 <Icon size={18} />
               </button>
             ))}
-            <button data-tip="Calibrar la escala — dibujá una medida que conozcas y decile cuánto mide en la realidad." data-tip-side="right" onClick={() => setTool(tool === "calibrar" ? "recta" : "calibrar")}
+            <button data-tip="Calibrar la escala — dibujá una medida que conozcas y decile cuánto mide en la realidad." aria-label="Calibrar la escala — dibujá una medida que conozcas y decile cuánto mide en la realidad." data-tip-side="right" onClick={() => setTool(tool === "calibrar" ? "recta" : "calibrar")}
               className={`col-span-2 grid h-9 place-items-center rounded-xl transition ${tool === "calibrar" ? "bg-brand text-white" : "text-graph-400 hover:bg-graph/[0.06] hover:text-graph"}`}><Crosshair size={16} /></button>
           </div>
         )}
@@ -856,12 +856,12 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
           <div className="absolute border border-graph/10 bg-paper-100 left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-1 rounded-2xl px-2 py-1.5 shadow-[0_18px_44px_-22px_rgba(23,26,23,0.4)]">
             <Layers size={14} className="ml-1 mr-0.5 text-brand" />
             {floors.map((name, i) => (
-              <button key={i} onClick={() => switchFloor(i)} data-tip={`Ir al piso: ${name}`} data-tip-side="bottom"
+              <button key={i} onClick={() => switchFloor(i)} data-tip={`Ir al piso: ${name}`} aria-label={`Ir al piso: ${name}`} data-tip-side="bottom"
                 className={`h-7 rounded-lg px-2.5 text-xs font-semibold transition ${active === i ? "bg-brand text-white" : "text-graph-500 hover:bg-graph/[0.06]"}`}>{i === 0 ? "PB" : `${i}°`}</button>
             ))}
-            <button onClick={() => addFloor(false)} data-tip="Agregar un piso" data-tip-side="bottom" className="grid h-7 w-7 place-items-center rounded-lg text-graph-500 transition hover:bg-graph/[0.06]"><Plus size={14} /></button>
-            {active > 0 && <button onClick={copyBelow} data-tip="Copiar el contorno del piso de abajo" data-tip-side="bottom" className="grid h-7 w-7 place-items-center rounded-lg text-graph-500 transition hover:bg-graph/[0.06]"><Copy size={13} /></button>}
-            {floors.length > 1 && <button onClick={delFloor} data-tip="Eliminar este piso" data-tip-side="bottom" className="grid h-7 w-7 place-items-center rounded-lg text-graph-400 transition hover:bg-red-500/10 hover:text-red-600"><Trash2 size={13} /></button>}
+            <button onClick={() => addFloor(false)} data-tip="Agregar un piso" aria-label="Agregar un piso" data-tip-side="bottom" className="grid h-7 w-7 place-items-center rounded-lg text-graph-500 transition hover:bg-graph/[0.06]"><Plus size={14} /></button>
+            {active > 0 && <button onClick={copyBelow} data-tip="Copiar el contorno del piso de abajo" aria-label="Copiar el contorno del piso de abajo" data-tip-side="bottom" className="grid h-7 w-7 place-items-center rounded-lg text-graph-500 transition hover:bg-graph/[0.06]"><Copy size={13} /></button>}
+            {floors.length > 1 && <button onClick={delFloor} data-tip="Eliminar este piso" aria-label="Eliminar este piso" data-tip-side="bottom" className="grid h-7 w-7 place-items-center rounded-lg text-graph-400 transition hover:bg-red-500/10 hover:text-red-600"><Trash2 size={13} /></button>}
           </div>
         )}
 
@@ -897,22 +897,22 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
               <div className="mx-0.5 h-5 w-px bg-graph/10" />
             </>
           )}
-          {!view3d && <button onClick={doExample} data-tip="Cargar una planta de ejemplo" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Home size={16} /></button>}
-          <button onClick={() => (view3d ? setView3d(false) : go3d())} data-tip={view3d ? "Volver al plano 2D" : "Ver el plano en 3D"} data-tip-side="bottom"
+          {!view3d && <button onClick={doExample} data-tip="Cargar una planta de ejemplo" aria-label="Cargar una planta de ejemplo" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Home size={16} /></button>}
+          <button onClick={() => (view3d ? setView3d(false) : go3d())} data-tip={view3d ? "Volver al plano 2D" : "Ver el plano en 3D"} aria-label={view3d ? "Volver al plano 2D" : "Ver el plano en 3D"} data-tip-side="bottom"
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand/40 px-3 text-sm font-semibold text-brand transition hover:bg-brand/10"><Box size={15} /> {view3d ? "2D" : "3D"}</button>
           {!view3d && (
             <>
               <div className="mx-0.5 h-5 w-px bg-graph/10" />
-              <button onClick={() => eng.current?.undo()} data-tip="Deshacer" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Undo2 size={16} /></button>
-              <button onClick={() => eng.current?.redo()} data-tip="Rehacer" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Redo2 size={16} /></button>
-              <button onClick={() => eng.current?.clear()} data-tip="Vaciar todo el pizarrón" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Trash2 size={16} /></button>
-              <button onClick={doExport} data-tip="Exportar el plano a imagen (PNG)" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Download size={16} /></button>
-              {!onUsar && <button onClick={doSave} data-tip="Guardar el plano en la propiedad" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-white transition hover:bg-brand-600">{saved ? <Check size={16} /> : <Save size={16} />}</button>}
-              {onUsar && <button onClick={() => eng.current?.exportPNG(propName, onUsar)} data-tip="Usar este dibujo en la ficha" data-tip-side="bottom" className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-600"><Check size={15} /> Usar en la ficha</button>}
+              <button onClick={() => eng.current?.undo()} data-tip="Deshacer" aria-label="Deshacer" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Undo2 size={16} /></button>
+              <button onClick={() => eng.current?.redo()} data-tip="Rehacer" aria-label="Rehacer" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Redo2 size={16} /></button>
+              <button onClick={() => eng.current?.clear()} data-tip="Vaciar todo el pizarrón" aria-label="Vaciar todo el pizarrón" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Trash2 size={16} /></button>
+              <button onClick={doExport} data-tip="Exportar el plano a imagen (PNG)" aria-label="Exportar el plano a imagen (PNG)" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph"><Download size={16} /></button>
+              {!onUsar && <button onClick={doSave} data-tip="Guardar el plano en la propiedad" aria-label="Guardar el plano en la propiedad" data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-white transition hover:bg-brand-600">{saved ? <Check size={16} /> : <Save size={16} />}</button>}
+              {onUsar && <button onClick={() => eng.current?.exportPNG(propName, onUsar)} data-tip="Usar este dibujo en la ficha" aria-label="Usar este dibujo en la ficha" data-tip-side="bottom" className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-600"><Check size={15} /> Usar en la ficha</button>}
             </>
           )}
           <div className="mx-0.5 h-5 w-px bg-graph/10" />
-          <button onClick={() => setExpanded((v) => !v)} data-tip={expanded ? "Achicar" : "Pantalla completa"} data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
+          <button onClick={() => setExpanded((v) => !v)} data-tip={expanded ? "Achicar" : "Pantalla completa"} aria-label={expanded ? "Achicar" : "Pantalla completa"} data-tip-side="bottom" className="grid h-9 w-9 place-items-center rounded-xl text-graph-500 transition hover:bg-graph/[0.06] hover:text-graph">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
         </div>
 
         {/* propiedades (abajo centro): colores · grosor · grilla/imán/medidas/fondo · escala */}
@@ -920,16 +920,16 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
           <div className="absolute border border-graph/10 bg-paper-100 bottom-3 left-1/2 z-20 flex max-w-[94%] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl px-3 py-2 shadow-[0_18px_44px_-22px_rgba(23,26,23,0.4)]">
             <div className="flex items-center gap-1.5">
               {COLORS.map((c) => (
-                <button key={c} onClick={() => setColor(c)} data-tip="Color del trazo" data-tip-side="top" className={`h-5 w-5 rounded-full ring-1 ring-graph/15 transition ${color === c ? "ring-2 ring-brand" : ""}`} style={{ background: c }} />
+                <button key={c} onClick={() => setColor(c)} data-tip="Color del trazo" aria-label="Color del trazo" data-tip-side="top" className={`h-5 w-5 rounded-full ring-1 ring-graph/15 transition ${color === c ? "ring-2 ring-brand" : ""}`} style={{ background: c }} />
               ))}
             </div>
             <div className="h-5 w-px bg-graph/10" />
             <input type="range" min={1} max={14} value={width} onChange={(e) => setWidth(+e.target.value)} data-tip="Grosor del trazo" data-tip-side="top" className="w-16 accent-brand" />
             <div className="h-5 w-px bg-graph/10" />
-            <button onClick={() => setGrid((v) => !v)} data-tip="Mostrar u ocultar la grilla" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${grid ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Grid3x3 size={16} /></button>
-            <button onClick={() => setSnap((v) => !v)} data-tip="Imán: las líneas se pegan a la grilla para que queden perfectas" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${snap ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Magnet size={16} /></button>
-            <button onClick={() => setMeasures((v) => !v)} data-tip="Mostrar u ocultar las medidas de cada pared" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${measures ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Ruler size={16} /></button>
-            <button onClick={() => setBgPanel((v) => !v)} data-tip="Imagen de fondo para calcar (satelital del campo o foto)" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${bg?.has || bgPanel ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><ImageIcon size={16} /></button>
+            <button onClick={() => setGrid((v) => !v)} data-tip="Mostrar u ocultar la grilla" aria-label="Mostrar u ocultar la grilla" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${grid ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Grid3x3 size={16} /></button>
+            <button onClick={() => setSnap((v) => !v)} data-tip="Imán: las líneas se pegan a la grilla para que queden perfectas" aria-label="Imán: las líneas se pegan a la grilla para que queden perfectas" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${snap ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Magnet size={16} /></button>
+            <button onClick={() => setMeasures((v) => !v)} data-tip="Mostrar u ocultar las medidas de cada pared" aria-label="Mostrar u ocultar las medidas de cada pared" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${measures ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Ruler size={16} /></button>
+            <button onClick={() => setBgPanel((v) => !v)} data-tip="Imagen de fondo para calcar (satelital del campo o foto)" aria-label="Imagen de fondo para calcar (satelital del campo o foto)" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${bg?.has || bgPanel ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><ImageIcon size={16} /></button>
           </div>
         )}
 
@@ -938,7 +938,7 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
           <div className="absolute border border-graph/10 bg-paper-100 right-3 top-[4.5rem] z-40 w-60 rounded-2xl p-3 text-graph shadow-xl">
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-graph">Imagen de fondo (calco)</span>
-              <button onClick={() => setBgPanel(false)} className="text-graph-400 hover:text-graph"><X size={14} /></button>
+              <button onClick={() => setBgPanel(false)} aria-label="Cerrar el panel de imagen de fondo" className="text-graph-400 hover:text-graph"><X size={14} /></button>
             </div>
             <p className="mb-2.5 text-[10px] leading-snug text-graph-400">Cargá una satelital del campo o la foto de la propiedad y dibujá el plano encima.</p>
             <div className="space-y-1.5">

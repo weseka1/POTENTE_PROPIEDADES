@@ -27,6 +27,14 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 const SEED_VERSION = "2026-07-09b";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
+/** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */
+export function cargarDemo<T>(name: string, fallback: T): T {
+  return loadLocal(name, fallback);
+}
+export function guardarDemo<T>(name: string, data: T) {
+  saveLocal(name, data);
+}
+
 function loadLocal<T>(name: string, fallback: T): T {
   if (supabase) return fallback; // con DB, no leemos del cache local
   try {
@@ -54,7 +62,7 @@ export function resetDemoData() {
   try {
     [
       "propiedades", "leads", "clientes", "operaciones", "visitas", "tasaciones", "arrendamientos",
-      "unidades_temporada", "reservas_temporada", "conversaciones",
+      "unidades_temporada", "reservas_temporada", "conversaciones", "fichas",
     ].forEach((n) => localStorage.removeItem(lsKey(n)));
   } catch { /* noop */ }
 }
