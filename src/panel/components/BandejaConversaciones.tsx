@@ -63,11 +63,13 @@ function BurbujaCanal({
   const esTodos = canal === "todos";
   const meta = esTodos ? null : CANALES_CONV[canal];
   const Icon = esTodos ? Inbox : ICONO[canal];
+  const nombre = esTodos ? "Todos los canales" : conectado ? `${meta!.label} · conectado` : `${meta!.label} · sin conectar`;
   return (
     <button
       onClick={onClick}
-      title={esTodos ? "Todos los canales" : conectado ? `${meta!.label} · conectado` : `${meta!.label} · sin conectar`}
-      className={`group relative inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+      title={nombre}
+      aria-label={nombre}
+      className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition ${
         activo
           ? "border-transparent bg-brand text-white shadow-[0_8px_18px_-10px_rgba(12,77,162,0.9)]"
           : "border-graph/12 text-graph-500 hover:border-graph/25 hover:text-graph"
@@ -79,7 +81,9 @@ function BurbujaCanal({
       >
         <Icon size={14} />
       </span>
-      {esTodos ? "Todos" : meta!.corto}
+      {/* En pantallas angostas los canales quedan en ícono + contador: se reconocen
+          igual y entran todos sin apilarse en cuatro filas. "Todos" siempre lleva texto. */}
+      <span className={esTodos ? "" : "hidden sm:inline"}>{esTodos ? "Todos" : meta!.corto}</span>
       <span className={`rounded-full px-1.5 py-px text-[10px] font-bold ${activo ? "bg-white/20" : "bg-graph/[0.07] text-graph-500"}`}>
         {total}
       </span>
@@ -303,9 +307,10 @@ export default function BandejaConversaciones({
   return (
     <div className="pcard overflow-hidden">
       {/* ===== Burbujas de canal ===== */}
-      <div className="no-scrollbar flex items-center gap-2 overflow-x-auto border-b border-graph/[0.08] px-4 py-3">
+      {/* Se acomodan en varias filas al angostarse: ningún canal queda escondido. */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-graph/[0.08] px-4 py-3">
         <BurbujaCanal canal="todos" activo={filtro === "todos"} total={conteo("todos")} sinLeer={sinLeer("todos")} onClick={() => setFiltro("todos")} />
-        <span className="h-5 w-px shrink-0 bg-graph/10" />
+        <span className="hidden h-5 w-px shrink-0 bg-graph/10 sm:block" />
         {ORDEN_CANALES.map((c) => (
           <BurbujaCanal
             key={c}
