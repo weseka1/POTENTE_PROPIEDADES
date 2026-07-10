@@ -140,18 +140,19 @@ function Burbuja({
           <span className="text-[11px] font-medium text-amber-800">
             Abrimos {CANALES_CONV[canal].label} con este texto. ¿Lo mandaste?
           </span>
+          {/* Alto de 32px: con py-1 quedaban en 22px y el dedo no les acertaba. */}
           <button
             onClick={onConfirmar}
-            className="inline-flex items-center gap-1 rounded-lg bg-brand px-2 py-1 text-[11px] font-bold text-white transition hover:bg-brand-600"
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-brand px-2.5 text-[11px] font-bold text-white transition hover:bg-brand-600"
           >
-            <Check size={11} /> Sí, lo mandé
+            <Check size={12} /> Sí, lo mandé
           </button>
           <button
             onClick={onBorrar}
             title="No lo mandé — sacalo del hilo"
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-graph-400 transition hover:bg-graph/[0.06] hover:text-graph"
+            className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[11px] font-semibold text-graph-400 transition hover:bg-graph/[0.06] hover:text-graph"
           >
-            <Trash2 size={11} /> No lo mandé
+            <Trash2 size={12} /> No lo mandé
           </button>
         </div>
       )}
@@ -264,9 +265,11 @@ export default function BandejaConversaciones({
       return;
     }
 
-    // Instagram y Messenger no aceptan texto en el link: lo copiamos.
-    if (modo === "app") await navigator.clipboard?.writeText(t).catch(() => {});
+    // Abrimos ANTES de cualquier await: si no, Safari en iPhone pierde el gesto
+    // del usuario y bloquea la ventana como si fuera un pop-up.
     if (href) window.open(href, "_blank", "noopener");
+    // Instagram y Messenger no aceptan texto en el link: lo copiamos.
+    if (modo === "app") navigator.clipboard?.writeText(t).catch(() => {});
 
     await agregarMensaje(sel.id, {
       id: "MSG-" + Date.now(),

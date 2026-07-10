@@ -487,7 +487,9 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
       {/* ========================= ACTIVIDAD ========================= */}
       {tab === "actividad" && (
         <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-          <div className={card}>
+          {/* min-w-0 en las columnas: sin eso el grid les da min-width:auto, no ceden
+              y estiran la página entera en pantallas angostas. */}
+          <div className={`${card} min-w-0`}>
             <h3 className="flex items-center gap-2 font-display text-base font-semibold text-graph"><Activity size={16} className="text-brand" /> Lo que respondió la IA</h3>
             <p className="mt-0.5 text-xs text-graph-400">Las últimas conversaciones de la bandeja (solo para mirar)</p>
             <div className="mt-3 space-y-2.5">
@@ -512,7 +514,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
               })}
             </div>
           </div>
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <div className={card}>
               <h3 className="flex items-center gap-2 font-display text-base font-semibold text-graph"><TrendingUp size={16} className="text-brand" /> Qué están buscando</h3>
               <div className="mt-4 space-y-2">

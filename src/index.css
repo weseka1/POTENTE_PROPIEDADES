@@ -29,6 +29,22 @@ body {
   font-family: "General Sans", system-ui, sans-serif;
   background: var(--paper);
   color: var(--graph);
+  /* Abajo de 320px no hay teléfono: preferimos que la página se corra a que
+     se deforme aplastando las tarjetas. */
+  min-width: 320px;
+}
+
+/* Safari en iPhone hace zoom solo al tocar un campo cuya letra mide menos de
+   16px. Toda la interfaz usa 14px (text-sm), así que en pantallas táctiles chicas
+   los subimos a 16px: el zoom no dispara y el dedo apunta mejor.
+   Va con !important porque las clases de Tailwind (.text-sm) le ganan por
+   especificidad a un selector de elemento, sin importar el orden. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 /* Lenis smooth scroll */

@@ -23,13 +23,16 @@ export default function Planos() {
         title="Planos"
         subtitle="Dibujá el plano de la casa o el casco de cada propiedad desde el iPad con el lápiz. Se guarda por propiedad."
         actions={
-          <div className="inline-flex items-center gap-2 rounded-xl border border-graph/10 bg-graph/[0.04] px-3 py-2">
-            <PenTool size={15} className="text-brand" />
-            <span className="text-[11px] uppercase tracking-widest2 text-graph-400">Propiedad</span>
+          // max-w-full + min-w-0: los títulos largos de propiedad no deben estirar la
+          // página en un celular; el Select se encoge y recorta con puntos suspensivos.
+          <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-graph/10 bg-graph/[0.04] px-3 py-2">
+            <PenTool size={15} className="shrink-0 text-brand" />
+            <span className="hidden shrink-0 text-[11px] uppercase tracking-widest2 text-graph-400 sm:inline">Propiedad</span>
             <Select
               value={propId}
               onChange={setPropId}
               align="right"
+              className="min-w-0"
               triggerClassName="!h-auto !rounded-none !border-transparent !bg-transparent !px-1 !py-0"
               options={[
                 { value: "general", label: "Plano libre (sin propiedad)" },

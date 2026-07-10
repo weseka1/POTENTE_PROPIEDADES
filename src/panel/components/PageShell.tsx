@@ -10,11 +10,13 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-graph">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-graph-400">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {/* min-w-0 + max-w-full: como ítem flex no baja de su ancho de contenido, y una
+          acción con texto largo estiraba la página entera en un celular. */}
+      {actions && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

@@ -105,7 +105,9 @@ export default function Agenda() {
 
       {/* barra: vista + navegación de semana + leyenda */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        {/* flex-wrap: sin esto el selector de vista y la navegación de semana suman
+            un ancho mínimo de ~420px y estiran la página en un celular. */}
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-xl border border-graph/10 bg-graph/[0.03] p-0.5">
             <button onClick={() => setView("semana")} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition", view === "semana" ? "bg-white text-graph shadow-sm" : "text-graph-400 hover:text-graph")}><CalendarRange size={14} /> Semana</button>
             <button onClick={() => setView("lista")} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition", view === "lista" ? "bg-white text-graph shadow-sm" : "text-graph-400 hover:text-graph")}><List size={14} /> Lista</button>
