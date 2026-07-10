@@ -52,8 +52,11 @@ function saveLocal<T>(name: string, data: T) {
   if (supabase) return; // con DB, no cacheamos local
   try {
     localStorage.setItem(lsKey(name), JSON.stringify({ v: SEED_VERSION, data }));
-  } catch {
-    /* storage lleno o bloqueado → seguimos en memoria */
+  } catch (e) {
+    // Se llenó el navegador (suele pasar con muchas fotos). Antes esto se tragaba
+    // en silencio: el usuario guardaba algo, refrescaba, y no estaba. Que se entere.
+    console.error(`No se pudo guardar "${name}" en el navegador:`, e);
+    window.dispatchEvent(new CustomEvent("potente:sin-espacio", { detail: { coleccion: name } }));
   }
 }
 

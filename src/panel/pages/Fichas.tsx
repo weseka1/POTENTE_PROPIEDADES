@@ -8,6 +8,7 @@ import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import { supabase } from "@/lib/supabase";
 import { cargarDemo, guardarDemo } from "@/lib/DataProvider";
+import { aDataUrlComprimida, dataUrlAchicado } from "@/lib/imagenes";
 import type { Ficha } from "@/data/propiedadTypes";
 import { Campo, Inp, Sel, FichaSecciones } from "../components/fichaUI";
 import { descargarFichaPDF } from "../lib/fichaPDF";
@@ -140,7 +141,9 @@ function FichaEditor({ row, onBack, onSave, onDelete }: { row: FichaRow; onBack:
           const { error } = await supabase.storage.from("potente").upload(path, file, { upsert: true });
           if (!error) { setPlanos((p) => [...p, supabase.storage.from("potente").getPublicUrl(path).data.publicUrl]); continue; }
         }
-        setPlanos((p) => [...p, URL.createObjectURL(file)]);
+        // Sin Storage: achicado y guardado en el navegador, para que sobreviva al cierre.
+        const dataUrl = await aDataUrlComprimida(file);
+        setPlanos((p) => [...p, dataUrl]);
       } catch { setPlanos((p) => [...p, URL.createObjectURL(file)]); }
     }
     setSubiendo(false);
@@ -156,7 +159,9 @@ function FichaEditor({ row, onBack, onSave, onDelete }: { row: FichaRow; onBack:
         const { error } = await supabase.storage.from("potente").upload(path, blob, { upsert: true, contentType: "image/png" });
         if (!error) { setPlanos((p) => [...p, supabase.storage.from("potente").getPublicUrl(path).data.publicUrl]); setDibujando(false); push("Plano dibujado agregado a la ficha ✓", "success"); return; }
       }
-      setPlanos((p) => [...p, dataUrl]); setDibujando(false); push("Plano dibujado agregado a la ficha ✓", "success");
+      // El PNG del editor pesa varios MB: lo achicamos antes de meterlo al navegador.
+      const liviano = await dataUrlAchicado(dataUrl);
+      setPlanos((p) => [...p, liviano]); setDibujando(false); push("Plano dibujado agregado a la ficha ✓", "success");
     } catch { setPlanos((p) => [...p, dataUrl]); setDibujando(false); }
   };
 

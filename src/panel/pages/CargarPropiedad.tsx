@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import Select from "@/components/Select";
 import { supabase } from "@/lib/supabase";
+import { aDataUrlComprimida } from "@/lib/imagenes";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
 
 const categorias: { v: Categoria; l: string }[] = [
@@ -84,7 +85,10 @@ export default function CargarPropiedad() {
             continue;
           }
         }
-        setter((p) => [...p, URL.createObjectURL(file)]);
+        // Sin Storage la foto se guarda achicada dentro del navegador. Con
+        // URL.createObjectURL moría al cerrar la pestaña y quedaba el cuadro roto.
+        const dataUrl = await aDataUrlComprimida(file);
+        setter((p) => [...p, dataUrl]);
       } catch {
         setter((p) => [...p, URL.createObjectURL(file)]);
       }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X } from "lucide-react";
 import { cn } from "../ui/cn";
 
@@ -31,6 +31,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     },
     [remove]
   );
+
+  // El navegador se llenó (DataProvider avisa). Sin esto, lo que el usuario
+  // acababa de guardar desaparecía al refrescar y nadie le decía por qué.
+  useEffect(() => {
+    const aviso = () =>
+      push(
+        "El navegador se quedó sin espacio. Borrá alguna foto o restablecé los datos de prueba: lo último que cargaste puede no guardarse.",
+        "error",
+        9000
+      );
+    window.addEventListener("potente:sin-espacio", aviso);
+    return () => window.removeEventListener("potente:sin-espacio", aviso);
+  }, [push]);
 
   return (
     <Ctx.Provider value={{ push }}>

@@ -38,6 +38,7 @@ Si la app corre en otro puerto: `APP=http://localhost:3400 node flujos.mjs`.
 | `deforma.mjs` | Que ninguna ruta estire la página en pantallas angostas (320 y 390 px) | 40 |
 | `chips.mjs` | Que los 7 canales se vean siempre, sin cortarse, en 10 anchos distintos | 10 |
 | `sweep-final.mjs` | Las 22 rutas del panel y del sitio: que rendericen y **no tiren un solo error de consola** | 22 |
+| `fotos.mjs` | Que una foto cargada desde el panel **sobreviva al cierre del navegador** (sin Storage se guardaba como `blob:` y se rompía) | 7 |
 | `verificar-arreglos.mjs` | Regresión de los tres bugs de la revisión de julio (fichas, planos, drawer) | 5 |
 
 ## Cómo leer los resultados

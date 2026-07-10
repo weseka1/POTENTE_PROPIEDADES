@@ -3,6 +3,8 @@
 // quedo, el boton no sirvio por mas lindo que se vea.
 import { sesion, chequear, resumen } from "./cdp2.mjs";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const APP = process.env.APP || "http://localhost:5177";
 const DESCARGAS = process.env.DESCARGAS || path.join(os.tmpdir(), "potente-e2e-bajadas");
