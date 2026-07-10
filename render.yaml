@@ -7,11 +7,16 @@ services:
     name: potente-propiedades
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    # --include=dev es obligatorio: Render define NODE_ENV=production y con eso npm
+    # omite las devDependencies. Vite vive ahí, así que sin esto el build muere con
+    # "vite: not found". npm ci respeta el package-lock.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /
     pullRequestPreviewsEnabled: false
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: ANTHROPIC_API_KEY
         sync: false # el asistente Marina (sin esto la web anda igual; el chat avisa que no está configurado)
       - key: VITE_SUPABASE_URL
