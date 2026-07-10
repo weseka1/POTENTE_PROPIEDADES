@@ -429,7 +429,76 @@ export default function Temporada() {
 
           {/* GRILLA */}
           <div className="pcard overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Móvil: una tarjeta por propiedad. Sin tabla, sin scroll lateral ni
+                columna fija — así la grilla no se puede "pisar" en ningún celular. */}
+            <div className="divide-y divide-graph/[0.07] md:hidden">
+              {unidadesTemporada.map((u) => {
+                const p = propDe(u);
+                return (
+                  <div key={u.id} className={cn("p-4", !u.activa && "opacity-55")}>
+                    <div className="mb-3 flex items-center gap-3">
+                      <Thumb src={p?.fotos?.[0]} alt={tituloCorto(u)} mar={u.frenteAlMar} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold leading-tight text-graph">{tituloCorto(u)}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-graph-400">{u.barrio} · {u.ambientes} amb · {u.capacidad} pers</p>
+                        {!u.activa && (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-graph/15 bg-graph/[0.06] px-2 py-0.5 text-[10px] font-semibold text-graph-500">No publicada</span>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button onClick={() => abrirEdit(u)} aria-label="Editar unidad" className="grid h-8 w-8 place-items-center rounded-lg text-graph-400 ring-1 ring-inset ring-graph/10 transition hover:bg-graph/[0.06] hover:text-graph">
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
+                          aria-label="Marcar en limpieza"
+                          className={cn("grid h-8 w-8 place-items-center rounded-lg ring-1 ring-inset transition",
+                            u.enLimpieza ? "bg-amber-500/15 text-amber-700 ring-amber-500/30" : "text-graph-400 ring-graph/10 hover:bg-graph/[0.06] hover:text-graph")}
+                        >
+                          <Sparkles size={15} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                      {TRAMOS.map((t) => {
+                        const r = reservaDe.get(`${u.id}|${t.id}`);
+                        if (r) {
+                          const st = EST[r.estado];
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => setDetalleId(r.id)}
+                              className={cn("flex flex-col gap-0.5 rounded-lg px-2 py-2 text-left ring-1 ring-inset transition", st.cell)}
+                            >
+                              <span className={cn("text-[9px] font-bold uppercase tracking-wide", t.pico ? "text-brand-700" : "text-graph-400")}>{t.corto}{t.pico ? " · PICO" : ""}</span>
+                              <span className="truncate text-xs font-semibold leading-tight">{apellido(r.inquilino)}</span>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium opacity-80">
+                                <span className={cn("h-1.5 w-1.5 rounded-full", st.dot)} /> {st.label}
+                              </span>
+                            </button>
+                          );
+                        }
+                        const tarifa = tarifaDe(u, t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => abrirNueva(u, t.id)}
+                            className={cn("flex flex-col gap-0.5 rounded-lg border border-dashed px-2 py-2 text-left transition hover:border-brand/40 hover:bg-brand/[0.04]", t.pico ? "border-brand/25 bg-brand/[0.03]" : "border-graph/12 bg-graph/[0.015]")}
+                          >
+                            <span className={cn("text-[9px] font-bold uppercase tracking-wide", t.pico ? "text-brand-700" : "text-graph-400")}>{t.corto}{t.pico ? " · PICO" : ""}</span>
+                            <span className="text-xs font-semibold text-graph-500">{tarifa != null ? fmtARS(tarifa, { short: true }) : "—"}</span>
+                            <span className="text-[9px] uppercase tracking-wide text-graph-300">libre</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Escritorio: grilla completa con columna fija y scroll horizontal. */}
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr>
