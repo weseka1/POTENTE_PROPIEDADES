@@ -146,7 +146,9 @@ export interface UnidadTemporada {
   barrio: string; // Playa Grande, Güemes, La Perla, Varese, Chauvín, Punta Mogotes…
   frenteAlMar?: boolean;
   comodidades: string[]; // pileta, parrilla, cochera, wifi, aire…
-  tarifas: Partial<Record<TemporadaTramoId, number>>; // ARS por quincena
+  tarifas: Partial<Record<TemporadaTramoId, number>>; // ARS por quincena (ref. web pública)
+  tarifaNocheARS: number; // ARS por noche en temporada alta (pico); la curva lo baja fuera del pico
+  minNoches?: number; // estadía mínima sugerida (solo avisa, no bloquea)
   comisionPct: number; // % de Potente (default 15)
   activa: boolean; // se muestra en la web pública
   // Turnover: entre el inquilino que se va y el que entra hay que limpiar y pasar llaves.
@@ -164,7 +166,11 @@ export type EstadoReserva =
 export interface ReservaTemporada {
   id: string;
   unidadId: string;
-  tramoId: TemporadaTramoId;
+  // Fechas del alquiler. hastaISO es el día que se va (check-out): no cuenta como
+  // noche ocupada, así el que entra ese mismo día no choca.
+  desdeISO: string;
+  hastaISO: string;
+  noches: number;
   inquilino: string;
   contacto: string;
   personas: number;

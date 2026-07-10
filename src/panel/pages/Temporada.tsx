@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Building2, Percent, Wallet, BadgeCheck, Waves, Pencil, Users, ArrowRight, Ban, Sparkles, Plus, Trash2, FileDown, FileSpreadsheet } from "lucide-react";
+import { Building2, Percent, Wallet, BadgeCheck, Users, ArrowRight, Ban, Plus, Trash2, FileDown, FileSpreadsheet, CalendarDays } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import type { ReservaTemporada, EstadoReserva, TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
-import { TRAMOS, tramoById, tarifaDe } from "@/data/temporada";
+import { precioSugerido, nochesEntre, reservaEnConflicto } from "@/data/temporada";
+import CalendarioTemporada from "../components/CalendarioTemporada";
 import { fmtARS } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
 import { Btn, Segmented } from "../components/Controls";
@@ -31,7 +32,7 @@ const EST: Record<EstadoReserva, { label: string; cell: string; dot: string; chi
 const ESTADOS_EDIT: EstadoReserva[] = ["senada", "confirmada", "en_curso", "finalizada"];
 
 type Tab = "grilla" | "tarifario" | "rendicion";
-type NuevaCtx = { unidadId: string; tramoId: TemporadaTramoId };
+type NuevaCtx = { unidadId: string; desdeISO: string; hastaISO: string; noches: number };
 type NuevaForm = { inquilino: string; contacto: string; personas: string; monto: string; sena: string; garantia: string };
 // Alta de unidad y edición de unidad (los números viajan como string para el input).
 type NuevaUnidadForm = { propiedadId: string; barrio: string; ambientes: string; capacidad: string; comisionPct: string; frenteAlMar: boolean; comodidades: string[] };
@@ -99,47 +100,43 @@ export default function Temporada() {
   const propDe = (u: UnidadTemporada): Propiedad | undefined => propiedades.find((p) => p.id === u.propiedadId);
   const tituloCorto = (u: UnidadTemporada) => propDe(u)?.titulo.split(",")[0] ?? u.id;
 
-  // Reserva ACTIVA por celda (unidad+tramo). La cancelada no cuenta → esa celda queda libre.
-  const reservaDe = useMemo(() => {
-    const m = new Map<string, ReservaTemporada>();
-    for (const r of reservasTemporada) {
-      if (r.estado === "cancelada") continue;
-      m.set(`${r.unidadId}|${r.tramoId}`, r);
-    }
-    return m;
-  }, [reservasTemporada]);
-
   // ── KPIs ──
+  // Ocupación por noches: noches vendidas sobre el total de noches de la temporada
+  // (121 noches del 1-dic al 31-mar) por unidad.
   const activas = useMemo(() => reservasTemporada.filter((r) => r.estado !== "cancelada"), [reservasTemporada]);
-  const totalCeldas = unidadesTemporada.length * TRAMOS.length;
-  const ocupacion = totalCeldas ? Math.round((activas.length / totalCeldas) * 100) : 0;
+  const NOCHES_TEMPORADA = 121;
+  const nochesVendidas = activas.reduce((a, r) => a + (r.noches || nochesEntre(r.desdeISO, r.hastaISO)), 0);
+  const totalNoches = unidadesTemporada.length * NOCHES_TEMPORADA;
+  const ocupacion = totalNoches ? Math.round((nochesVendidas / totalNoches) * 100) : 0;
   const ingresos = activas.reduce((a, r) => a + r.montoTotalARS, 0);
   const senadas = reservasTemporada.filter((r) => r.estado === "senada").length;
 
-  // ── Nueva reserva ──
-  const abrirNueva = (u: UnidadTemporada, tramoId: TemporadaTramoId) => {
-    const tarifa = tarifaDe(u, tramoId) ?? 0;
-    setNuevaCtx({ unidadId: u.id, tramoId });
+  // ── Nueva reserva (por fechas) ──
+  // Se dispara desde el calendario, que ya validó que el rango esté libre.
+  const abrirNueva = (u: UnidadTemporada, desdeISO: string, hastaISO: string) => {
+    const noches = nochesEntre(desdeISO, hastaISO);
+    const sugerido = precioSugerido(u, desdeISO, hastaISO);
+    setNuevaCtx({ unidadId: u.id, desdeISO, hastaISO, noches });
     setForm({
       inquilino: "", contacto: "", personas: "2",
-      monto: String(tarifa),
-      sena: String(r10k(tarifa * 0.3)),
+      monto: String(sugerido),
+      sena: String(r10k(sugerido * 0.3)),
       garantia: "80000",
     });
   };
   const guardarNueva = async () => {
     if (!nuevaCtx) return;
     if (!form.inquilino.trim()) { push("Poné el nombre del inquilino", "error"); return; }
-    // Anti doble-reserva: no dejar dos activas en la misma unidad+quincena.
-    if (reservaDe.has(`${nuevaCtx.unidadId}|${nuevaCtx.tramoId}`)) {
-      push("Esa quincena ya tiene una reserva activa", "error");
-      return;
-    }
+    // Anti-solape (por si cambió algo entre que abriste y guardaste).
+    const choca = reservaEnConflicto(reservasTemporada, nuevaCtx.unidadId, nuevaCtx.desdeISO, nuevaCtx.hastaISO);
+    if (choca) { push(`Esas fechas ya están tomadas por ${choca.inquilino}`, "error"); return; }
     const monto = Number(form.monto) || 0;
     const r: ReservaTemporada = {
       id: "RSV-" + Date.now(),
       unidadId: nuevaCtx.unidadId,
-      tramoId: nuevaCtx.tramoId,
+      desdeISO: nuevaCtx.desdeISO,
+      hastaISO: nuevaCtx.hastaISO,
+      noches: nuevaCtx.noches,
       inquilino: form.inquilino.trim(),
       contacto: form.contacto.trim(),
       personas: Number(form.personas) || 1,
@@ -163,25 +160,22 @@ export default function Temporada() {
   };
   const cancelarReserva = () => {
     if (!detalle) return;
-    if (!window.confirm("¿Cancelar la reserva? La quincena vuelve a quedar disponible.")) return;
+    if (!window.confirm("¿Cancelar la reserva? Las fechas vuelven a quedar disponibles.")) return;
     updateReservaTemporada(detalle.id, { estado: "cancelada" });
     setDetalleId(null);
     push("Reserva cancelada — cupo liberado", "info");
   };
 
-  // ── Tarifario (edición inline) ──
-  const abrirTarifa = (u: UnidadTemporada, tramoId: TemporadaTramoId) => {
-    setTEdit(`${u.id}|${tramoId}`);
-    setTDraft(u.tarifas[tramoId] != null ? String(u.tarifas[tramoId]) : "");
+  // ── Tarifario: tarifa por noche editable por unidad ──
+  const abrirTarifa = (u: UnidadTemporada) => {
+    setTEdit(u.id);
+    setTDraft(String(u.tarifaNocheARS));
   };
-  const guardarTarifa = async (u: UnidadTemporada, tramoId: TemporadaTramoId) => {
+  const guardarTarifa = async (u: UnidadTemporada) => {
     const raw = tDraft.replace(/[^\d]/g, "");
-    const tarifas: UnidadTemporada["tarifas"] = { ...u.tarifas };
-    if (raw === "") delete tarifas[tramoId];
-    else tarifas[tramoId] = Number(raw);
-    await updateUnidadTemporada(u.id, { tarifas });
+    await updateUnidadTemporada(u.id, { tarifaNocheARS: Number(raw) || 0 });
     setTEdit(null);
-    push("Tarifa actualizada ✓", "success");
+    push("Tarifa por noche actualizada ✓", "success");
   };
 
   // ── Sumar propiedad a la temporada ──
@@ -193,8 +187,8 @@ export default function Temporada() {
       .filter((p) => !yaUnidad.has(p.id))
       .sort((a, b) => rank(a.categoria) - rank(b.categoria) || a.titulo.localeCompare(b.titulo));
   }, [propiedades, unidadesTemporada]);
-  // Tarifas que quedarían pre-cargadas según los ambientes elegidos (preview antes de guardar).
-  const previewTarifas = useMemo(() => tarifasCalculadas(Number(nueva.ambientes) || 1), [nueva.ambientes]);
+  // Tarifa por noche que quedaría pre-cargada según los ambientes elegidos (preview antes de guardar).
+  const previewNoche = useMemo(() => Math.round(picoPorAmbientes(Number(nueva.ambientes) || 1) / 15 / 1000) * 1000, [nueva.ambientes]);
 
   const abrirSumar = () => { setNueva(emptyNueva); setSumarOpen(true); };
   // Al elegir la propiedad pre-cargamos barrio (zona) y ambientes desde su ficha.
@@ -219,6 +213,7 @@ export default function Temporada() {
       frenteAlMar: nueva.frenteAlMar,
       comodidades: nueva.comodidades,
       tarifas: tarifasCalculadas(amb),
+      tarifaNocheARS: Math.round(picoPorAmbientes(amb) / 15 / 1000) * 1000,
       comisionPct: Number(nueva.comisionPct) || 15,
       activa: true,
       enLimpieza: false,
@@ -391,7 +386,7 @@ export default function Temporada() {
       {/* KPIs */}
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Unidades en temporada" value={String(unidadesTemporada.length)} icon={Building2} accent="ink" hint="propiedades publicadas para el verano" />
-        <KpiCard label="Ocupación del verano" value={`${ocupacion}%`} icon={Percent} accent="field" hint={`${activas.length} de ${totalCeldas} quincenas reservadas`} />
+        <KpiCard label="Ocupación del verano" value={`${ocupacion}%`} icon={Percent} accent="field" hint={`${nochesVendidas} noches vendidas de ${totalNoches}`} />
         <KpiCard label="Ingresos proyectados" value={fmtARS(ingresos, { short: true })} icon={Wallet} accent="wheat" hint="reservas no canceladas" />
         <KpiCard label="Reservas señadas" value={String(senadas)} icon={BadgeCheck} accent="clay" hint="a la espera de confirmar saldo" />
       </div>
@@ -421,262 +416,65 @@ export default function Temporada() {
                 <span className={cn("h-2.5 w-2.5 rounded-full", EST[e].dot)} /> {EST[e].label}
               </span>
             ))}
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-graph-500">
-              <Sparkles size={12} className="text-amber-600" /> En limpieza
-            </span>
-            <span className="ml-auto text-[11px] text-graph-400">Tocá una celda libre para reservar · una ocupada para ver el detalle</span>
           </div>
 
-          {/* GRILLA */}
-          <div className="pcard overflow-hidden">
-            {/* Móvil: una tarjeta por propiedad. Sin tabla, sin scroll lateral ni
-                columna fija — así la grilla no se puede "pisar" en ningún celular. */}
-            <div className="divide-y divide-graph/[0.07] md:hidden">
-              {unidadesTemporada.map((u) => {
-                const p = propDe(u);
-                return (
-                  <div key={u.id} className={cn("p-4", !u.activa && "opacity-55")}>
-                    <div className="mb-3 flex items-center gap-3">
-                      <Thumb src={p?.fotos?.[0]} alt={tituloCorto(u)} mar={u.frenteAlMar} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold leading-tight text-graph">{tituloCorto(u)}</p>
-                        <p className="mt-0.5 truncate text-[11px] text-graph-400">{u.barrio} · {u.ambientes} amb · {u.capacidad} pers</p>
-                        {!u.activa && (
-                          <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-graph/15 bg-graph/[0.06] px-2 py-0.5 text-[10px] font-semibold text-graph-500">No publicada</span>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button onClick={() => abrirEdit(u)} aria-label="Editar unidad" className="grid h-8 w-8 place-items-center rounded-lg text-graph-400 ring-1 ring-inset ring-graph/10 transition hover:bg-graph/[0.06] hover:text-graph">
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          onClick={() => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
-                          aria-label="Marcar en limpieza"
-                          className={cn("grid h-8 w-8 place-items-center rounded-lg ring-1 ring-inset transition",
-                            u.enLimpieza ? "bg-amber-500/15 text-amber-700 ring-amber-500/30" : "text-graph-400 ring-graph/10 hover:bg-graph/[0.06] hover:text-graph")}
-                        >
-                          <Sparkles size={15} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                      {TRAMOS.map((t) => {
-                        const r = reservaDe.get(`${u.id}|${t.id}`);
-                        if (r) {
-                          const st = EST[r.estado];
-                          return (
-                            <button
-                              key={t.id}
-                              onClick={() => setDetalleId(r.id)}
-                              className={cn("flex flex-col gap-0.5 rounded-lg px-2 py-2 text-left ring-1 ring-inset transition", st.cell)}
-                            >
-                              <span className={cn("text-[9px] font-bold uppercase tracking-wide", t.pico ? "text-brand-700" : "text-graph-400")}>{t.corto}{t.pico ? " · PICO" : ""}</span>
-                              <span className="truncate text-xs font-semibold leading-tight">{apellido(r.inquilino)}</span>
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium opacity-80">
-                                <span className={cn("h-1.5 w-1.5 rounded-full", st.dot)} /> {st.label}
-                              </span>
-                            </button>
-                          );
-                        }
-                        const tarifa = tarifaDe(u, t.id);
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => abrirNueva(u, t.id)}
-                            className={cn("flex flex-col gap-0.5 rounded-lg border border-dashed px-2 py-2 text-left transition hover:border-brand/40 hover:bg-brand/[0.04]", t.pico ? "border-brand/25 bg-brand/[0.03]" : "border-graph/12 bg-graph/[0.015]")}
-                          >
-                            <span className={cn("text-[9px] font-bold uppercase tracking-wide", t.pico ? "text-brand-700" : "text-graph-400")}>{t.corto}{t.pico ? " · PICO" : ""}</span>
-                            <span className="text-xs font-semibold text-graph-500">{tarifa != null ? fmtARS(tarifa, { short: true }) : "—"}</span>
-                            <span className="text-[9px] uppercase tracking-wide text-graph-300">libre</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Escritorio: grilla completa con columna fija y scroll horizontal. */}
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 z-20 border-b border-graph/[0.08] bg-paper-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-graph-400">
-                      Unidad
-                    </th>
-                    {TRAMOS.map((t) => (
-                      <th
-                        key={t.id}
-                        className={cn(
-                          "border-b border-graph/[0.08] px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wide",
-                          t.pico ? "bg-brand/[0.06] text-brand-700" : "bg-graph/[0.02] text-graph-400"
-                        )}
-                        title={t.label}
-                      >
-                        {t.corto}
-                        {t.pico && <div className="mt-0.5 text-[8px] font-bold tracking-widest text-brand">PICO</div>}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {unidadesTemporada.map((u) => {
-                    const p = propDe(u);
-                    return (
-                      <tr key={u.id} className={cn("group", !u.activa && "opacity-55")}>
-                        <td className="sticky left-0 z-10 border-b border-graph/[0.06] bg-paper-100 px-4 py-2.5 group-hover:bg-graph/[0.02]">
-                          <div className="flex items-center gap-2.5">
-                            <Thumb src={p?.fotos?.[0]} alt={tituloCorto(u)} mar={u.frenteAlMar} />
-                            <div className="min-w-0">
-                              <p className="max-w-[188px] truncate text-[13px] font-semibold leading-tight text-graph">{tituloCorto(u)}</p>
-                              <p className="mt-0.5 truncate text-[11px] text-graph-400">
-                                {u.barrio} · {u.ambientes} amb · {u.capacidad} pers
-                              </p>
-                              {!u.activa && (
-                                <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-graph/15 bg-graph/[0.06] px-2 py-0.5 text-[10px] font-semibold text-graph-500">
-                                  No publicada
-                                </span>
-                              )}
-                            </div>
-                            <div className="ml-auto flex shrink-0 items-center gap-1">
-                              {/* Editar / quitar la unidad. */}
-                              <button
-                                onClick={() => abrirEdit(u)}
-                                title="Editar unidad"
-                                className="grid h-7 w-7 place-items-center rounded-lg text-graph-400 opacity-0 ring-1 ring-inset ring-transparent transition hover:bg-graph/[0.06] hover:text-graph group-hover:opacity-100"
-                                aria-label="Editar unidad"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              {/* Turnover: marcar la unidad "en limpieza" entre un inquilino y el siguiente. */}
-                              <button
-                                onClick={() => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
-                                title={u.enLimpieza ? "Limpieza y llaves pendientes — tocá para marcar lista" : "Marcar en limpieza (turnover)"}
-                                className={cn(
-                                  "grid h-7 w-7 place-items-center rounded-lg ring-1 ring-inset transition",
-                                  u.enLimpieza
-                                    ? "bg-amber-500/15 text-amber-700 ring-amber-500/30"
-                                    : "text-graph-400 opacity-0 ring-transparent hover:bg-graph/[0.06] hover:text-graph group-hover:opacity-100"
-                                )}
-                                aria-label="Marcar en limpieza"
-                              >
-                                <Sparkles size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        {TRAMOS.map((t) => {
-                          const r = reservaDe.get(`${u.id}|${t.id}`);
-                          if (r) {
-                            const st = EST[r.estado];
-                            return (
-                              <td key={t.id} className="border-b border-graph/[0.06] p-1">
-                                <button
-                                  onClick={() => setDetalleId(r.id)}
-                                  title={`${r.inquilino} · ${st.label} · ${fmtARS(r.montoTotalARS)}`}
-                                  className={cn("flex h-[52px] w-full flex-col justify-center gap-0.5 rounded-lg px-2 text-left ring-1 ring-inset transition", st.cell)}
-                                >
-                                  <span className="truncate text-xs font-semibold leading-tight">{apellido(r.inquilino)}</span>
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium opacity-80">
-                                    <span className={cn("h-1.5 w-1.5 rounded-full", st.dot)} /> {st.label}
-                                  </span>
-                                </button>
-                              </td>
-                            );
-                          }
-                          const tarifa = tarifaDe(u, t.id);
-                          return (
-                            <td key={t.id} className="border-b border-graph/[0.06] p-1">
-                              <button
-                                onClick={() => abrirNueva(u, t.id)}
-                                title={`Reservar ${t.label} · ${tarifa != null ? fmtARS(tarifa) : "sin tarifa"}`}
-                                className="group/cell flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-graph/12 bg-graph/[0.015] transition hover:border-brand/40 hover:bg-brand/[0.04]"
-                              >
-                                <span className="text-[11px] font-semibold text-graph-500 transition group-hover/cell:text-brand">
-                                  {tarifa != null ? fmtARS(tarifa, { short: true }) : "—"}
-                                </span>
-                                <span className="text-[9px] uppercase tracking-wide text-graph-300 transition group-hover/cell:text-brand/70">libre</span>
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <CalendarioTemporada
+            unidades={unidadesTemporada}
+            reservas={reservasTemporada}
+            fotoDe={(u) => propDe(u)?.fotos?.[0]}
+            tituloDe={tituloCorto}
+            precioSugerido={precioSugerido}
+            onReservar={abrirNueva}
+            onVerReserva={setDetalleId}
+            onEditUnidad={abrirEdit}
+            onToggleLimpieza={(u) => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
+          />
         </>
       )}
+
+
 
       {tab === "tarifario" && (
         <div className="pcard overflow-hidden">
           <div className="border-b border-graph/[0.07] px-5 py-3.5">
-            <p className="text-sm font-semibold text-graph">Tarifario por quincena</p>
-            <p className="mt-0.5 text-xs text-graph-400">Tocá un valor para editarlo. Los precios impactan en la web y en las nuevas reservas.</p>
+            <p className="text-sm font-semibold text-graph">Tarifa por noche</p>
+            <p className="mt-0.5 text-xs text-graph-400">
+              El valor de la noche en temporada alta (enero). El sistema lo baja solo para diciembre y marzo con la curva del mercado.
+              Tocá el valor para editarlo.
+            </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 z-20 border-b border-graph/[0.08] bg-paper-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-graph-400">Unidad</th>
-                  {TRAMOS.map((t) => (
-                    <th key={t.id} className={cn("border-b border-graph/[0.08] px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wide", t.pico ? "bg-brand/[0.06] text-brand-700" : "bg-graph/[0.02] text-graph-400")} title={t.label}>
-                      {t.corto}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {unidadesTemporada.map((u) => {
-                  const p = propDe(u);
-                  return (
-                    <tr key={u.id} className="group">
-                      <td className="sticky left-0 z-10 border-b border-graph/[0.06] bg-paper-100 px-4 py-2.5 group-hover:bg-graph/[0.02]">
-                        <div className="flex items-center gap-2.5">
-                          <Thumb src={p?.fotos?.[0]} alt={tituloCorto(u)} mar={u.frenteAlMar} />
-                          <div className="min-w-0">
-                            <p className="max-w-[188px] truncate text-[13px] font-semibold leading-tight text-graph">{tituloCorto(u)}</p>
-                            <p className="mt-0.5 truncate text-[11px] text-graph-400">{u.barrio} · {u.ambientes} amb · comisión {u.comisionPct}%</p>
-                          </div>
-                        </div>
-                      </td>
-                      {TRAMOS.map((t) => {
-                        const key = `${u.id}|${t.id}`;
-                        const editando = tEdit === key;
-                        const val = u.tarifas[t.id];
-                        return (
-                          <td key={t.id} className={cn("border-b border-graph/[0.06] px-2 py-2 text-center", t.pico && "bg-brand/[0.03]")}>
-                            {editando ? (
-                              <input
-                                type="number"
-                                autoFocus
-                                value={tDraft}
-                                onChange={(e) => setTDraft(e.target.value)}
-                                onBlur={() => guardarTarifa(u, t.id)}
-                                onKeyDown={(e) => { if (e.key === "Enter") guardarTarifa(u, t.id); if (e.key === "Escape") setTEdit(null); }}
-                                className="h-8 w-[92px] rounded-lg border border-brand/40 bg-graph/[0.04] px-2 text-right text-xs text-graph outline-none focus:ring-2 focus:ring-brand/15"
-                              />
-                            ) : (
-                              <button
-                                onClick={() => abrirTarifa(u, t.id)}
-                                title="Editar tarifa"
-                                className={cn("group/t inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition hover:bg-graph/[0.06]", val != null ? "text-graph" : "text-graph-400")}
-                              >
-                                {val != null ? fmtARS(val, { short: true }) : "—"}
-                                <Pencil size={11} className="text-graph-400 opacity-0 transition group-hover/t:opacity-100" />
-                              </button>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="divide-y divide-graph/[0.06]">
+            {unidadesTemporada.map((u) => {
+              const editando = tEdit === u.id;
+              return (
+                <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-graph">{tituloCorto(u)}</p>
+                    <p className="text-[11px] text-graph-400">{u.barrio} · {u.ambientes} amb · comisión {u.comisionPct}%</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editando ? (
+                      <input
+                        type="number"
+                        autoFocus
+                        value={tDraft}
+                        onChange={(e) => setTDraft(e.target.value)}
+                        onBlur={() => guardarTarifa(u)}
+                        onKeyDown={(e) => { if (e.key === "Enter") guardarTarifa(u); if (e.key === "Escape") setTEdit(null); }}
+                        className="h-9 w-36 rounded-lg border border-brand/40 bg-graph/[0.04] px-3 text-right text-sm text-graph outline-none focus:ring-2 focus:ring-brand/15"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => abrirTarifa(u)}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-graph transition hover:bg-graph/[0.06]"
+                      >
+                        {fmtARS(u.tarifaNocheARS)} <span className="text-[11px] font-normal text-graph-400">/noche</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -743,7 +541,7 @@ export default function Temporada() {
         open={!!nuevaCtx}
         onClose={() => setNuevaCtx(null)}
         title="Nueva reserva"
-        subtitle={nuevaCtx ? `${tituloCorto(unidadesTemporada.find((u) => u.id === nuevaCtx.unidadId)!)} · ${tramoById(nuevaCtx.tramoId).label}` : undefined}
+        subtitle={nuevaCtx ? tituloCorto(unidadesTemporada.find((u) => u.id === nuevaCtx.unidadId)!) : undefined}
         footer={
           <>
             <Btn variant="ghost" onClick={() => setNuevaCtx(null)}>Cancelar</Btn>
@@ -751,6 +549,26 @@ export default function Temporada() {
           </>
         }
       >
+        {nuevaCtx && (() => {
+          const u = unidadesTemporada.find((x) => x.id === nuevaCtx.unidadId)!;
+          const corto = (iso: string) => { const [, mm, dd] = iso.split("-"); return `${Number(dd)}/${Number(mm)}`; };
+          const cortaEstadia = u.minNoches != null && nuevaCtx.noches < u.minNoches;
+          return (
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between rounded-xl border border-brand/20 bg-brand/[0.05] px-4 py-3">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700">
+                  <CalendarDays size={15} /> {corto(nuevaCtx.desdeISO)} al {corto(nuevaCtx.hastaISO)}
+                </span>
+                <span className="text-sm font-semibold text-graph">{nuevaCtx.noches} {nuevaCtx.noches === 1 ? "noche" : "noches"}</span>
+              </div>
+              {cortaEstadia && (
+                <p className="rounded-lg bg-amber-500/[0.10] px-3 py-2 text-[12px] text-amber-800">
+                  Esta unidad suele pedir mínimo {u.minNoches} noches. Podés reservar igual si lo arreglaste con el inquilino.
+                </p>
+              )}
+            </div>
+          );
+        })()}
         <form className="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); guardarNueva(); }}>
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-xs font-semibold text-graph-400">Inquilino</span>
@@ -765,7 +583,7 @@ export default function Temporada() {
             <input type="number" min={1} className={INP} value={form.personas} onChange={(e) => setF("personas", e.target.value)} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-graph-400">Monto total (ARS)</span>
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Monto total (ARS) · sugerido, editable</span>
             <input type="number" className={INP} value={form.monto} onChange={(e) => setF("monto", e.target.value)} />
           </label>
           <label className="block">
@@ -794,7 +612,7 @@ export default function Temporada() {
         open={!!detalle}
         onClose={() => setDetalleId(null)}
         title={detalle ? detalle.inquilino : "Reserva"}
-        subtitle={detalle ? `${tituloCorto(unidadesTemporada.find((u) => u.id === detalle.unidadId)!)} · ${tramoById(detalle.tramoId).label}` : undefined}
+        subtitle={detalle ? `${tituloCorto(unidadesTemporada.find((u) => u.id === detalle.unidadId)!)} · ${(() => { const c=(iso:string)=>{const[,m,d]=iso.split("-");return `${Number(d)}/${Number(m)}`;}; return `${c(detalle.desdeISO)} al ${c(detalle.hastaISO)} · ${detalle.noches} noches`; })()}` : undefined}
         footer={
           <>
             <Btn variant="ghost" onClick={eliminarReserva} className="text-red-600 hover:border-red-400/50 hover:text-red-700">
@@ -840,7 +658,7 @@ export default function Temporada() {
               </label>
 
               <p className="flex items-center gap-1.5 text-[11px] text-graph-400">
-                <ArrowRight size={12} /> Señada → Confirmada (saldo + garantía) → En curso → Finalizada. Cancelar libera la quincena.
+                <ArrowRight size={12} /> Señada → Confirmada (saldo + garantía) → En curso → Finalizada. Cancelar libera las fechas.
               </p>
             </div>
           );
@@ -910,20 +728,15 @@ export default function Temporada() {
             <Chips selected={nueva.comodidades} onToggle={(c) => setNueva((f) => ({ ...f, comodidades: conComodidad(f.comodidades, c) }))} />
           </div>
 
-          {/* Preview de las tarifas que quedan pre-cargadas (después se editan en el Tarifario). */}
-          <div className="rounded-xl border border-graph/10 bg-graph/[0.02] p-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
-              <span className="text-xs font-semibold text-graph">Tarifas iniciales por quincena</span>
-              <span className="text-[11px] text-graph-400">calculadas con la curva del mercado · las editás después en el Tarifario</span>
+          {/* Tarifa por noche que queda pre-cargada (después se edita en el Tarifario). */}
+          <div className="flex items-center justify-between rounded-xl border border-graph/10 bg-graph/[0.02] px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold text-graph">Tarifa por noche (temporada alta)</p>
+              <p className="text-[11px] text-graph-400">calculada por ambientes · la ajustás después en el Tarifario</p>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              {TRAMOS.map((t) => (
-                <div key={t.id} className={cn("rounded-lg border px-2 py-1.5 text-center", t.pico ? "border-brand/30 bg-brand/[0.05]" : "border-graph/10 bg-graph/[0.02]")}>
-                  <p className="text-[10px] uppercase tracking-wide text-graph-400">{t.corto}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-graph">{fmtARS(previewTarifas[t.id], { short: true })}</p>
-                </div>
-              ))}
-            </div>
+            <p className="font-display text-base font-semibold text-graph">
+              {fmtARS(previewNoche, { short: true })}<span className="text-[11px] font-normal text-graph-400">/noche</span>
+            </p>
           </div>
         </div>
       </Modal>
@@ -987,21 +800,6 @@ export default function Temporada() {
           </p>
         </div>
       </Modal>
-    </div>
-  );
-}
-
-// Miniatura de la unidad (1ª foto de la propiedad); si falla, fondo mar de marca.
-function Thumb({ src, alt, mar }: { src?: string; alt: string; mar?: boolean }) {
-  const [err, setErr] = useState(false);
-  return (
-    <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-brand/25 to-sea/25 ring-1 ring-inset ring-graph/10">
-      {src && !err ? (
-        <img src={src} alt={alt} onError={() => setErr(true)} className="h-full w-full object-cover" />
-      ) : (
-        <Waves size={16} className="text-brand/50" />
-      )}
-      {mar && <span className="absolute bottom-0 left-0 right-0 h-1 bg-sea/70" title="Frente al mar" />}
     </div>
   );
 }

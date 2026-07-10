@@ -182,41 +182,6 @@ chequear("Reportes · el PDF se descarga", pdfs > 0, `eventos=${pdfs}`);
 chequear("Reportes · la planilla se descarga", excels > 0, `eventos=${excels}`);
 chequear("Reportes · los archivos existen en disco", archivos.length >= 2, archivos.join(", "));
 
-/* ================= TEMPORADA (reserva + anti doble reserva) ================= */
-await limpiar("/panel/temporada");
-const reserva = await s.evaluar(`
-  // primera celda libre de la grilla
-  const libre = [...document.querySelectorAll('main button')].find(b => /LIBRE/.test(b.innerText||''));
-  if (!libre) return { sinCelda: true, titulos: [...document.querySelectorAll('main button')].slice(0,8).map(b=>b.title||b.innerText.slice(0,14)) };
-  libre.click(); await __esperar(800);
-  return { modal: !!__modal(), texto: (__modal()||{innerText:''}).innerText.slice(0,60) };
-`);
-chequear("Temporada · una celda libre abre el alta de reserva", reserva.modal === true, JSON.stringify(reserva).slice(0, 140));
-
-// Reservar una quincena libre y despues intentar pisarla
-const dobleReserva = await s.evaluar(`
-  const m = __modal();
-  if (!m) return { error: 'sin modal' };
-  const nom = __porPh('Nombre o familia', m) || m.querySelector('input');
-  if (nom) __escribir(nom, 'TEST Veraneante');
-  await __esperar(300);
-  if (!__clickSuave('Señar reserva', m)) return { error: 'sin boton Señar reserva' };
-  await __esperar(1000);
-  const d = __datos('reservas_temporada');
-  return { creada: d.some(r => (r.inquilino||'').includes('TEST Veraneante')), total: d.length, modalAbierto: !!__modal() };
-`);
-chequear("Temporada · se crea la reserva", dobleReserva.creada === true, JSON.stringify(dobleReserva));
-
-const pisar = await s.evaluar(`
-  const celda = [...document.querySelectorAll('main button')].find(b => /Veraneante/.test(b.innerText||'') || /Veraneante/.test(b.title||''));
-  if (!celda) return { error: 'no encuentro la celda reservada' };
-  celda.click(); await __esperar(800);
-  const m = __modal();
-  const txt = m ? (m.innerText||'') : '';
-  return { abre: !!m, ofreceCrearOtra: /nueva reserva/i.test(txt), muestraLaReserva: /Veraneante/.test(txt) };
-`);
-chequear("Temporada · la quincena ocupada no ofrece reservar de nuevo", pisar.muestraLaReserva === true && pisar.ofreceCrearOtra === false, JSON.stringify(pisar));
-
 /* ================= CARGAR PROPIEDAD ================= */
 await limpiar("/panel/cargar");
 const antesProp = await s.evaluar(`return __datos('propiedades').length;`);
