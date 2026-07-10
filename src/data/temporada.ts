@@ -94,30 +94,37 @@ export function tarifaDe(unidad: UnidadTemporada, tramoId: TemporadaTramoId): nu
 
 // ── Fechas y precio por rango ────────────────────────────────────────────────
 const DIA_MS = 86_400_000;
-const soloFecha = (iso: string) => iso.slice(0, 10);
+// Defensivo: nunca asumir que el ISO viene (un dato viejo cacheado sin fecha no
+// debe romper toda la sección). Sin fecha → "".
+const soloFecha = (iso?: string | null) => (iso ? String(iso) : "").slice(0, 10);
 
 /** Noches entre dos fechas (check-out no cuenta). */
-export function nochesEntre(desdeISO: string, hastaISO: string): number {
-  const d = new Date(soloFecha(desdeISO) + "T00:00:00").getTime();
-  const h = new Date(soloFecha(hastaISO) + "T00:00:00").getTime();
+export function nochesEntre(desdeISO?: string, hastaISO?: string): number {
+  const a = soloFecha(desdeISO), b = soloFecha(hastaISO);
+  if (!a || !b) return 0;
+  const d = new Date(a + "T00:00:00").getTime();
+  const h = new Date(b + "T00:00:00").getTime();
+  if (!Number.isFinite(d) || !Number.isFinite(h)) return 0;
   return Math.max(0, Math.round((h - d) / DIA_MS));
 }
 
 /** Multiplicador estacional para una fecha: ubica en qué quincena cae. */
-export function curvaEnFecha(iso: string): number {
+export function curvaEnFecha(iso?: string): number {
   const f = soloFecha(iso);
+  if (!f) return 0.42;
   const t = TRAMOS.find((x) => f >= x.desdeISO && f <= x.hastaISO);
   return t ? CURVA[t.id] : 0.42; // fuera de temporada: valor de hombro bajo
 }
 
 /** Total sugerido: suma cada noche a su tarifa (tarifaNoche × curva del día). */
-export function precioSugerido(u: UnidadTemporada, desdeISO: string, hastaISO: string): number {
+export function precioSugerido(u: UnidadTemporada, desdeISO?: string, hastaISO?: string): number {
+  const a = soloFecha(desdeISO);
   const n = nochesEntre(desdeISO, hastaISO);
-  if (n <= 0) return 0;
+  if (!a || n <= 0) return 0;
   let total = 0;
-  const cursor = new Date(soloFecha(desdeISO) + "T00:00:00");
+  const cursor = new Date(a + "T00:00:00");
   for (let i = 0; i < n; i++) {
-    total += u.tarifaNocheARS * curvaEnFecha(cursor.toISOString());
+    total += (u.tarifaNocheARS || 0) * curvaEnFecha(cursor.toISOString());
     cursor.setDate(cursor.getDate() + 1);
   }
   return r10k(total);
@@ -135,15 +142,18 @@ export function reservaEnConflicto(
 ): ReservaTemporada | undefined {
   const d = soloFecha(desdeISO);
   const h = soloFecha(hastaISO);
-  return reservas.find(
-    (r) =>
+  return reservas.find((r) => {
+    const rd = soloFecha(r.desdeISO), rh = soloFecha(r.hastaISO);
+    if (!rd || !rh) return false; // reserva sin fechas (dato viejo) → se ignora
+    return (
       r.unidadId === unidadId &&
       r.id !== exceptoId &&
       OCUPA.includes(r.estado) &&
       // se pisan si empieza antes de que el otro termine y termina después de que el otro empiece
-      d < soloFecha(r.hastaISO) &&
-      h > soloFecha(r.desdeISO)
-  );
+      d < rh &&
+      h > rd
+    );
+  });
 }
 
 // ── Reservas de muestra: rangos reales dentro de la temporada, estados variados ──

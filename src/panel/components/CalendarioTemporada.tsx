@@ -56,8 +56,9 @@ export default function CalendarioTemporada({
 
   const sel = unidades.find((u) => u.id === selId) ?? unidades[0] ?? null;
 
-  // Reservas vivas por unidad.
-  const vivasDe = (uId: string) => reservas.filter((r) => r.unidadId === uId && OCUPA.includes(r.estado));
+  // Reservas vivas por unidad (con fechas válidas: un dato viejo sin fecha no rompe).
+  const vivasDe = (uId: string) =>
+    reservas.filter((r) => r.unidadId === uId && OCUPA.includes(r.estado) && r.desdeISO && r.hastaISO);
 
   // ¿Qué reserva ocupa este día de la unidad seleccionada? (check-out libre)
   const reservaEnDia = (uId: string, dISO: string) =>

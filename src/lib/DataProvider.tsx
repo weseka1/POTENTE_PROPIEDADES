@@ -24,7 +24,9 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // Sin base de datos, los cambios del panel viven en localStorage para que
 // sobrevivan al refresh (que Mateo cargue una propiedad y siga ahí). Con Supabase
 // esto no se usa: manda la DB. Versionado para descartar datos si cambian los seeds.
-const SEED_VERSION = "2026-07-09b";
+// Al subir el modelo de reservas de temporada (quincena → fechas) hay que invalidar
+// el cache viejo: una reserva sin desdeISO/hastaISO rompía la sección Temporada.
+const SEED_VERSION = "2026-07-10-fechas";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 /** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */
