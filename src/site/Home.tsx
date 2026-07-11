@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import HeroVideoLoop from "./components/HeroVideoLoop";
 import PropiedadCard from "./components/PropiedadCard";
 import UISelect from "@/components/Select";
 import { useLenis } from "./lib/useLenis";
@@ -101,17 +102,12 @@ export default function Home() {
               <HeroOcean />
             </Suspense>
           ) : (
-            <video
-              autoPlay
-              muted
-              loop
-              playsInline
+            <HeroVideoLoop
+              webm="/video/hero.webm"
+              mp4="/video/hero.mp4"
               poster="/video/hero-poster.jpg"
               className="h-full w-full object-cover"
-            >
-              <source src="/video/hero.webm" type="video/webm" />
-              <source src="/video/hero.mp4" type="video/mp4" />
-            </video>
+            />
           )}
           {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
           <div className="absolute inset-0 bg-gradient-to-r from-paper via-paper/45 to-transparent md:from-paper/95" />
