@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import HeroVideoLoop from "./components/HeroVideoLoop";
 import PropiedadCard from "./components/PropiedadCard";
 import UISelect from "@/components/Select";
 import { useLenis } from "./lib/useLenis";
@@ -102,12 +101,18 @@ export default function Home() {
               <HeroOcean />
             </Suspense>
           ) : (
-            <HeroVideoLoop
-              webm="/video/hero.webm"
-              mp4="/video/hero.mp4"
+            // Video "boomerang" (adelante + reversa): al dar la vuelta en el mismo
+            // frame, el loop no tiene corte. El agua fluye y refluye, sin reiniciarse.
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
               poster="/video/hero-poster.jpg"
               className="h-full w-full object-cover"
-            />
+            >
+              <source src="/video/hero-loop.mp4" type="video/mp4" />
+            </video>
           )}
           {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
           <div className="absolute inset-0 bg-gradient-to-r from-paper via-paper/45 to-transparent md:from-paper/95" />
