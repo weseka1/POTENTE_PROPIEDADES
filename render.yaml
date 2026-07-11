@@ -13,6 +13,9 @@ services:
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /
+    # Cada push a main debe deployar solo. Sin esto veníamos empujando cada deploy a mano.
+    autoDeploy: true
+    branch: main
     pullRequestPreviewsEnabled: false
     envVars:
       - key: NODE_VERSION
