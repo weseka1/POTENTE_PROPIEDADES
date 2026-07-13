@@ -38,11 +38,16 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // Estáticos con cache larga para assets versionados por Vite.
+// El index.html va SIN caché (no-store): después de cada deploy, los navegadores
+// que ya visitaron la demo seguían mostrando la versión vieja (les pasó a Juani
+// y le podía pasar al cliente). Los assets hasheados sí se cachean a un año.
 app.use(
   express.static(DIST, {
     setHeaders: (res, file) => {
-      if (/\.(js|css|woff2?|jpg|jpeg|png|webp|svg)$/.test(file)) {
+      if (/\.(js|css|woff2?|jpg|jpeg|png|webp|svg|mp4|webm)$/.test(file)) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/index\.html$/.test(file)) {
+        res.setHeader("Cache-Control", "no-store");
       }
     },
   })
@@ -50,6 +55,7 @@ app.use(
 
 // SPA fallback: cualquier ruta (ej. /propiedades, /panel) cae a index.html.
 app.get("*", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.sendFile(path.join(DIST, "index.html"));
 });
 
