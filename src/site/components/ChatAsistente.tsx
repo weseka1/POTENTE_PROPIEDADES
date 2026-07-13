@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { MessageCircle, X, Send, Waves, Loader2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { hoyISO } from "@/lib/fechas";
-import { fmtHa, fmtUSD } from "@/lib/format";
+import { fmtHa, fmtPrecio } from "@/lib/format";
 import { consultarAsistente, linkWhatsApp, type ChatMsg, type CampoLite } from "@/lib/asistente";
 import type { Lead } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
@@ -66,7 +66,7 @@ export default function ChatAsistente() {
         hectareas: p.hectareas,
         aptitud: p.aptitud,
         operacion: p.operacion,
-        precio: p.categoria === "campo" ? "A consultar" : fmtUSD(p.precioUSD),
+        precio: fmtPrecio(p) + (p.operacion === "alquiler" ? " por mes" : ""),
       }));
 
   const enviar = async (textoDirecto?: string) => {
@@ -189,7 +189,7 @@ export default function ChatAsistente() {
                               {c.hectareas ? ` · ${fmtHa(c.hectareas)}` : ""}
                             </p>
                             <p className="text-[11px] font-semibold text-brand">
-                              {c.categoria === "campo" ? "A consultar" : fmtUSD(c.precioUSD)}
+                              {fmtPrecio(c)}
                             </p>
                           </div>
                         </Link>

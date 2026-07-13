@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home, PenTool } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
-import { fmtUSD, fmtHa } from "@/lib/format";
+import { fmtPrecio, fmtHa } from "@/lib/format";
 import Drawer from "./Drawer";
 import Badge from "./Badge";
 import CampoThumb from "./CampoThumb";
@@ -251,7 +251,7 @@ export default function CampoDrawer({
                 variant="primary"
                 className="flex-1"
                 onClick={() => {
-                  const precio = prop.categoria === "campo" ? "A consultar" : fmtUSD(prop.precioUSD);
+                  const precio = fmtPrecio(prop);
                   const msg = encodeURIComponent(`${prop.titulo} — ${precio} · ${prop.zona}\nMás info: potenteprop.com.ar/propiedad/${prop.id}`);
                   window.open(`https://wa.me/?text=${msg}`, "_blank");
                 }}

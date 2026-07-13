@@ -10,7 +10,7 @@ import PropiedadCard from "./components/PropiedadCard";
 import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
-import { fmtUSD, fmtHa, fmtNum } from "@/lib/format";
+import { fmtPrecio, fmtHa, fmtNum } from "@/lib/format";
 import { useFavorites } from "./context/FavoritesContext";
 
 const WA = "5492233029591";
@@ -40,6 +40,7 @@ export default function PropiedadDetalle() {
           descripcion: p.descripcion,
           zona: p.zona,
           precioUSD: p.precioUSD,
+          precioARS: p.precioARS,
           operacion: p.operacion,
           fotos: p.fotos ?? [],
           m2totales: p.m2totales,
@@ -179,7 +180,7 @@ export default function PropiedadDetalle() {
                   title="mapa"
                   className="h-[320px] w-full"
                   loading="lazy"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${p.lng - 0.25}%2C${p.lat - 0.18}%2C${p.lng + 0.25}%2C${p.lat + 0.18}&layer=mapnik&marker=${p.lat}%2C${p.lng}`}
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${p.lng - 0.012}%2C${p.lat - 0.009}%2C${p.lng + 0.012}%2C${p.lat + 0.009}&layer=mapnik&marker=${p.lat}%2C${p.lng}`}
                 />
               </div>
             </div>
@@ -189,7 +190,10 @@ export default function PropiedadDetalle() {
         <aside className="lg:sticky lg:top-28 lg:self-start">
           <div className="rounded-2xl border border-graph/10 bg-paper-100 p-7 shadow-card">
             <p className="text-xs uppercase tracking-widest2 text-graph-400">{opLabel[p.operacion]}</p>
-            <p className="mt-2 font-display text-4xl font-semibold text-brand">{p.categoria === "campo" ? "A consultar" : fmtUSD(p.precioUSD)}</p>
+            <p className="mt-2 font-display text-4xl font-semibold text-brand">{fmtPrecio(p)}</p>
+            {p.operacion === "alquiler" && (p.precioARS || p.precioUSD) && (
+              <p className="mt-1 text-sm text-graph-400">por mes</p>
+            )}
 
             <div className="mt-6 space-y-3">
               <a href={`https://wa.me/${WA}?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn-primary w-full">

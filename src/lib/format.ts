@@ -11,6 +11,17 @@ export function fmtNum(n: number): string {
   return n.toLocaleString("es-AR");
 }
 
+// Precio de una propiedad respetando su moneda de publicación: los alquileres
+// van en pesos (precioARS) y las ventas en dólares (precioUSD).
+export function fmtPrecio(
+  p: { precioUSD?: number | null; precioARS?: number | null; categoria?: string },
+  opts?: { short?: boolean }
+): string {
+  if (p.precioARS) return fmtARS(p.precioARS, opts);
+  if (p.categoria === "campo" && !p.precioUSD) return "A consultar";
+  return fmtUSD(p.precioUSD ?? null, opts);
+}
+
 // Pesos argentinos — usado por Temporada (el temporario se cobra en ARS).
 export function fmtARS(n: number | null | undefined, opts?: { short?: boolean }): string {
   if (n === null || n === undefined) return "—";

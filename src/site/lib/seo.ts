@@ -64,18 +64,22 @@ export function jsonLdPropiedad(p: {
   descripcion: string;
   zona: string;
   precioUSD: number | null;
+  precioARS?: number | null;
   operacion: string;
   fotos: string[];
   m2totales?: number;
   dormitorios?: number;
 }) {
+  // Los alquileres se publican en pesos; las ventas en dólares.
+  const precio = p.precioARS || p.precioUSD;
+  const moneda = p.precioARS ? "ARS" : "USD";
   return {
     "@context": "https://schema.org",
     "@type": "RealEstateListing",
     name: p.titulo,
     description: p.descripcion,
     url: `${SITE}/propiedad/${encodeURIComponent(p.id)}`,
-    image: p.fotos.map((f) => SITE + f),
+    image: p.fotos.map((f) => (f.startsWith("http") ? f : SITE + f)),
     datePosted: new Date().toISOString().slice(0, 10),
     address: {
       "@type": "PostalAddress",
@@ -83,12 +87,12 @@ export function jsonLdPropiedad(p: {
       addressRegion: "Buenos Aires",
       addressCountry: "AR",
     },
-    ...(p.precioUSD
+    ...(precio
       ? {
           offers: {
             "@type": "Offer",
-            price: p.precioUSD,
-            priceCurrency: "USD",
+            price: precio,
+            priceCurrency: moneda,
             availability: "https://schema.org/InStock",
             businessFunction:
               p.operacion === "venta"

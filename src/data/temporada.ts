@@ -50,19 +50,21 @@ function tarifasDesde(amb: number, factor = 1): UnidadTemporada["tarifas"] {
 // Unidades en temporada: se apoyan en propiedades urbanas de la cartera (propiedadId).
 // factor: ajuste fino por ubicación/calidad (frente al mar y Playa Grande valen más).
 type Semilla = { id: string; propiedadId: string; amb: number; cap: number; barrio: string; mar?: boolean; com: string[]; factor?: number; limpieza?: boolean };
+// Las unidades apuntan a propiedades REALES de la cartera (ids POT-*). El barrio
+// es el de la propiedad (Lomas de Stella Maris es la zona de la ensenada de Varese).
 const SEMILLAS: Semilla[] = [
   // TMP-01 salió una reserva finalizada (Godoy, dic 2ª) → queda en turnover: limpieza y llaves.
-  { id: "TMP-01", propiedadId: "URB-015", amb: 3, cap: 5, barrio: "Playa Grande", mar: true, com: ["wifi", "aire", "cochera", "frente al mar"], factor: 1.15, limpieza: true },
-  { id: "TMP-02", propiedadId: "URB-011", amb: 4, cap: 6, barrio: "Varese", mar: true, com: ["wifi", "aire", "cochera", "balcón al mar"], factor: 1.2 },
-  { id: "TMP-03", propiedadId: "URB-010", amb: 3, cap: 4, barrio: "Playa Grande", com: ["wifi", "aire", "cochera"], factor: 1.1 },
-  { id: "TMP-04", propiedadId: "URB-014", amb: 3, cap: 5, barrio: "Güemes", com: ["wifi", "aire", "parrilla"] },
-  { id: "TMP-05", propiedadId: "URB-013", amb: 2, cap: 3, barrio: "La Perla", com: ["wifi", "aire"] },
-  { id: "TMP-06", propiedadId: "URB-012", amb: 2, cap: 4, barrio: "Centro", com: ["wifi", "cochera"] },
-  { id: "TMP-07", propiedadId: "URB-016", amb: 2, cap: 3, barrio: "Güemes", com: ["wifi", "aire"] },
-  { id: "TMP-08", propiedadId: "URB-009", amb: 2, cap: 4, barrio: "La Perla", com: ["wifi", "parrilla", "patio"] },
-  { id: "TMP-09", propiedadId: "URB-008", amb: 3, cap: 6, barrio: "Güemes", com: ["wifi", "parrilla", "cochera"] },
-  { id: "TMP-10", propiedadId: "URB-001", amb: 5, cap: 8, barrio: "Chauvín", com: ["pileta", "parrilla", "cochera", "wifi", "aire"], factor: 1.1 },
-  { id: "TMP-11", propiedadId: "URB-003", amb: 4, cap: 7, barrio: "Punta Mogotes", com: ["parrilla", "cochera", "wifi"], factor: 0.95 },
+  { id: "TMP-01", propiedadId: "POT-218380", amb: 5, cap: 8, barrio: "Playa Grande", mar: true, com: ["wifi", "aire", "cochera", "balcón"], factor: 1.2, limpieza: true },
+  { id: "TMP-02", propiedadId: "POT-218377", amb: 1, cap: 2, barrio: "Punta Mogotes", mar: true, com: ["wifi", "aire", "vista al mar"], factor: 1.1 },
+  { id: "TMP-03", propiedadId: "POT-223356", amb: 2, cap: 3, barrio: "Punta Mogotes", com: ["wifi", "aire", "cochera", "balcón"] },
+  { id: "TMP-04", propiedadId: "POT-205391", amb: 1, cap: 2, barrio: "Punta Mogotes", com: ["wifi", "aire"] },
+  { id: "TMP-05", propiedadId: "POT-172350", amb: 3, cap: 5, barrio: "Punta Mogotes", com: ["wifi", "parrilla", "patio"] },
+  { id: "TMP-06", propiedadId: "POT-219780", amb: 3, cap: 4, barrio: "Las Avenidas", com: ["wifi", "aire"] },
+  { id: "TMP-07", propiedadId: "POT-217419", amb: 2, cap: 3, barrio: "Macrocentro", com: ["wifi", "aire"] },
+  { id: "TMP-08", propiedadId: "POT-219651", amb: 2, cap: 4, barrio: "Villa Primera", com: ["wifi", "parrilla", "patio"] },
+  { id: "TMP-09", propiedadId: "POT-207693", amb: 3, cap: 5, barrio: "Barrio El Jardín", com: ["wifi", "parrilla", "cochera"] },
+  { id: "TMP-10", propiedadId: "POT-215539", amb: 3, cap: 4, barrio: "Varese", com: ["wifi", "aire", "balcón"], factor: 1.1 },
+  { id: "TMP-11", propiedadId: "POT-153864", amb: 4, cap: 6, barrio: "Chauvín", com: ["parrilla", "cochera", "wifi"], factor: 0.95 },
 ];
 
 // Tarifa por noche en temporada alta (pico) = valor de la 2ª de enero / 15 noches.

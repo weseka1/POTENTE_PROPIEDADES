@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
-import { fmtUSD, fmtHa } from "@/lib/format";
+import { fmtPrecio, fmtHa } from "@/lib/format";
 import { useFavorites } from "../context/FavoritesContext";
 
 const estadoStyle: Record<string, string> = {
@@ -102,7 +102,7 @@ export default function PropiedadCard({ p }: { p: Propiedad }) {
         <div className="mt-5 flex items-end justify-between border-t border-graph/10 pt-4">
           <div>
             <p className="font-display text-xl font-semibold text-brand">
-              {p.categoria === "campo" ? "A consultar" : fmtUSD(p.precioUSD, { short: true })}
+              {fmtPrecio(p)}
             </p>
           </div>
           <span className="flex items-center gap-1 text-sm font-medium text-graph-500 transition group-hover:text-brand">

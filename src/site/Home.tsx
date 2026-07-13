@@ -441,21 +441,21 @@ function FichaFlotante() {
   return (
     <Link
       ref={ref}
-      to="/propiedad/URB-011"
+      to="/propiedad/POT-153992"
       className="group absolute right-[6%] top-[26%] z-10 hidden w-[290px] overflow-hidden rounded-2xl border border-white/40 bg-white/70 shadow-card backdrop-blur-xl transition-shadow duration-300 will-change-transform hover:shadow-[0_30px_70px_-24px_rgba(2,35,82,0.45)] xl:block"
       aria-label="Ver departamento destacado frente al mar"
     >
       <div className="relative h-36 overflow-hidden">
-        <img src="/img/props/depto1.jpg" alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+        <img src="https://storage.googleapis.com/portales-prod-images/4990/property-images/2025/2/74b93e21-f54c-4f78-a268-1689e2878d29.jpeg" alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
         <span className="absolute left-3 top-3 rounded-full bg-brand px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Venta</span>
       </div>
       <div className="p-4">
-        <p className="font-display text-[15px] font-semibold leading-snug text-graph">Departamento 4 ambientes frente al mar</p>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-graph-500"><MapPin size={12} className="text-brand" /> Varese, Mar del Plata</p>
+        <p className="font-display text-[15px] font-semibold leading-snug text-graph">Piso único de 4 dormitorios frente al mar</p>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-graph-500"><MapPin size={12} className="text-brand" /> Playa Grande, Mar del Plata</p>
         <div className="mt-3 flex items-center gap-4 border-t border-graph/10 pt-3 text-[11px] text-graph-500">
-          <span className="flex items-center gap-1"><BedDouble size={13} className="text-brand" /> 3 dorm.</span>
-          <span className="flex items-center gap-1"><Maximize size={13} className="text-brand" /> 140 m²</span>
-          <span className="ml-auto font-display text-sm font-semibold text-brand">U$S 450.000</span>
+          <span className="flex items-center gap-1"><BedDouble size={13} className="text-brand" /> 4 dorm.</span>
+          <span className="flex items-center gap-1"><Maximize size={13} className="text-brand" /> 145 m²</span>
+          <span className="ml-auto font-display text-sm font-semibold text-brand">U$S 700.000</span>
         </div>
       </div>
     </Link>

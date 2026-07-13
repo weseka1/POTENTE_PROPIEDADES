@@ -5,7 +5,7 @@ import { Plus, MapPin, Maximize, Eye, LayoutGrid, List, BedDouble } from "lucide
 import { useData } from "@/lib/DataProvider";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
-import { fmtUSD, fmtHa } from "@/lib/format";
+import { fmtPrecio, fmtHa } from "@/lib/format";
 import { PageHeader, EmptyState } from "../components/PageShell";
 import { SearchInput, FilterSelect } from "../components/Controls";
 import Badge from "../components/Badge";
@@ -157,7 +157,7 @@ export default function Cartera() {
                   </div>
                   <div className="absolute bottom-3 right-3">
                     <span className="rounded-lg bg-graph/85 px-2.5 py-1 font-display text-sm font-semibold text-graph backdrop-blur">
-                      {fmtUSD(c.precioUSD, { short: true })}
+                      {fmtPrecio(c, { short: true })}
                     </span>
                   </div>
                 </div>
@@ -215,7 +215,7 @@ export default function Cartera() {
                     <td className="px-4 py-3 capitalize text-graph-500">{catLabel(c.categoria)}</td>
                     <td className="px-4 py-3 text-graph-500">{c.zona}</td>
                     <td className="px-4 py-3 text-right capitalize text-graph">{meta}</td>
-                    <td className="px-4 py-3 text-right font-display font-semibold text-graph">{fmtUSD(c.precioUSD, { short: true })}</td>
+                    <td className="px-4 py-3 text-right font-display font-semibold text-graph">{fmtPrecio(c, { short: true })}</td>
                     <td className="px-4 py-3"><Badge tone={e.tone} dot>{e.label}</Badge></td>
                   </tr>
                 );

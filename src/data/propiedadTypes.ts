@@ -67,6 +67,9 @@ export interface Propiedad {
   titulo: string;
   operacion: OperacionProp;
   precioUSD: number | null; // null = "Consultar"
+  // Los alquileres se publican en pesos (así opera Potente hoy). Si está seteado,
+  // el precio que se muestra es este; precioUSD queda en null.
+  precioARS?: number | null;
   precioPorHa?: number | null;
   zona: string;
   provincia: string;
