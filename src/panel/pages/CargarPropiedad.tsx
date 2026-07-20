@@ -7,6 +7,7 @@ import { PageHeader } from "../components/PageShell";
 import Select from "@/components/Select";
 import { supabase } from "@/lib/supabase";
 import { aDataUrlComprimida } from "@/lib/imagenes";
+import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
 
 const categorias: { v: Categoria; l: string }[] = [
@@ -65,6 +66,43 @@ export default function CargarPropiedad() {
       return { ...p, ficha: { ...p.ficha, [k]: next } };
     });
   const esCampo = f.categoria === "campo";
+
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
+  const videoPreview = useVideoUrl(f.video || undefined);
+
+  // El video va a Supabase Storage si hay base conectada; en modo demo queda en
+  // IndexedDB de este navegador (localStorage no banca archivos de este tamaño).
+  const subirVideo = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    if (file.size > 200 * 1024 * 1024) {
+      push("El video no puede pasar los 200 MB", "info");
+      return;
+    }
+    setSubiendoVideo(true);
+    try {
+      if (supabase) {
+        const path = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+        const { error } = await supabase.storage.from("potente").upload(path, file, { upsert: true });
+        if (!error) {
+          set("video", supabase.storage.from("potente").getPublicUrl(path).data.publicUrl);
+          push("Video subido ✓", "success");
+          return;
+        }
+      }
+      set("video", await guardarVideo(file));
+      push("Video cargado ✓ (en demo queda guardado en este navegador)", "success");
+    } catch {
+      push("No se pudo cargar el video", "info");
+    } finally {
+      setSubiendoVideo(false);
+    }
+  };
+
+  const quitarVideo = async () => {
+    if (f.video?.startsWith("idb:")) await borrarVideo(f.video);
+    set("video", "");
+  };
 
   const subirArchivos = async (
     files: FileList | null,
@@ -359,8 +397,28 @@ export default function CargarPropiedad() {
           {/* Video */}
           <section className="pcard p-5">
             <h3 className="mb-3 flex items-center gap-2 font-display text-base font-semibold text-graph"><Video size={16} className="text-brand" /> Video (opcional)</h3>
-            <Inp value={f.video} onChange={(v) => set("video", v)} ph="Link de YouTube / drone / recorrido" />
-            <p className="mt-2 text-xs text-graph-400">Pegá el link del video de la propiedad (YouTube, Vimeo o MP4).</p>
+            {!f.video && (
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-graph/15 bg-graph/[0.02] py-6 text-center transition hover:border-brand/50 hover:bg-graph/[0.04]">
+                <input type="file" accept="video/*" className="hidden" onChange={(e) => subirVideo(e.target.files)} />
+                {subiendoVideo ? <Loader2 size={22} className="animate-spin text-brand" /> : <Video size={22} className="text-graph-400" />}
+                <span className="text-sm font-medium text-graph-500">{subiendoVideo ? "Cargando…" : "Subí el video de la propiedad"}</span>
+                <span className="text-xs text-graph-400">MP4 o WebM — recorrido, drone (hasta 200 MB)</span>
+              </label>
+            )}
+            {f.video && videoPreview && esVideoArchivo(f.video) && (
+              <video src={videoPreview} controls playsInline className="w-full rounded-xl ring-1 ring-graph/10" />
+            )}
+            {f.video && !esVideoArchivo(f.video) && (
+              <p className="truncate rounded-lg bg-graph/[0.04] px-3 py-2 text-xs text-graph-500">{f.video}</p>
+            )}
+            {f.video && (
+              <button type="button" onClick={quitarVideo} className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-graph-400 transition hover:text-graph">
+                <X size={13} /> Quitar video
+              </button>
+            )}
+            <div className="mt-3">
+              <Inp value={esVideoArchivo(f.video) ? "" : f.video} onChange={(v) => set("video", v)} ph="…o pegá un link (YouTube / Vimeo / MP4)" />
+            </div>
           </section>
 
           {/* Flags */}

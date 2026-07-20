@@ -12,6 +12,7 @@ import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
 import { fmtPrecio, fmtHa, fmtNum } from "@/lib/format";
 import { useFavorites } from "./context/FavoritesContext";
+import { esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 
 const WA = "5492233029591";
 const opLabel: Record<string, string> = { venta: "Venta", alquiler: "Alquiler", arrendamiento: "Arrendamiento" };
@@ -27,6 +28,9 @@ export default function PropiedadDetalle() {
   const [activa, setActiva] = useState(0);
   const { esFavorito, toggle } = useFavorites();
   useEffect(() => { setActiva(0); }, [id]); // resetear la foto activa al navegar a otra propiedad
+  // Video subido como archivo → reproductor embebido. En modo demo (idb:) el
+  // archivo vive en el navegador que lo cargó; si acá no está, la sección se oculta.
+  const videoUrl = useVideoUrl(p?.video);
 
   // SEO por propiedad: título, descripción y aviso estructurado (RealEstateListing)
   useSEO({
@@ -150,12 +154,16 @@ export default function PropiedadDetalle() {
             <p className="mt-4 text-lg leading-relaxed text-graph-500">{p.descripcion}</p>
           </div>
 
-          {p.video && (
+          {p.video && (esVideoArchivo(p.video) ? videoUrl : true) && (
             <div className="mt-10">
               <h2 className="font-display text-2xl text-graph">Video</h2>
-              <a href={p.video} target="_blank" rel="noreferrer" className="btn-ghost mt-4 inline-flex w-auto">
-                <PlayCircle size={18} /> Ver video de la propiedad
-              </a>
+              {esVideoArchivo(p.video) && videoUrl ? (
+                <video src={videoUrl} controls playsInline preload="metadata" className="mt-4 w-full rounded-2xl ring-1 ring-graph/10" />
+              ) : (
+                <a href={p.video} target="_blank" rel="noreferrer" className="btn-ghost mt-4 inline-flex w-auto">
+                  <PlayCircle size={18} /> Ver video de la propiedad
+                </a>
+              )}
             </div>
           )}
 
