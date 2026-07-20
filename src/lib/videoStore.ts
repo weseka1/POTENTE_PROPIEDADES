@@ -19,11 +19,19 @@ function abrir(): Promise<IDBDatabase> {
 }
 
 export async function guardarVideo(file: File): Promise<string> {
+  // Copia real de los bytes. Chrome guarda los File en IndexedDB "por referencia"
+  // al archivo original del disco: si después se mueve/borra (o el navegador pierde
+  // el permiso de lectura), queda un registro de 0 bytes que rompe el reproductor
+  // sin avisar. Copiando acá, el video queda autocontenido y una lectura fallida
+  // explota en el momento de la carga, donde el usuario la ve.
+  const bytes = await file.arrayBuffer();
+  if (!bytes.byteLength) throw new Error("archivo vacío o ilegible");
+  const blob = new Blob([bytes], { type: file.type || "video/mp4" });
   const clave = `video-${Date.now()}`;
   const db = await abrir();
   await new Promise<void>((res, rej) => {
     const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(file, clave);
+    tx.objectStore(STORE).put(blob, clave);
     tx.oncomplete = () => res();
     tx.onerror = () => rej(tx.error);
   });
