@@ -72,9 +72,7 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
       >
         <nav className="container-x flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-950 font-display text-base font-semibold text-white">
-              P
-            </span>
+            <img src="/img/marca/pp-azul.png" alt="" className="h-10 w-auto" />
             <span className="leading-none">
               <span className="block font-display text-lg font-semibold tracking-tight text-graph">
                 Potente <span className="text-brand">Propiedades</span>

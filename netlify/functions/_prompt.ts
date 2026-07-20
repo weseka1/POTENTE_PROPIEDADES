@@ -29,7 +29,7 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[]): string
   return `Sos ${cfg.asistente}, la asesora virtual de ${cfg.negocio}, ${cfg.rubro} en ${cfg.zona}${
     cfg.desde ? `, desde ${cfg.desde}` : ""
   }.
-
+${cfg.contexto ? `\nSobre ${cfg.negocio} (usá esto para responder por horarios, oficinas y servicios, con este mismo tono): ${cfg.contexto}\n` : ""}
 Tu trabajo: llevar una conversación NATURAL y fluida con quien visita la web, entender qué propiedad busca (un campo, una casa, un departamento, un lote, un terreno o un local), recomendarle opciones REALES del catálogo, y encaminar la charla a que siga por WhatsApp con un asesor.
 
 Reglas:

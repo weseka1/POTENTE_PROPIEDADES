@@ -7,9 +7,7 @@ export default function Footer() {
       <div className="container-x grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Link to="/" className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-950 font-display text-lg font-semibold text-white">
-              P
-            </span>
+            <img src="/img/marca/pp-azul.png" alt="" className="h-11 w-auto" />
             <span className="font-display text-xl font-semibold">
               Potente <span className="text-brand">Propiedades</span>
             </span>
@@ -58,7 +56,7 @@ export default function Footer() {
           <ul className="space-y-4 text-sm text-graph-500">
             <li className="flex gap-3"><MapPin size={18} className="shrink-0 text-brand" /> Av. de los Trabajadores 2439</li>
             <li className="flex gap-3"><Phone size={18} className="shrink-0 text-brand" /> 223 472-7416</li>
-            <li className="flex gap-3"><Clock size={18} className="shrink-0 text-brand" /> Lun a Vie · 9 a 18 hs</li>
+            <li className="flex gap-3"><Clock size={18} className="shrink-0 text-brand" /> Lun a Vie 9 a 18 · Sáb 9 a 12</li>
           </ul>
         </div>
 

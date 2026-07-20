@@ -26,7 +26,11 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // esto no se usa: manda la DB. Versionado para descartar datos si cambian los seeds.
 // Al subir el modelo de reservas de temporada (quincena → fechas) hay que invalidar
 // el cache viejo: una reserva sin desdeISO/hastaISO rompía la sección Temporada.
-const SEED_VERSION = "2026-07-10-fechas";
+// ⚠️ REGLA: cada vez que cambian los SEEDS (catálogo, reservas, leads…) hay que
+// SUBIR esta versión. El 13-jul se reemplazó el catálogo entero por el real y esta
+// versión quedó igual → los navegadores que ya habían visitado la demo siguieron
+// mostrando los datos viejos del localStorage por una semana (le pasó a Juani).
+const SEED_VERSION = "2026-07-20-catalogo-completo";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 /** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */

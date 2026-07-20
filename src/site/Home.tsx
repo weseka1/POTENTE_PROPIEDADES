@@ -365,7 +365,7 @@ export default function Home() {
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-graph-500">
                   <span className="flex items-center gap-2"><Phone size={15} className="text-brand" /> {o.tel}</span>
-                  <span className="flex items-center gap-2"><Clock size={15} className="text-brand" /> Lun a Vie · 9 a 18 hs</span>
+                  <span className="flex items-center gap-2"><Clock size={15} className="text-brand" /> Lun a Vie 9 a 18 · Sáb 9 a 12</span>
                   <a href={o.maps} target="_blank" rel="noreferrer" className="link-underline flex items-center gap-1 font-semibold text-brand">
                     Cómo llegar <ArrowRight size={14} />
                   </a>
@@ -388,7 +388,7 @@ export default function Home() {
                 { icon: MapPin, t: "Punta Mogotes", d: "Av. de los Trabajadores 2439 · 223 472-7416" },
                 { icon: MapPin, t: "Chauvín", d: "Av. Colón 3537 · 223 512-9032" },
                 { icon: Mail, t: "Email", d: "info@potenteprop.com.ar" },
-                { icon: Clock, t: "Horario", d: "Lunes a Viernes · 9 a 18 hs" },
+                { icon: Clock, t: "Horario", d: "Lun a Vie 9 a 18 · Sáb 9 a 12" },
               ].map((c) => (
                 <div key={c.t} className="flex items-center gap-4">
                   <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-50 text-brand"><c.icon size={20} /></span>
@@ -517,7 +517,7 @@ function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
             <textarea rows={4} value={f.mensaje} onChange={(e) => set("mensaje", e.target.value)} placeholder="Busco un depto de 3 ambientes cerca de Güemes, o una casa en Punta Mogotes..." className="w-full rounded-lg border border-graph/15 bg-paper-100 px-4 py-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand" />
           </label>
           <button type="submit" className="btn-primary w-full">Enviar consulta <ArrowRight size={16} /></button>
-          <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 18 hs.</p>
+          <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 18 y sábados de 9 a 12.</p>
         </div>
       )}
     </form>

@@ -11,6 +11,7 @@ export type AsistenteConfig = {
   itemSingular: string;   // "campo" | "auto" | "propiedad" | "turno"…
   itemPlural: string;     // "campos" | "autos"…
   saludo: string;         // primer mensaje que ve el visitante
+  contexto?: string;      // identidad del negocio con SU vocabulario (para que el asistente responda horarios, oficinas, servicios)
 };
 
 export const CONFIG: AsistenteConfig = {
@@ -18,9 +19,13 @@ export const CONFIG: AsistenteConfig = {
   rubro:
     "inmobiliaria de Mar del Plata con más de 50 años y tres generaciones de trayectoria: casas, departamentos, PH, locales, lotes y chacras, en venta y alquiler",
   zona: "Mar del Plata y la costa atlántica",
+  desde: "1968",
   asistente: "Marina",
   itemSingular: "propiedad",
   itemPlural: "propiedades",
   saludo:
     "¡Hola! Soy Marina, de Potente Propiedades. ¿Qué estás buscando? ¿Casa, depto, local, lote…? Contame la zona y qué necesitás y te muestro opciones.",
+  // Con el vocabulario de su propia web (potentepropiedades.com.ar/nosotros):
+  contexto:
+    "Fundada en 1968: más de 50 años de trayectoria y 3 generaciones vendiendo, alquilando y administrando inmuebles. El objetivo de la casa es trabajar en el camino de la excelencia sobre la base de la confianza, la seriedad y la trayectoria, buscando maximizar el valor de las inversiones de los clientes. Ofrece asesoramiento integral: tasaciones sin cargo con informe escrito, ventas, alquileres y administración. Dos oficinas: Av. de los Trabajadores 2439 (Punta Mogotes) y Av. Colón 3537 (Chauvín), tel. 223 472-7416. Horario: lunes a viernes de 9 a 18, sábados de 9 a 12.",
 };

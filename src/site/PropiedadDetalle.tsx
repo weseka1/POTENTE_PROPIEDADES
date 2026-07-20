@@ -135,7 +135,7 @@ export default function PropiedadDetalle() {
 
           <h1 className="mt-5 font-display text-3xl font-medium tracking-tight leading-tight text-graph md:text-4xl">{p.titulo}</h1>
           <p className="mt-3 flex items-center gap-2 text-graph-500">
-            <MapPin size={18} className="text-brand" /> {p.direccion ? `${p.direccion} · ` : ""}{p.zona}, {p.provincia}
+            <MapPin size={18} className="text-brand" /> {p.direccion && p.direccion.toLowerCase() !== p.zona.toLowerCase() ? `${p.direccion} · ` : ""}{p.zona}, {p.provincia}
           </p>
 
           <div className="mt-8 grid gap-px overflow-hidden rounded-2xl bg-graph/10 sm:grid-cols-2 lg:grid-cols-3">
@@ -151,7 +151,7 @@ export default function PropiedadDetalle() {
 
           <div className="mt-10">
             <h2 className="font-display text-2xl text-graph">Descripción</h2>
-            <p className="mt-4 text-lg leading-relaxed text-graph-500">{p.descripcion}</p>
+            <p className="mt-4 whitespace-pre-line text-lg leading-relaxed text-graph-500">{p.descripcion}</p>
           </div>
 
           {p.video && (esVideoArchivo(p.video) ? videoUrl : true) && (
@@ -218,7 +218,7 @@ export default function PropiedadDetalle() {
             <div className="mt-6 border-t border-graph/10 pt-6 text-sm text-graph-500">
               <p className="font-medium text-graph">Potente Propiedades</p>
               <p className="mt-1">Av. de los Trabajadores 2439 (Punta Mogotes) · Av. Colón 3537 (Chauvín)</p>
-              <p>223 472-7416 · Lun a Vie 9-18 hs</p>
+              <p>223 472-7416 · Lun a Vie 9 a 18 · Sáb 9 a 12</p>
             </div>
           </div>
         </aside>

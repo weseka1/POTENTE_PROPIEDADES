@@ -27,7 +27,7 @@ export default function Login() {
     <div className="panel-bg flex min-h-screen items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand font-display text-xl font-bold text-white shadow-[0_12px_28px_-10px_rgba(12,77,162,0.7)]">P</span>
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand shadow-[0_12px_28px_-10px_rgba(12,77,162,0.7)]"><img src="/img/marca/pp-blanco.png" alt="" className="h-10 w-10 object-contain" /></span>
           <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight text-graph">Potente <span className="text-brand">Propiedades</span></h1>
           <p className="mt-1 text-[11px] font-semibold uppercase tracking-widest2 text-brand">Inmobiliaria · Mar del Plata</p>
         </div>

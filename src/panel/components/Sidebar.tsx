@@ -86,8 +86,8 @@ export default function Sidebar({
 
         {/* logo */}
         <div className={cn("flex items-center gap-3 px-5 py-5", collapsed && "lg:justify-center lg:px-0")}>
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-brand font-display text-base font-bold text-white shadow-[0_8px_20px_-8px_rgba(12,77,162,0.7)]">
-            P
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-brand shadow-[0_8px_20px_-8px_rgba(12,77,162,0.7)]">
+            <img src="/img/marca/pp-blanco.png" alt="" className="h-7 w-7 object-contain" />
           </div>
           <div className={cn("leading-tight", hideOnCollapse)}>
             <p className="font-display text-base font-semibold tracking-tight text-graph">Potente <span className="text-brand">Propiedades</span></p>

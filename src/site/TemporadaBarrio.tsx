@@ -184,9 +184,9 @@ export default function TemporadaBarrio() {
             Alquiler temporario en {barrio}, Mar del Plata
           </h1>
           <p className="mt-5 max-w-xl text-lg text-white/75">
-            {unidades.length} {unidades.length === 1 ? "propiedad disponible" : "propiedades disponibles"} para esta
-            temporada{desdeGeneral ? `, desde ${fmtARS(desdeGeneral)} la quincena` : ""}. Reservá con seña por
-            WhatsApp.
+            {unidades.length > 0
+              ? `${unidades.length} ${unidades.length === 1 ? "propiedad disponible" : "propiedades disponibles"} para esta temporada${desdeGeneral ? `, desde ${fmtARS(desdeGeneral)} la quincena` : ""}. Reservá con seña por WhatsApp.`
+              : "La disponibilidad se publica a medida que se libera. Escribinos por tus fechas y te pasamos opciones en el día."}
           </p>
           <a href={wa} target="_blank" rel="noreferrer" className="btn-primary mt-8">
             <Phone size={16} /> Consultar disponibilidad
