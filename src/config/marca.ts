@@ -60,6 +60,13 @@ export const waDigits = (oficinaId?: string | null): string =>
 export const waUrl = (oficinaId?: string | null, mensaje?: string): string =>
   `https://wa.me/${waDigits(oficinaId)}${mensaje ? `?text=${encodeURIComponent(mensaje)}` : ""}`;
 
+export const INSTAGRAM = {
+  usuario: "potentepropiedades",
+  // Reels/posts destacados (URLs completas de instagram.com/reel/...). Cuando Mateo
+  // pase los suyos, se pegan acá y la home muestra ESOS en vez del feed del perfil.
+  reels: [] as string[],
+};
+
 export const REDES = {
   instagram: "https://www.instagram.com/potentepropiedades",
   facebook: "https://www.facebook.com/potente.propiedades",

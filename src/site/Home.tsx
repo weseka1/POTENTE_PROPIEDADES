@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import InstagramFeed from "./components/InstagramFeed";
 import PropiedadCard from "./components/PropiedadCard";
 import UISelect from "@/components/Select";
 import { useLenis } from "./lib/useLenis";
@@ -363,6 +364,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <InstagramFeed />
 
       {/* ===== CONTACTO ===== */}
       <section id="contacto" className="border-t border-graph/10 py-24">
