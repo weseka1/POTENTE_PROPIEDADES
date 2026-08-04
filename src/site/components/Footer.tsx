@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { MapPin, Phone, Mail, Instagram, Facebook, Clock } from "lucide-react";
+import { MapPin, Phone, MessageCircle, Instagram, Facebook, Clock } from "lucide-react";
+import { OFICINAS, waUrl } from "@/config/marca";
 
 export default function Footer() {
   return (
@@ -51,23 +52,21 @@ export default function Footer() {
           </ul>
         </div>
 
-        <div>
-          <h4 className="eyebrow mb-5">Punta Mogotes</h4>
-          <ul className="space-y-4 text-sm text-graph-500">
-            <li className="flex gap-3"><MapPin size={18} className="shrink-0 text-brand" /> Av. de los Trabajadores 2439</li>
-            <li className="flex gap-3"><Phone size={18} className="shrink-0 text-brand" /> 223 472-7416</li>
-            <li className="flex gap-3"><Clock size={18} className="shrink-0 text-brand" /> Lun a Vie 9 a 18 · Sáb 9 a 12</li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="eyebrow mb-5">Chauvín</h4>
-          <ul className="space-y-4 text-sm text-graph-500">
-            <li className="flex gap-3"><MapPin size={18} className="shrink-0 text-brand" /> Av. Colón 3537</li>
-            <li className="flex gap-3"><Phone size={18} className="shrink-0 text-brand" /> 223 512-9032</li>
-            <li className="flex gap-3"><Mail size={18} className="shrink-0 text-brand" /> info@potenteprop.com.ar</li>
-          </ul>
-        </div>
+        {OFICINAS.map((o) => (
+          <div key={o.id}>
+            <h4 className="eyebrow mb-5">Oficina {o.numero} · {o.nombre}</h4>
+            <ul className="space-y-4 text-sm text-graph-500">
+              <li className="flex gap-3"><MapPin size={18} className="shrink-0 text-brand" /> {o.direccion}</li>
+              <li className="flex gap-3"><Phone size={18} className="shrink-0 text-brand" /> {o.telefono}</li>
+              <li>
+                <a href={waUrl(o.id)} target="_blank" rel="noreferrer" className="flex gap-3 transition hover:text-brand">
+                  <MessageCircle size={18} className="shrink-0 text-brand" /> WhatsApp
+                </a>
+              </li>
+              <li className="flex gap-3"><Clock size={18} className="shrink-0 text-brand" /> {o.horario}</li>
+            </ul>
+          </div>
+        ))}
       </div>
 
       <div className="border-t border-graph/10">

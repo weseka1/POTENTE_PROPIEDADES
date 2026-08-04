@@ -109,7 +109,7 @@ export function descargarFichaPDF(row: FichaRowPDF) {
     section("Datos de la propiedad");
     kv([
       ["Barrio", d.barrio || "—"], ["Ciudad", d.ciudad || "—"],
-      ["Piso / Depto", [d.piso, d.depto].filter(Boolean).join(" / ") || "—"], ["Orientación", cap(d.orientacion)],
+      ["Piso / Depto", [d.piso, d.depto].filter(Boolean).join(" / ") || "—"], ["Disposición", cap(d.disposicion)], ["Orientación", d.orientacion || "—"],
       ["Acceso", cap(d.acceso)], ["Antigüedad", d.antiguedad || "—"],
       ["Estado general", d.estadoGeneral || "—"], ["Dimensiones", d.dimensiones || "—"],
       ["Dormitorios", d.dormitorios != null ? String(d.dormitorios) : "—"], ["Baños", d.banos != null ? String(d.banos) : "—"],
@@ -138,7 +138,7 @@ export function descargarFichaPDF(row: FichaRowPDF) {
     doc.setDrawColor(...LIGHT); doc.setLineWidth(1); doc.line(M, H - 34, W - M, H - 34);
     doc.setTextColor(...GRAY); doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
     doc.text("Potente Propiedades  ·  Mar del Plata  ·  potenteprop.com.ar", M, H - 24);
-    doc.text("Av. de los Trabajadores 2439 (Punta Mogotes)  ·  Av. Colón 3537 (Chauvín)  ·  Tel 223 472-7416  ·  info@potenteprop.com.ar", M, H - 13);
+    doc.text("Córdoba 3719 (Chauvín) Tel 223 512-9032  ·  Av. de los Trabajadores 2439 (Punta Mogotes) Tel 223 628-2659", M, H - 13);
     doc.text(`${i} / ${pages}`, W - M, H - 24, { align: "right" });
   }
 

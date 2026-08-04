@@ -6,7 +6,6 @@ import PropiedadDetalle from "./site/PropiedadDetalle";
 import Temporada from "./site/Temporada";
 import TemporadaBarrio from "./site/TemporadaBarrio";
 import Favoritos from "./site/Favoritos";
-import Cuenta from "./site/Cuenta";
 import { AuthProvider } from "./site/context/AuthContext";
 import { FavoritesProvider } from "./site/context/FavoritesContext";
 import { DataProvider } from "./lib/DataProvider";
@@ -71,10 +70,12 @@ export default function App() {
           <Route path="/temporada" element={<Temporada />} />
           <Route path="/temporada/:barrio" element={<TemporadaBarrio />} />
           <Route path="/favoritos" element={<Favoritos />} />
-          <Route path="/cuenta" element={<Cuenta />} />
+          {/* El registro público se sacó (pedido Mateo 3-ago): contacto por WhatsApp, sin cuentas. */}
+          <Route path="/cuenta" element={<Navigate to="/" replace />} />
           {/* compatibilidad con rutas viejas */}
           <Route path="/campos" element={<Navigate to="/propiedades?cat=campo" replace />} />
           <Route path="/campo/:id" element={<RedirectCampo />} />
+          {/* /ingresar = login del PANEL (equipo). El registro público es lo que se sacó. */}
           <Route path="/ingresar" element={<Login />} />
           <Route
             path="/panel/*"

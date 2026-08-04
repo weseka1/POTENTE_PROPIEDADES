@@ -31,7 +31,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Alumbrado público","Encargado","Gas natural","Luz","Pavimento","Al frente","Expensas $65.000"],
     lat: -38.0072851,
     lng: -57.5469876,
-    ficha: {"orientacion":"frente","direccion":"Falucho 2162","superficieCubierta":20,"superficieLote":24,"barrio":"Plaza Colón","ciudad":"Mar del Plata","banos":1},
+    ficha: {"disposicion":"frente","direccion":"Falucho 2162","superficieCubierta":20,"superficieLote":24,"barrio":"Plaza Colón","ciudad":"Mar del Plata","banos":1},
   },
   {
     id: "POT-224497",
@@ -110,7 +110,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Ascensor","Camaras CCTV","Cocina","Encargado","Gas natural","Heladera","Living comedor","Luz","Pavimento","Al frente","Cochera cubierto","Expensas $120.000"],
     lat: -38.0617967,
     lng: -57.5462654,
-    ficha: {"orientacion":"frente","direccion":"Avenida de los trabajadores 2145","superficieCubierta":50,"superficieLote":55,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Avenida de los trabajadores 2145","superficieCubierta":50,"superficieLote":55,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-222478",
@@ -213,7 +213,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Alumbrado público","Desague cloacal","Gas natural","Luz","Uso comercial","Al frente"],
     lat: -38.0633014,
     lng: -57.5679849,
-    ficha: {"orientacion":"frente","direccion":"Av. Mario Bravo 3108","superficieCubierta":55,"superficieLote":55,"barrio":"El Jardín de Peralta Ramos","ciudad":"Mar del Plata","banos":1},
+    ficha: {"disposicion":"frente","direccion":"Av. Mario Bravo 3108","superficieCubierta":55,"superficieLote":55,"barrio":"El Jardín de Peralta Ramos","ciudad":"Mar del Plata","banos":1},
   },
   {
     id: "POT-220745",
@@ -239,7 +239,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Alumbrado público","Calefacción","Cocina","Desague cloacal","Gas natural","Luz","Parrilla","Pavimento","Uso comercial","Al frente"],
     lat: -38.0633014,
     lng: -57.5679849,
-    ficha: {"orientacion":"frente","direccion":"Av. Mario Bravo 3108","superficieCubierta":55,"superficieLote":55,"barrio":"El Jardín de Peralta Ramos","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Av. Mario Bravo 3108","superficieCubierta":55,"superficieLote":55,"barrio":"El Jardín de Peralta Ramos","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-220142",
@@ -290,7 +290,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Calefacción","Cocina","Desague cloacal","Gas natural","Lavadero","Living comedor","Luz","Pavimento","Placards","Contrafrente"],
     lat: -38.022935,
     lng: -57.5723385,
-    ficha: {"orientacion":"contrafrente","direccion":"Juana Manso 372","superficieCubierta":55,"superficieLote":55,"barrio":"Las Avenidas","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
+    ficha: {"disposicion":"contrafrente","direccion":"Juana Manso 372","superficieCubierta":55,"superficieLote":55,"barrio":"Las Avenidas","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
   },
   {
     id: "POT-219651",
@@ -341,7 +341,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Alumbrado público","Apto crédito","Cocina","Gas natural","Living comedor","Luz","Pavimento","Al frente"],
     lat: -38.08428,
     lng: -57.5452245,
-    ficha: {"orientacion":"frente","direccion":"serrano 3469","superficieCubierta":50,"superficieLote":50,"barrio":"Faro Norte","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"serrano 3469","superficieCubierta":50,"superficieLote":50,"barrio":"Faro Norte","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-218900",
@@ -365,7 +365,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Calefacción","Cocina","Con conexión para lavarropas","Gas natural","Living comedor","Luz","Patio","Al frente"],
     lat: -38.023810586922,
     lng: -57.570121204199,
-    ficha: {"orientacion":"frente","direccion":"Antonio Valentini 860","superficieCubierta":55,"superficieLote":100,"barrio":"Peralta Ramos Oeste","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Antonio Valentini 860","superficieCubierta":55,"superficieLote":100,"barrio":"Peralta Ramos Oeste","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
   },
   {
     id: "POT-218676",
@@ -415,7 +415,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Alarma","Apto crédito","Área de juegos infantiles","Área verde","Ascensor","Balcón","Calefacción","Cancha de tenis","Cocina","Desague cloacal","Dormitorio en suite","Gas natural","Gimnasio","Lavadero","Living","Living comedor","Luz","Patio","Pavimento","Piscina","Placards","Portón automático","Quincho","Sala de juegos","Salón de usos múltiples","Sauna","Seguridad","Toilette","Al frente","Cochera cubierto"],
     lat: -38.0290037,
     lng: -57.5343122,
-    ficha: {"orientacion":"frente","direccion":"Av. Patricio Peralta Ramos 5700 Duplicado","superficieCubierta":145,"superficieLote":145,"barrio":"Playa Grande","ciudad":"Mar del Plata","dormitorios":4,"banos":3},
+    ficha: {"disposicion":"frente","direccion":"Av. Patricio Peralta Ramos 5700 Duplicado","superficieCubierta":145,"superficieLote":145,"barrio":"Playa Grande","ciudad":"Mar del Plata","dormitorios":4,"banos":3},
   },
   {
     id: "POT-218377",
@@ -440,7 +440,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Balcón","Cocina","Luz","Pavimento","Placards","Quincho","Al frente","Expensas $50.000"],
     lat: -38.0705903,
     lng: -57.5486699,
-    ficha: {"orientacion":"frente","direccion":"Castro Barros 2643 Duplicado","superficieCubierta":45,"superficieLote":45,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Castro Barros 2643 Duplicado","superficieCubierta":45,"superficieLote":45,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-217432",
@@ -465,7 +465,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Calefacción","Desague cloacal","Gas natural","Lavadero","Living comedor","Luz","Pavimento","Placards","Al frente"],
     lat: -38.0103446,
     lng: -57.5742172,
-    ficha: {"orientacion":"frente","direccion":"Formosa 3917 Mar del Plata","superficieCubierta":25,"superficieLote":25,"barrio":"San José","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Formosa 3917 Mar del Plata","superficieCubierta":25,"superficieLote":25,"barrio":"San José","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-217419",
@@ -490,7 +490,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Calefacción","Cocina","Con conexión para lavarropas","Desague cloacal","Gas natural","Living comedor","Luz","Pavimento","Placards","Contrafrente","Expensas $80.000"],
     lat: -38.0076084,
     lng: -57.5441925,
-    ficha: {"orientacion":"contrafrente","direccion":"Alte. Brown 1933 Mar del Plata","superficieCubierta":40,"superficieLote":40,"barrio":"Macrocentro","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"contrafrente","direccion":"Alte. Brown 1933 Mar del Plata","superficieCubierta":40,"superficieLote":40,"barrio":"Macrocentro","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-215843",
@@ -614,7 +614,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Balcón","Calefacción","Camaras CCTV","Cocina","Gas natural","Living comedor","Luz","Pavimento","Placards","Portón automático","Rampa para silla de ruedas","Al frente","Cochera cubierto","Expensas $140.000"],
     lat: -38.0716097,
     lng: -57.5484305,
-    ficha: {"orientacion":"frente","direccion":"colombres 2713","superficieCubierta":40,"superficieLote":45,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"colombres 2713","superficieCubierta":40,"superficieLote":45,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-214035",
@@ -664,7 +664,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Cocina","Desague cloacal","Gas natural","Living comedor","Luz","Pavimento","Al frente","Expensas $80.000"],
     lat: -38.0050711,
     lng: -57.5496131,
-    ficha: {"orientacion":"frente","direccion":"Alte. Brown 2464","superficieCubierta":35,"superficieLote":35,"barrio":"Macrocentro","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Alte. Brown 2464","superficieCubierta":35,"superficieLote":35,"barrio":"Macrocentro","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-207693",
@@ -856,7 +856,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Apto crédito","Camaras CCTV","Cocina","Living comedor","Luz","Pavimento","Portón automático","Al frente","Cochera cubierto","Expensas $140.000"],
     lat: -38.0617967,
     lng: -57.5462654,
-    ficha: {"orientacion":"frente","direccion":"avenida de los trabajadores 2145","superficieCubierta":50,"superficieLote":57,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"avenida de los trabajadores 2145","superficieCubierta":50,"superficieLote":57,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-203060",
@@ -954,7 +954,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Apto crédito","Balcón","Cocina","Lavadero","Living comedor","Patio","Al frente","Cochera cubierto","Expensas $20.000"],
     lat: -38.0708315,
     lng: -57.5489719,
-    ficha: {"orientacion":"frente","direccion":"Gutenberg 1407","superficieCubierta":55,"superficieLote":62,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Gutenberg 1407","superficieCubierta":55,"superficieLote":62,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
   },
   {
     id: "POT-199565",
@@ -1121,7 +1121,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Balcón","Cocina","Luz","Pavimento","Placards","Quincho","Al frente","Expensas $50.000"],
     lat: -38.0705903,
     lng: -57.5486699,
-    ficha: {"orientacion":"frente","direccion":"Castro Barros 2643","superficieCubierta":45,"superficieLote":45,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Castro Barros 2643","superficieCubierta":45,"superficieLote":45,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-184646",
@@ -1144,7 +1144,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Al frente","Expensas $30.000"],
     lat: -38.0650133,
     lng: -57.5475101,
-    ficha: {"orientacion":"frente","direccion":"avenida de los trabajadores 2439","superficieCubierta":75,"superficieLote":75,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","banos":2},
+    ficha: {"disposicion":"frente","direccion":"avenida de los trabajadores 2439","superficieCubierta":75,"superficieLote":75,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","banos":2},
   },
   {
     id: "POT-180876",
@@ -1284,7 +1284,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Balcón","Gas natural","Living comedor","Luz","Pavimento","Uso comercial","Al frente"],
     lat: -37.9985162,
     lng: -57.5595957,
-    ficha: {"orientacion":"frente","direccion":"Av. Colón 3537","superficieCubierta":155,"superficieLote":155,"barrio":"Macrocentro","ciudad":"Mar del Plata","dormitorios":4,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Av. Colón 3537","superficieCubierta":155,"superficieLote":155,"barrio":"Macrocentro","ciudad":"Mar del Plata","dormitorios":4,"banos":1},
   },
   {
     id: "POT-170781",
@@ -1307,7 +1307,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Luz","Al frente"],
     lat: -38.0506692,
     lng: -57.6038689,
-    ficha: {"orientacion":"frente","direccion":"Av. Antártida Argentina 4300","superficieCubierta":43,"superficieSemicubierta":4,"superficieLote":361.8,"barrio":"Las Canteras","ciudad":"Mar del Plata","banos":1},
+    ficha: {"disposicion":"frente","direccion":"Av. Antártida Argentina 4300","superficieCubierta":43,"superficieSemicubierta":4,"superficieLote":361.8,"barrio":"Las Canteras","ciudad":"Mar del Plata","banos":1},
   },
   {
     id: "POT-170757",
@@ -1581,7 +1581,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Ascensor","Calefacción","Gas natural","Living","Living comedor","Luz","Pavimento","Al frente"],
     lat: -38.0702939,
     lng: -57.5485046,
-    ficha: {"orientacion":"frente","direccion":"CASTRO BARROS 2615","superficieCubierta":32,"superficieLote":38,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"CASTRO BARROS 2615","superficieCubierta":32,"superficieLote":38,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-155977",
@@ -1648,7 +1648,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Alarma","Apto crédito","Ascensor","Balcón","Calefacción","Cisterna","Cocina","Con conexión para lavarropas","Desague cloacal","Gas natural","Living comedor","Luz","Pavimento","Placards","Portón automático","Terraza","Contrafrente","Cochera cubierto"],
     lat: -38.0613558,
     lng: -57.5467927,
-    ficha: {"orientacion":"contrafrente","direccion":"CROCCE 1848","superficieCubierta":70,"superficieSemicubierta":12,"superficieLote":82,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
+    ficha: {"disposicion":"contrafrente","direccion":"CROCCE 1848","superficieCubierta":70,"superficieSemicubierta":12,"superficieLote":82,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
   },
   {
     id: "POT-154923",
@@ -1755,7 +1755,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Apto crédito","Desague cloacal","Gas natural","Al frente"],
     lat: -38.0429228,
     lng: -57.5466147,
-    ficha: {"orientacion":"frente","direccion":"12 de octubre 3300","superficieCubierta":130,"superficieLote":130,"barrio":"Del Puerto","ciudad":"Mar del Plata","banos":1},
+    ficha: {"disposicion":"frente","direccion":"12 de octubre 3300","superficieCubierta":130,"superficieLote":130,"barrio":"Del Puerto","ciudad":"Mar del Plata","banos":1},
   },
   {
     id: "POT-154615",
@@ -1854,7 +1854,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Ascensor","Balcón","Cocina","Desague cloacal","Gas natural","Living comedor","Luz","Pavimento","Placards","Contrafrente"],
     lat: -38.0613558,
     lng: -57.5467927,
-    ficha: {"orientacion":"contrafrente","direccion":"crocce 1848","superficieCubierta":77,"superficieLote":77,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
+    ficha: {"disposicion":"contrafrente","direccion":"crocce 1848","superficieCubierta":77,"superficieLote":77,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
   },
   {
     id: "POT-154577",
@@ -1974,7 +1974,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Balcón","Cocina","Gas natural","Lavadero","Living comedor","Luz","Al frente"],
     lat: -38.0649872,
     lng: -57.549611,
-    ficha: {"orientacion":"frente","direccion":"pacheco 2300","superficieCubierta":65,"superficieLote":65,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":2},
+    ficha: {"disposicion":"frente","direccion":"pacheco 2300","superficieCubierta":65,"superficieLote":65,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":2,"banos":2},
   },
   {
     id: "POT-154176",
@@ -1998,7 +1998,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Balcón","Cocina","Gas natural","Living comedor","Luz","Al frente"],
     lat: -38.0636056,
     lng: -57.5467639,
-    ficha: {"orientacion":"frente","direccion":"fortunato de la plaza 1800","superficieCubierta":50,"superficieLote":50,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"fortunato de la plaza 1800","superficieCubierta":50,"superficieLote":50,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-154172",
@@ -2063,7 +2063,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Cocina","Gas natural","Living comedor","Luz","Contrafrente","Expensas $70.000"],
     lat: -38.0649872,
     lng: -57.549611,
-    ficha: {"orientacion":"contrafrente","direccion":"pacheco 2300","superficieCubierta":40,"superficieLote":40,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"contrafrente","direccion":"pacheco 2300","superficieCubierta":40,"superficieLote":40,"barrio":"Punta Mogotes","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-154009",
@@ -2177,7 +2177,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Alarma","Apto crédito","Área de juegos infantiles","Área verde","Ascensor","Balcón","Calefacción","Cancha de tenis","Cocina","Desague cloacal","Dormitorio en suite","Gas natural","Gimnasio","Lavadero","Living","Living comedor","Luz","Patio","Pavimento","Piscina","Placards","Portón automático","Quincho","Sala de juegos","Salón de usos múltiples","Sauna","Seguridad","Toilette","Al frente","Cochera cubierto"],
     lat: -38.0290037,
     lng: -57.5343122,
-    ficha: {"orientacion":"frente","direccion":"Av. Patricio Peralta Ramos 5700","superficieCubierta":145,"superficieLote":145,"barrio":"Playa Grande","ciudad":"Mar del Plata","dormitorios":4,"banos":3},
+    ficha: {"disposicion":"frente","direccion":"Av. Patricio Peralta Ramos 5700","superficieCubierta":145,"superficieLote":145,"barrio":"Playa Grande","ciudad":"Mar del Plata","dormitorios":4,"banos":3},
   },
   {
     id: "POT-153931",
@@ -2264,7 +2264,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Luz","Al frente"],
     lat: -38.0026747,
     lng: -57.5469422,
-    ficha: {"orientacion":"frente","direccion":"Moreno 2413","superficieCubierta":30,"superficieLote":30,"barrio":"Centro","ciudad":"Mar del Plata","banos":2},
+    ficha: {"disposicion":"frente","direccion":"Moreno 2413","superficieCubierta":30,"superficieLote":30,"barrio":"Centro","ciudad":"Mar del Plata","banos":2},
   },
   {
     id: "POT-153484",
@@ -2289,7 +2289,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Accesible","Agua corriente","Apto crédito","Área verde","Cocina","Gas natural","Lavadero","Living comedor","Luz","Patio","Pavimento","Placards","Contrafrente","Cochera descubierto"],
     lat: -38.0346097,
     lng: -57.5485718,
-    ficha: {"orientacion":"contrafrente","direccion":"Vicente López 4800, Mar del","superficieCubierta":65,"superficieLote":65,"barrio":"San Carlos","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
+    ficha: {"disposicion":"contrafrente","direccion":"Vicente López 4800, Mar del","superficieCubierta":65,"superficieLote":65,"barrio":"San Carlos","ciudad":"Mar del Plata","dormitorios":2,"banos":1},
   },
   {
     id: "POT-153420",
@@ -2313,7 +2313,7 @@ export const urbanas: Propiedad[] = [
     caracteristicas: ["Agua corriente","Apto crédito","Balcón","Cocina","Gas natural","Living comedor","Luz","Pavimento","Al frente"],
     lat: -38.0000774,
     lng: -57.5473242,
-    ficha: {"orientacion":"frente","direccion":"Córdoba 1792","superficieCubierta":45,"superficieLote":45,"barrio":"Centro","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
+    ficha: {"disposicion":"frente","direccion":"Córdoba 1792","superficieCubierta":45,"superficieLote":45,"barrio":"Centro","ciudad":"Mar del Plata","dormitorios":1,"banos":1},
   },
   {
     id: "POT-153256",

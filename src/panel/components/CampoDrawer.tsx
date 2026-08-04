@@ -180,18 +180,32 @@ export default function CampoDrawer({
                 />
               </label>
               <div className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-graph-400">Destacado</span>
-                <button
-                  onClick={() => onUpdate(prop.id, { destacado: !prop.destacado })}
-                  className={cn(
-                    "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition",
-                    prop.destacado
-                      ? "border-brand/40 bg-brand/15 text-brand"
-                      : "border-graph/10 bg-graph/[0.04] text-graph-400 hover:text-graph"
-                  )}
-                >
-                  ★ {prop.destacado ? "Destacado" : "Sin destacar"}
-                </button>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-graph-400">Destacado / Reservado</span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => onUpdate(prop.id, { destacado: !prop.destacado })}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition",
+                      prop.destacado
+                        ? "border-brand/40 bg-brand/15 text-brand"
+                        : "border-graph/10 bg-graph/[0.04] text-graph-400 hover:text-graph"
+                    )}
+                  >
+                    ★ {prop.destacado ? "Destacado" : "Sin destacar"}
+                  </button>
+                  {/* Acceso rápido pedido por Mateo: marcar RESERVADO sin abrir el select */}
+                  <button
+                    onClick={() => onUpdate(prop.id, { estado: prop.estado === "reservado" ? "disponible" : "reservado" })}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition",
+                      prop.estado === "reservado"
+                        ? "border-amber-400/60 bg-amber-100 text-amber-800"
+                        : "border-graph/10 bg-graph/[0.04] text-graph-400 hover:text-graph"
+                    )}
+                  >
+                    ⏳ {prop.estado === "reservado" ? "Reservado" : "Marcar reservado"}
+                  </button>
+                </div>
               </div>
             </div>
 

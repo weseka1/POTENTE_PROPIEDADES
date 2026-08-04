@@ -5,10 +5,23 @@
 export type Categoria =
   | "campo"
   | "casa"
+  | "casaquinta"
+  | "chacra"
+  | "chalet"
+  | "cochera"
+  | "consultorio"
   | "departamento"
+  | "deposito"
+  | "duplex"
+  | "edificio"
+  | "fondocomercio"
+  | "galpon"
+  | "hotel"
+  | "local"
+  | "oficina"
+  | "ph"
   | "lote"
-  | "terreno"
-  | "local";
+  | "terreno";
 
 export type OperacionProp = "venta" | "alquiler" | "arrendamiento";
 
@@ -45,7 +58,10 @@ export interface Ficha {
   depto?: string;
   barrio?: string;
   ciudad?: string;
-  orientacion?: "frente" | "contrafrente";
+  disposicion?: "frente" | "contrafrente" | "interno" | "lateral";
+  orientacion?: "N" | "S" | "E" | "O" | "NE" | "NO" | "SE" | "SO";
+  metrosFrente?: number;
+  metrosFondo?: number;
   acceso?: "escalera" | "ascensor";
   servicios?: string[]; // luz, agua, gas, cloacas, asfalto
   superficieLote?: number;
@@ -91,6 +107,8 @@ export interface Propiedad {
   cocheras?: number;
   m2cubiertos?: number;
   m2totales?: number;
+  // multi-oficina: quién la vende. Sin oficina = central (Mateo).
+  oficina?: "chauvin" | "puntamogotes";
   // común
   caracteristicas: string[];
   video?: string;
@@ -102,9 +120,22 @@ export interface Propiedad {
 
 export const CATEGORIAS: { key: Categoria; label: string; plural: string }[] = [
   { key: "casa", label: "Casa", plural: "Casas" },
+  { key: "chalet", label: "Chalet", plural: "Chalets" },
+  { key: "casaquinta", label: "Casa quinta", plural: "Casas quinta" },
   { key: "departamento", label: "Departamento", plural: "Departamentos" },
-  { key: "local", label: "Local", plural: "Locales" },
+  { key: "ph", label: "PH", plural: "PHs" },
+  { key: "duplex", label: "Dúplex", plural: "Dúplex" },
+  { key: "local", label: "Local comercial", plural: "Locales" },
+  { key: "oficina", label: "Oficina", plural: "Oficinas" },
+  { key: "consultorio", label: "Consultorio", plural: "Consultorios" },
+  { key: "cochera", label: "Cochera", plural: "Cocheras" },
+  { key: "deposito", label: "Depósito", plural: "Depósitos" },
+  { key: "galpon", label: "Galpón", plural: "Galpones" },
+  { key: "edificio", label: "Edificio", plural: "Edificios" },
+  { key: "hotel", label: "Hotel", plural: "Hoteles" },
+  { key: "fondocomercio", label: "Fondo de comercio", plural: "Fondos de comercio" },
   { key: "lote", label: "Lote", plural: "Lotes" },
   { key: "terreno", label: "Terreno", plural: "Terrenos" },
+  { key: "chacra", label: "Chacra", plural: "Chacras" },
   { key: "campo", label: "Campo", plural: "Campos" },
 ];

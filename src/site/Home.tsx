@@ -14,7 +14,9 @@ import { parseBusqueda, aQueryString, rutaTemporada } from "./lib/parseBusqueda"
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 
-const WHATSAPP = "https://wa.me/5492233029591";
+import { waUrl, OFICINAS, HORARIO } from "@/config/marca";
+
+const WHATSAPP = waUrl();
 
 // El océano 3D se carga en su propio chunk, recién al montar el hero.
 const HeroOcean = lazy(() => import("./components/HeroOcean"));
@@ -307,23 +309,24 @@ export default function Home() {
       </section>
 
       {/* ===== TASACIONES ===== */}
+      {/* Pedido de Mateo (3-ago): esta sección estaba "muy blanca" → va AZUL. */}
       <section id="tasaciones" className="relative overflow-hidden py-28">
         <div className="absolute inset-0">
           <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: "url(/img/props/casa2.jpg)" }} />
-          <div className="absolute inset-0 bg-paper/90" />
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-950/[0.97] via-brand-950/90 to-brand/80" />
         </div>
         <div className="container-x relative z-10">
           <div className="max-w-2xl">
-            <p className="eyebrow reveal flex items-center gap-2"><FileSearch size={16} /> Tasación profesional</p>
-            <h2 className="reveal mt-4 font-display text-4xl font-medium leading-tight tracking-tight text-graph md:text-5xl">¿Cuánto vale tu propiedad hoy?</h2>
-            <p className="reveal mt-5 text-lg text-graph-500" data-delay="120ms">Te hacemos una tasación profesional, con informe escrito y valor de mercado real. Conocemos la ciudad, los precios y los compradores.</p>
+            <p className="eyebrow reveal flex items-center gap-2 !text-sea-300"><FileSearch size={16} /> Tasación profesional</p>
+            <h2 className="reveal mt-4 font-display text-4xl font-medium leading-tight tracking-tight text-white md:text-5xl">¿Cuánto vale tu propiedad hoy?</h2>
+            <p className="reveal mt-5 text-lg text-white/75" data-delay="120ms">Te hacemos una tasación profesional, con informe escrito y valor de mercado real. Conocemos la ciudad, los precios y los compradores.</p>
             <div className="reveal mt-8 flex flex-wrap gap-4" data-delay="200ms">
-              <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary"><Phone size={16} /> Pedir tasación</a>
-              <a href="#contacto" className="btn-ghost">Dejar mis datos</a>
+              <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Pedir tasación</a>
+              <a href="#contacto" className="btn-ghost !border-white/30 !text-white hover:!border-white">Dejar mis datos</a>
             </div>
-            <div className="reveal mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-graph-500" data-delay="260ms">
+            <div className="reveal mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/70" data-delay="260ms">
               {["Informe escrito", "Valor de mercado real", "Sin cargo ni compromiso"].map((x) => (
-                <span key={x} className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand" /> {x}</span>
+                <span key={x} className="flex items-center gap-2"><ShieldCheck size={16} className="text-sea-300" /> {x}</span>
               ))}
             </div>
           </div>
@@ -338,34 +341,19 @@ export default function Home() {
             <h2 className="mt-3 font-display text-4xl font-medium tracking-tight text-graph md:text-5xl">Pasá cuando quieras</h2>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            {[
-              {
-                nombre: "Punta Mogotes",
-                dir: "Av. de los Trabajadores 2439",
-                tel: "223 472-7416",
-                maps: "https://maps.google.com/?q=Av.+de+los+Trabajadores+2439,+Mar+del+Plata",
-                nota: "Frente a la costa, a metros de las playas de Punta Mogotes.",
-              },
-              {
-                nombre: "Chauvín",
-                dir: "Av. Colón 3537",
-                tel: "223 512-9032",
-                maps: "https://maps.google.com/?q=Av.+Colon+3537,+Mar+del+Plata",
-                nota: "En el corazón de Chauvín, cerca de Güemes y Playa Grande.",
-              },
-            ].map((o, i) => (
+            {OFICINAS.map((o, i) => (
               <div key={o.nombre} className="reveal card group p-8 transition hover:shadow-card" data-delay={`${i * 100}ms`}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="eyebrow">{o.nombre}</p>
-                    <h3 className="mt-2 font-display text-2xl font-semibold text-graph">{o.dir}</h3>
+                    <h3 className="mt-2 font-display text-2xl font-semibold text-graph">{o.direccion}</h3>
                     <p className="mt-2 text-sm text-graph-500">{o.nota}</p>
                   </div>
                   <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand"><MapPin size={22} /></span>
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-graph-500">
-                  <span className="flex items-center gap-2"><Phone size={15} className="text-brand" /> {o.tel}</span>
-                  <span className="flex items-center gap-2"><Clock size={15} className="text-brand" /> Lun a Vie 9 a 18 · Sáb 9 a 12</span>
+                  <span className="flex items-center gap-2"><Phone size={15} className="text-brand" /> {o.telefono}</span>
+                  <span className="flex items-center gap-2"><Clock size={15} className="text-brand" /> {o.horario}</span>
                   <a href={o.maps} target="_blank" rel="noreferrer" className="link-underline flex items-center gap-1 font-semibold text-brand">
                     Cómo llegar <ArrowRight size={14} />
                   </a>
@@ -383,22 +371,8 @@ export default function Home() {
             <p className="eyebrow reveal">Hablemos</p>
             <h2 className="reveal mt-3 font-display text-4xl font-medium tracking-tight text-graph md:text-5xl">Contanos qué estás buscando</h2>
             <p className="reveal mt-5 text-lg text-graph-500" data-delay="100ms">Te respondemos rápido por WhatsApp o teléfono.</p>
-            <div className="reveal mt-9 space-y-5" data-delay="160ms">
-              {[
-                { icon: MapPin, t: "Punta Mogotes", d: "Av. de los Trabajadores 2439 · 223 472-7416" },
-                { icon: MapPin, t: "Chauvín", d: "Av. Colón 3537 · 223 512-9032" },
-                { icon: Mail, t: "Email", d: "info@potenteprop.com.ar" },
-                { icon: Clock, t: "Horario", d: "Lun a Vie 9 a 18 · Sáb 9 a 12" },
-              ].map((c) => (
-                <div key={c.t} className="flex items-center gap-4">
-                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-50 text-brand"><c.icon size={20} /></span>
-                  <div>
-                    <p className="text-xs uppercase tracking-widest2 text-graph-400">{c.t}</p>
-                    <p className="text-graph">{c.d}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Pedido Mateo (3-ago): acá los datos se repetían → queda SOLO el formulario.
+                Direcciones y teléfonos viven en "Pasá cuando quieras" y en el footer. */}
             <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary reveal mt-9" data-delay="220ms"><Phone size={16} /> Escribinos por WhatsApp</a>
           </div>
           <ContactForm onEnviar={addLead} />
@@ -478,7 +452,7 @@ function Select({ label, value, onChange, options, placeholder }: { label: strin
 
 function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
   const [sent, setSent] = useState(false);
-  const [f, setF] = useState({ nombre: "", telefono: "", email: "", mensaje: "" });
+  const [f, setF] = useState({ nombre: "", telefono: "", mensaje: "" });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const submit = (e: React.FormEvent) => {
@@ -487,7 +461,7 @@ function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
       id: "LEAD-" + Date.now(),
       fechaISO: new Date().toISOString(),
       nombre: f.nombre || "Consulta web",
-      contacto: f.telefono || f.email || "—",
+      contacto: f.telefono || "—",
       campoId: null,
       canal: "web",
       estado: "nueva",
@@ -508,16 +482,13 @@ function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
       ) : (
         <div className="space-y-4">
           <Field label="Nombre y apellido" placeholder="Juan Pérez" value={f.nombre} onChange={(v) => set("nombre", v)} />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Teléfono" placeholder="+54 9 223 ..." value={f.telefono} onChange={(v) => set("telefono", v)} />
-            <Field label="Email" placeholder="vos@email.com" value={f.email} onChange={(v) => set("email", v)} />
-          </div>
+          <Field label="Teléfono / WhatsApp" placeholder="+54 9 223 ..." value={f.telefono} onChange={(v) => set("telefono", v)} />
           <label className="block">
             <span className="mb-1.5 block text-[11px] uppercase tracking-widest2 text-graph-400">Mensaje</span>
             <textarea rows={4} value={f.mensaje} onChange={(e) => set("mensaje", e.target.value)} placeholder="Busco un depto de 3 ambientes cerca de Güemes, o una casa en Punta Mogotes..." className="w-full rounded-lg border border-graph/15 bg-paper-100 px-4 py-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand" />
           </label>
           <button type="submit" className="btn-primary w-full">Enviar consulta <ArrowRight size={16} /></button>
-          <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 18 y sábados de 9 a 12.</p>
+          <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 16.</p>
         </div>
       )}
     </form>

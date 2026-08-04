@@ -64,7 +64,7 @@ const DEFAULT_IA: IAConfig = {
   contexto: "Somos Potente Propiedades, inmobiliaria de Mar del Plata con más de 50 años y tres generaciones en el rubro. Trabajamos venta y alquiler de casas, departamentos, locales y terrenos, con oficinas en Punta Mogotes y Chauvín. Nos conocen por la seriedad y por conocer a fondo cada barrio de la ciudad.",
   conocimiento: [
     { id: "k1", tema: "Zonas y barrios", texto: "Trabajamos propiedades en Punta Mogotes, Chauvín, Playa Grande, Güemes, Centro y alrededores." },
-    { id: "k2", tema: "Horarios y contacto", texto: "Horario para coordinar visitas: lunes a viernes de 9 a 18 hs, sábados de 9 a 12." },
+    { id: "k2", tema: "Horarios y contacto", texto: "Horario para coordinar visitas: lunes a viernes de 9 a 16 hs, en cualquiera de las dos oficinas." },
     { id: "k3", tema: "Precios de referencia", texto: "Ante una consulta puntual, dar superficie, barrio y características principales. El precio final lo confirma un asesor." },
   ],
   canales: { whatsapp: false, instagram: false, messenger: false, web: true, mail: false, telefono: false },

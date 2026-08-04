@@ -6,14 +6,14 @@ export default {
       colors: {
         // ===== Sistema CLARO Potente (blanco frío + tinta azulada + azul atlántico) =====
         paper: {
-          DEFAULT: "#F6F8FB", // blanco frío costero (nunca #fff puro) — fondo de página
+          DEFAULT: "#EDF1F7", // blanco frío costero un punto más profundo (pedido Mateo: "muy blanca") — las tarjetas blancas ahora CONTRASTAN
           100: "#FFFFFF", // tarjetas / superficies elevadas
-          200: "#E9EEF5", // sub-bloques / hairlines suaves
+          200: "#DDE5EF", // sub-bloques / hairlines suaves (más presentes)
         },
         graph: {
           DEFAULT: "#0D1521", // tinta azulada (no negro puro)
           700: "#26303F",
-          500: "#576374", // texto secundario
+          500: "#4D596B", // texto secundario (un punto más de tinta)
           400: "#8792A3", // texto muted
         },
         brand: {
@@ -49,9 +49,9 @@ export default {
         widest2: "0.28em",
       },
       boxShadow: {
-        card: "0 14px 44px -18px rgba(13,21,33,0.20)",
+        card: "0 14px 44px -18px rgba(13,21,33,0.28)",
         soft: "0 4px 22px -10px rgba(13,21,33,0.14)",
-        ring: "0 0 0 1px rgba(13,21,33,0.06)",
+        ring: "0 0 0 1px rgba(13,21,33,0.09)",
       },
       maxWidth: {
         container: "1240px",

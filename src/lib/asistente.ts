@@ -13,9 +13,10 @@ export type CampoLite = {
   precio?: string; // campos = "A consultar"; urbanas = precio real formateado
 };
 
-// WhatsApp al que deriva el asistente: Potente Propiedades (Mateo).
-// Solo dígitos, formato internacional: +54 9 2233 02-9591 → 5492233029591.
-export const WHATSAPP = "5492233029591";
+// WhatsApp al que deriva el asistente: el central (Mateo, orquestador).
+import { WA_CENTRAL } from "@/config/marca";
+
+export const WHATSAPP = WA_CENTRAL;
 
 export function linkWhatsApp(texto: string): string {
   return `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(texto)}`;

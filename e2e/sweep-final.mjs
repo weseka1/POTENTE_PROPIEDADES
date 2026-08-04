@@ -51,9 +51,9 @@ const PANEL = [
   ["/panel/arrendamientos", "Alquileres"], ["/panel/reportes", "Reportes"],
 ];
 const SITIO = [
-  ["/", "Potente"], ["/propiedades", "propiedad"], ["/propiedad/URB-001", "Chauvín"],
+  ["/", "Potente"], ["/propiedades", "propiedad"], ["/propiedad/POT-153992", "Playa Grande"],
   ["/temporada", "temporada"], ["/temporada/playa-grande", "Playa Grande"],
-  ["/favoritos", "favorit"], ["/cuenta", "cuenta"], ["/ingresar", "ngresar"],
+  ["/favoritos", "favorit"], ["/cuenta", "Potente"], ["/ingresar", "INMOBILIARIA"],
 ];
 
 let fallos = 0;

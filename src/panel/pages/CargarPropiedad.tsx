@@ -8,11 +8,16 @@ import Select from "@/components/Select";
 import { supabase } from "@/lib/supabase";
 import { aDataUrlComprimida } from "@/lib/imagenes";
 import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
+import { OFICINAS, getOficina } from "@/config/marca";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
 
 const categorias: { v: Categoria; l: string }[] = [
-  { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "local", l: "Local" },
-  { v: "lote", l: "Lote" }, { v: "terreno", l: "Terreno" }, { v: "campo", l: "Campo" },
+  { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "chalet", l: "Chalet" },
+  { v: "casaquinta", l: "Casa quinta" }, { v: "ph", l: "PH" }, { v: "duplex", l: "Dúplex" },
+  { v: "local", l: "Local comercial" }, { v: "oficina", l: "Oficina" }, { v: "consultorio", l: "Consultorio" },
+  { v: "cochera", l: "Cochera" }, { v: "deposito", l: "Depósito" }, { v: "galpon", l: "Galpón" },
+  { v: "edificio", l: "Edificio" }, { v: "hotel", l: "Hotel" }, { v: "fondocomercio", l: "Fondo de comercio" },
+  { v: "lote", l: "Lote" }, { v: "terreno", l: "Terreno" }, { v: "chacra", l: "Chacra" }, { v: "campo", l: "Campo" },
 ];
 
 // ── Opciones de la ficha (réplica del papel Potente) ──
@@ -30,7 +35,11 @@ const MEJORAS_CAMPO = [
   "Electrificación rural", "Internet", "Turismo", "Pista de aterrizaje", "Arroyo", "Acueducto", "Balanza", "Zeppelin",
 ];
 const SERVICIOS = ["Luz", "Agua", "Gas", "Cloacas", "Asfalto"];
-const ORIENTACION = [{ v: "frente", l: "Frente" }, { v: "contrafrente", l: "Contrafrente" }];
+const DISPOSICION = [
+  { v: "frente", l: "Frente" }, { v: "contrafrente", l: "Contrafrente" },
+  { v: "interno", l: "Interno" }, { v: "lateral", l: "Lateral" },
+];
+const ORIENTACION = ["N", "S", "E", "O", "NE", "NO", "SE", "SO"].map((v) => ({ v, l: v }));
 const ACCESO = [{ v: "escalera", l: "Escalera" }, { v: "ascensor", l: "Ascensor" }];
 const MEJORAS_URB = [
   "Lavadero", "Quincho", "Pileta", "Aire acondicionado", "Calefacción", "Pisos", "Perforación",
@@ -43,7 +52,7 @@ export default function CargarPropiedad() {
   const navigate = useNavigate();
 
   const [f, setF] = useState<any>({
-    categoria: "departamento", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires",
+    categoria: "departamento", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires", oficina: "",
     direccion: "", precioUSD: "", precioPorHa: "", hectareas: "", aptitud: "agrícola",
     ambientes: "", dormitorios: "", banos: "", cocheras: "", m2cubiertos: "", m2totales: "",
     descripcion: "", caracteristicas: "", estado: "disponible", destacado: false, esNuevo: true, esOportunidad: false,
@@ -147,7 +156,7 @@ export default function CargarPropiedad() {
     if (planos.length) ficha.planos = planos;
     if (esCampo) {
       delete ficha.piso; delete ficha.depto; delete ficha.barrio; delete ficha.ciudad;
-      delete ficha.orientacion; delete ficha.acceso; delete ficha.servicios;
+      delete ficha.orientacion; delete ficha.disposicion; delete ficha.metrosFrente; delete ficha.metrosFondo; delete ficha.acceso; delete ficha.servicios;
       delete ficha.superficieLote; delete ficha.superficieSemicubierta; delete ficha.dimensiones;
       delete ficha.antiguedad; delete ficha.estadoGeneral; delete ficha.mejorasUrbanas;
     } else {
@@ -181,6 +190,7 @@ export default function CargarPropiedad() {
       m2totales: !esCampo ? num(f.m2totales) : undefined,
       caracteristicas: f.caracteristicas ? f.caracteristicas.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
       video: f.video?.trim() || undefined,
+      oficina: f.oficina || undefined,
       ficha,
     };
     await addPropiedad(p);
@@ -220,11 +230,22 @@ export default function CargarPropiedad() {
           <section className="pcard p-5">
             <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-graph"><HomeIcon size={16} className="text-brand" /> Datos principales</h3>
             <div className="grid gap-4 sm:grid-cols-2">
+              <Campo label="Oficina que la vende" full>
+                <Sel
+                  value={f.oficina}
+                  onChange={(v) => {
+                    set("oficina", v);
+                    const o = getOficina(v);
+                    if (o) setFicha("contacto", `Oficina ${o.numero} ${o.nombre} · ${o.direccion} · Tel ${o.telefono}`);
+                  }}
+                  opts={[{ v: "", l: "Central (Mateo)" }, ...OFICINAS.map((o) => ({ v: o.id, l: `Oficina ${o.numero} · ${o.nombre}` }))]}
+                />
+              </Campo>
               <Campo label="Tipo de propiedad"><Sel value={f.categoria} onChange={(v) => set("categoria", v)} opts={categorias.map((c) => ({ v: c.v, l: c.l }))} /></Campo>
               <Campo label="Operación"><Sel value={f.operacion} onChange={(v) => set("operacion", v)} opts={[{ v: "venta", l: "Venta" }, { v: "alquiler", l: "Alquiler" }, { v: "arrendamiento", l: "Arrendamiento" }]} /></Campo>
               <Campo label="Título" full><Inp value={f.titulo} onChange={(v) => set("titulo", v)} ph="Ej: Departamento 3 ambientes — Playa Grande" /></Campo>
               <Campo label="Zona / Localidad"><Inp value={f.zona} onChange={(v) => set("zona", v)} ph="Punta Mogotes" /></Campo>
-              <Campo label="Dirección / Ubicación"><Inp value={f.direccion} onChange={(v) => set("direccion", v)} ph="Av. Colón 3537" /></Campo>
+              <Campo label="Dirección / Ubicación"><Inp value={f.direccion} onChange={(v) => set("direccion", v)} ph="Córdoba 3719" /></Campo>
               <Campo label="Precio (U$S) — vacío = “A consultar”"><Inp value={f.precioUSD} onChange={(v) => set("precioUSD", v)} ph="vacío = A consultar" type="number" /></Campo>
               {esCampo && <Campo label="Precio por hectárea (U$S)"><Inp value={f.precioPorHa} onChange={(v) => set("precioPorHa", v)} ph="3500" type="number" /></Campo>}
             </div>
@@ -256,6 +277,8 @@ export default function CargarPropiedad() {
                   <Campo label="Cocheras"><Inp value={f.cocheras} onChange={(v) => set("cocheras", v)} ph="1" type="number" /></Campo>
                   <Campo label="M² cubiertos"><Inp value={f.m2cubiertos} onChange={(v) => set("m2cubiertos", v)} ph="120" type="number" /></Campo>
                   <Campo label="M² totales"><Inp value={f.m2totales} onChange={(v) => set("m2totales", v)} ph="300" type="number" /></Campo>
+                  <Campo label="Metros de frente"><Inp value={f.ficha.metrosFrente ?? ""} onChange={(v) => setFicha("metrosFrente", v === "" ? undefined : Number(v))} ph="10" type="number" /></Campo>
+                  <Campo label="Metros de fondo"><Inp value={f.ficha.metrosFondo ?? ""} onChange={(v) => setFicha("metrosFondo", v === "" ? undefined : Number(v))} ph="35" type="number" /></Campo>
                 </>
               )}
             </div>
@@ -295,6 +318,7 @@ export default function CargarPropiedad() {
                   <Campo label="Estado general"><Inp value={f.ficha.estadoGeneral} onChange={(v) => setFicha("estadoGeneral", v)} ph="Muy bueno" /></Campo>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
+                  <div><SubLabel>Disposición</SubLabel><Seg opts={DISPOSICION} value={f.ficha.disposicion} onChange={(v) => setFicha("disposicion", v)} /></div>
                   <div><SubLabel>Orientación</SubLabel><Seg opts={ORIENTACION} value={f.ficha.orientacion} onChange={(v) => setFicha("orientacion", v)} /></div>
                   <div><SubLabel>Acceso</SubLabel><Seg opts={ACCESO} value={f.ficha.acceso} onChange={(v) => setFicha("acceso", v)} /></div>
                 </div>

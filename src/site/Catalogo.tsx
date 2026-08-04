@@ -9,7 +9,9 @@ import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
 import { fmtUSD } from "@/lib/format";
 
-const WHATSAPP = "https://wa.me/5492233029591";
+import { waUrl } from "@/config/marca";
+
+const WHATSAPP = waUrl();
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 import { CATEGORIAS } from "@/data/propiedadTypes";

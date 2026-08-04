@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Mail, Heart,
-  BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle,
+  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Heart,
+  BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -14,7 +14,9 @@ import { fmtPrecio, fmtHa, fmtNum } from "@/lib/format";
 import { useFavorites } from "./context/FavoritesContext";
 import { esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 
-const WA = "5492233029591";
+import { waDigits, OFICINAS, HORARIO } from "@/config/marca";
+
+const WA = waDigits();
 const opLabel: Record<string, string> = { venta: "Venta", alquiler: "Alquiler", arrendamiento: "Arrendamiento" };
 const estadoBadge: Record<string, string> = { reservado: "bg-amber-100 text-amber-800", vendido: "bg-graph/10 text-graph-600" };
 const estadoLabel: Record<string, string> = { reservado: "Reservado", vendido: "Vendido" };
@@ -26,6 +28,8 @@ export default function PropiedadDetalle() {
   const { getProp, propiedades } = useData();
   const p = getProp(id || "");
   const [activa, setActiva] = useState(0);
+  // Galería: flechas + swipe con el dedo (pedido Mateo 3-ago), foto por foto sobre TODAS las fotos.
+  const touchX = useRef<number | null>(null);
   const { esFavorito, toggle } = useFavorites();
   useEffect(() => { setActiva(0); }, [id]); // resetear la foto activa al navegar a otra propiedad
   // Video subido como archivo → reproductor embebido. En modo demo (idb:) el
@@ -98,7 +102,16 @@ export default function PropiedadDetalle() {
       </div>
 
       <section className="container-x mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <div className="relative overflow-hidden rounded-2xl">
+        <div
+          className="relative overflow-hidden rounded-2xl"
+          onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (touchX.current === null) return;
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            if (Math.abs(dx) > 40) setActiva((a) => (a + (dx < 0 ? 1 : -1) + fotos.length) % fotos.length);
+            touchX.current = null;
+          }}
+        >
           <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[16/10] w-full object-cover" />
           <button
             onClick={() => toggle(p.id)}
@@ -109,6 +122,27 @@ export default function PropiedadDetalle() {
           >
             <Heart size={20} fill={fav ? "currentColor" : "none"} />
           </button>
+          {fotos.length > 1 && (
+            <>
+              <button
+                onClick={() => setActiva((a) => (a - 1 + fotos.length) % fotos.length)}
+                aria-label="Foto anterior"
+                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-graph shadow-card backdrop-blur transition hover:bg-white"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                onClick={() => setActiva((a) => (a + 1) % fotos.length)}
+                aria-label="Foto siguiente"
+                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-graph shadow-card backdrop-blur transition hover:bg-white"
+              >
+                <ChevronRight size={22} />
+              </button>
+              <span className="absolute bottom-3 right-3 rounded-full bg-graph/70 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">
+                {activa + 1} / {fotos.length}
+              </span>
+            </>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-4 lg:grid-cols-1">
           {fotos.slice(0, 3).map((f, i) => (
@@ -207,9 +241,6 @@ export default function PropiedadDetalle() {
               <a href={`https://wa.me/${WA}?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn-primary w-full">
                 <Phone size={16} /> Consultar por WhatsApp
               </a>
-              <a href="mailto:info@potenteprop.com.ar" className="btn-ghost w-full">
-                <Mail size={16} /> Escribir un email
-              </a>
               <button onClick={() => toggle(p.id)} className={`flex w-full items-center justify-center gap-2 rounded-full border py-2.5 text-sm font-semibold transition ${fav ? "border-brand bg-brand-50 text-brand" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>
                 <Heart size={15} fill={fav ? "currentColor" : "none"} /> {fav ? "En favoritos" : "Guardar en favoritos"}
               </button>
@@ -217,8 +248,10 @@ export default function PropiedadDetalle() {
 
             <div className="mt-6 border-t border-graph/10 pt-6 text-sm text-graph-500">
               <p className="font-medium text-graph">Potente Propiedades</p>
-              <p className="mt-1">Av. de los Trabajadores 2439 (Punta Mogotes) · Av. Colón 3537 (Chauvín)</p>
-              <p>223 472-7416 · Lun a Vie 9 a 18 · Sáb 9 a 12</p>
+              {OFICINAS.map((o) => (
+                <p key={o.id} className="mt-1">{o.direccion} ({o.nombre}) · {o.telefono}</p>
+              ))}
+              <p>{HORARIO}</p>
             </div>
           </div>
         </aside>

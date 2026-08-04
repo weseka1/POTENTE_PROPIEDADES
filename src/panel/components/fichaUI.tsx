@@ -20,7 +20,11 @@ export const MEJORAS_CAMPO = [
   "Electrificación rural", "Internet", "Turismo", "Pista de aterrizaje", "Arroyo", "Acueducto", "Balanza", "Zeppelin",
 ];
 export const SERVICIOS = ["Luz", "Agua", "Gas", "Cloacas", "Asfalto"];
-export const ORIENTACION = [{ v: "frente", l: "Frente" }, { v: "contrafrente", l: "Contrafrente" }];
+export const DISPOSICION = [
+  { v: "frente", l: "Frente" }, { v: "contrafrente", l: "Contrafrente" },
+  { v: "interno", l: "Interno" }, { v: "lateral", l: "Lateral" },
+];
+export const ORIENTACION = ["N", "S", "E", "O", "NE", "NO", "SE", "SO"].map((v) => ({ v, l: v }));
 export const ACCESO = [{ v: "escalera", l: "Escalera" }, { v: "ascensor", l: "Ascensor" }];
 export const MEJORAS_URB = [
   "Lavadero", "Quincho", "Pileta", "Aire acondicionado", "Calefacción", "Pisos", "Perforación",
@@ -153,7 +157,7 @@ export function FichaSecciones({
           <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-graph"><Ruler size={16} className="text-brand" /> Ficha de la propiedad</h3>
           <div className="space-y-5">
             <div><SubLabel>Tipo</SubLabel><Seg opts={SUBTIPOS} value={ficha.subtipo} onChange={(v) => setFicha("subtipo", v)} /></div>
-            <Campo label="Dirección"><Inp value={ficha.direccion} onChange={(v) => setFicha("direccion", v)} ph="Av. Colón 3537" /></Campo>
+            <Campo label="Dirección"><Inp value={ficha.direccion} onChange={(v) => setFicha("direccion", v)} ph="Córdoba 3719" /></Campo>
             <div className="grid gap-4 sm:grid-cols-3">
               <Campo label="Barrio"><Inp value={ficha.barrio} onChange={(v) => setFicha("barrio", v)} ph="Centro" /></Campo>
               <Campo label="Ciudad"><Inp value={ficha.ciudad} onChange={(v) => setFicha("ciudad", v)} ph="Mar del Plata" /></Campo>
@@ -163,6 +167,7 @@ export function FichaSecciones({
               <Campo label="Estado general"><Inp value={ficha.estadoGeneral} onChange={(v) => setFicha("estadoGeneral", v)} ph="Muy bueno" /></Campo>
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
+              <div><SubLabel>Disposición</SubLabel><Seg opts={DISPOSICION} value={ficha.disposicion} onChange={(v) => setFicha("disposicion", v)} /></div>
               <div><SubLabel>Orientación</SubLabel><Seg opts={ORIENTACION} value={ficha.orientacion} onChange={(v) => setFicha("orientacion", v)} /></div>
               <div><SubLabel>Acceso</SubLabel><Seg opts={ACCESO} value={ficha.acceso} onChange={(v) => setFicha("acceso", v)} /></div>
             </div>
