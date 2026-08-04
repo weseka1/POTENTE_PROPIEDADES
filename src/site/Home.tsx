@@ -15,9 +15,8 @@ import { parseBusqueda, aQueryString, rutaTemporada } from "./lib/parseBusqueda"
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 
-import { waUrl, OFICINAS, HORARIO } from "@/config/marca";
-
-const WHATSAPP = waUrl();
+import { OFICINAS } from "@/config/marca";
+import WhatsAppCTA from "./components/WhatsAppCTA";
 
 // El océano 3D se carga en su propio chunk, recién al montar el hero.
 const HeroOcean = lazy(() => import("./components/HeroOcean"));
@@ -322,7 +321,7 @@ export default function Home() {
             <h2 className="reveal mt-4 font-display text-4xl font-medium leading-tight tracking-tight text-white md:text-5xl">¿Cuánto vale tu propiedad hoy?</h2>
             <p className="reveal mt-5 text-lg text-white/75" data-delay="120ms">Te hacemos una tasación profesional, con informe escrito y valor de mercado real. Conocemos la ciudad, los precios y los compradores.</p>
             <div className="reveal mt-8 flex flex-wrap gap-4" data-delay="200ms">
-              <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Pedir tasación</a>
+              <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero pedir una tasación de mi propiedad." className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Pedir tasación</WhatsAppCTA>
               <a href="#contacto" className="btn-ghost !border-white/30 !text-white hover:!border-white">Dejar mis datos</a>
             </div>
             <div className="reveal mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/70" data-delay="260ms">
@@ -376,7 +375,7 @@ export default function Home() {
             <p className="reveal mt-5 text-lg text-graph-500" data-delay="100ms">Te respondemos rápido por WhatsApp o teléfono.</p>
             {/* Pedido Mateo (3-ago): acá los datos se repetían → queda SOLO el formulario.
                 Direcciones y teléfonos viven en "Pasá cuando quieras" y en el footer. */}
-            <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary reveal mt-9" data-delay="220ms"><Phone size={16} /> Escribinos por WhatsApp</a>
+            <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero hacer una consulta." className="btn-primary reveal mt-9"><Phone size={16} /> Escribinos por WhatsApp</WhatsAppCTA>
           </div>
           <ContactForm onEnviar={addLead} />
         </div>

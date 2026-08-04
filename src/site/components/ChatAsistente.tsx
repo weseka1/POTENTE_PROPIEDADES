@@ -4,7 +4,9 @@ import { MessageCircle, X, Send, Waves, Loader2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { hoyISO } from "@/lib/fechas";
 import { fmtHa, fmtPrecio } from "@/lib/format";
-import { consultarAsistente, linkWhatsApp, type ChatMsg, type CampoLite } from "@/lib/asistente";
+import { waUrl } from "@/config/marca";
+import WhatsAppCTA from "./WhatsAppCTA";
+import { consultarAsistente, type ChatMsg, type CampoLite } from "@/lib/asistente";
 import type { Lead } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
 
@@ -66,6 +68,7 @@ export default function ChatAsistente() {
         hectareas: p.hectareas,
         aptitud: p.aptitud,
         operacion: p.operacion,
+        oficina: p.oficina,
         precio: fmtPrecio(p) + (p.operacion === "alquiler" ? " por mes" : ""),
       }));
 
@@ -214,16 +217,20 @@ export default function ChatAsistente() {
           </div>
 
           {/* CTA WhatsApp: derivar la charla a un asesor (aparece apenas arranca la conversación) */}
-          {msgs.some((m) => m.rol === "cliente") && (
-            <a
-              href={linkWhatsApp(waTexto())}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mx-3 mb-1.5 flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-95"
-            >
-              <MessageCircle size={16} /> Seguir por WhatsApp
-            </a>
-          )}
+          {msgs.some((m) => m.rol === "cliente") && (() => {
+            // División perfecta (Mateo): propiedades de UNA oficina → directo a esa oficina.
+            const oficinas = [...new Set(msgs.flatMap((m) => m.campos || []).map((c) => c.oficina).filter(Boolean))];
+            const clase = "mx-3 mb-1.5 flex w-auto items-center justify-center gap-2 rounded-xl bg-[#25D366] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-95";
+            return oficinas.length === 1 ? (
+              <a href={waUrl(oficinas[0], waTexto())} target="_blank" rel="noopener noreferrer" className={clase}>
+                <MessageCircle size={16} /> Seguir por WhatsApp
+              </a>
+            ) : (
+              <WhatsAppCTA mensaje={waTexto()} className={clase}>
+                <MessageCircle size={16} /> Seguir por WhatsApp
+              </WhatsAppCTA>
+            );
+          })()}
 
           {/* input */}
           <div className="flex items-center gap-2 border-t border-graph/10 bg-white px-3 py-2.5">

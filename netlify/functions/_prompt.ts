@@ -9,6 +9,7 @@ export type CampoLite = {
   hectareas?: number;
   aptitud?: string;
   operacion?: string;
+  oficina?: "chauvin" | "puntamogotes";
   precio?: string; // campos = "A consultar"; urbanas = precio real formateado
 };
 
@@ -22,6 +23,7 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[]): string
       if (c.aptitud) partes.push(c.aptitud);
       if (c.operacion) partes.push(c.operacion);
       if (c.precio) partes.push(c.precio);
+      if (c.oficina) partes.push(c.oficina === "chauvin" ? "Oficina 1 Chauvín" : "Oficina 2 Punta Mogotes");
       return "- " + partes.join(" | ");
     })
     .join("\n");

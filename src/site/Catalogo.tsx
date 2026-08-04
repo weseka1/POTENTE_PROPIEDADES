@@ -9,9 +9,7 @@ import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
 import { fmtUSD } from "@/lib/format";
 
-import { waUrl } from "@/config/marca";
-
-const WHATSAPP = waUrl();
+import WhatsAppCTA from "./components/WhatsAppCTA";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 import { CATEGORIAS } from "@/data/propiedadTypes";
@@ -225,9 +223,9 @@ export default function Catalogo() {
               </p>
               <div className="mt-7 flex flex-wrap justify-center gap-3">
                 <button onClick={limpiar} className="btn-ghost">Ver todas las propiedades</button>
-                <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary">
+                <WhatsAppCTA mensaje="Hola Potente Propiedades, no encuentro lo que busco en el catálogo y quiero que me ayuden.">
                   Consultar por WhatsApp
-                </a>
+                </WhatsAppCTA>
               </div>
             </div>
           ) : (

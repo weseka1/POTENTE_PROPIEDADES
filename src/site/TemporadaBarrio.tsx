@@ -152,7 +152,7 @@ export default function TemporadaBarrio() {
 
   const parrafos = TEXTO_BARRIO[barrio] ?? [];
   const otros = BARRIOS_TEMPORADA.filter((b) => b !== barrio);
-  const wa = waTemporada(`una propiedad de temporada en ${barrio}`);
+  const wa = waTemporada(`una propiedad de temporada en ${barrio}`, undefined, unidades[0]?.oficina);
 
   return (
     <div className="min-h-screen bg-paper text-graph">

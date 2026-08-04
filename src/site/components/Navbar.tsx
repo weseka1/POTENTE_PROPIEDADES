@@ -3,9 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, Heart, User, LogOut, Search, ChevronDown } from "lucide-react";
 import { useFavorites } from "../context/FavoritesContext";
 
-import { waUrl } from "@/config/marca";
-
-const WHATSAPP = waUrl();
+import WhatsAppCTA from "./WhatsAppCTA";
 
 const cats = [
   { to: "/propiedades?operacion=venta", label: "En venta" },
@@ -117,9 +115,7 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
               )}
             </Link>
 
-            <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary !px-5 !py-2 hidden lg:inline-flex">
-              Consultar por WhatsApp
-            </a>
+            <WhatsAppCTA className="btn-primary !px-5 !py-2 hidden lg:inline-flex">Consultar por WhatsApp</WhatsAppCTA>
 
             <button onClick={() => setOpen((v) => !v)} className="text-graph lg:hidden" aria-label="Menú">
               {open ? <X /> : <Menu />}
@@ -144,7 +140,7 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
             <div className="mt-3 flex gap-2 border-t border-graph/10 pt-4">
 
             </div>
-            <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn-primary mt-2 w-full">Consultar por WhatsApp</a>
+            <WhatsAppCTA className="btn-primary mt-2 w-full">Consultar por WhatsApp</WhatsAppCTA>
             </div>
           </div>
         )}

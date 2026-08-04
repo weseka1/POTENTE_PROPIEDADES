@@ -17,8 +17,7 @@ import type { Propiedad } from "@/data/propiedadTypes";
 import { fmtARS } from "@/lib/format";
 
 import { waDigits } from "@/config/marca";
-
-const WA = waDigits();
+import WhatsAppCTA from "./components/WhatsAppCTA";
 const SITE = "https://potente-propiedades.onrender.com";
 const NO_IMG =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
@@ -52,12 +51,14 @@ export function tarifaDesde(u: UnidadTemporada): number {
 }
 
 // Mensaje de WhatsApp pre-armado con la propiedad y (si hay) la quincena elegida.
-export function waTemporada(titulo: string, quincenaLabel?: string): string {
+// La consulta va DIRECTO al WhatsApp de la oficina que administra la unidad
+// (pedido Mateo 4-ago: división perfecta, sin fallar). Sin oficina → central.
+export function waTemporada(titulo: string, quincenaLabel?: string, oficina?: "chauvin" | "puntamogotes"): string {
   const txt =
     `Hola Potente Propiedades, me interesa alquilar para la temporada "${titulo}"` +
     (quincenaLabel ? ` en la ${quincenaLabel.toLowerCase()}` : "") +
     `. ¿Tienen disponibilidad?`;
-  return `https://wa.me/${WA}?text=${encodeURIComponent(txt)}`;
+  return `https://wa.me/${waDigits(oficina)}?text=${encodeURIComponent(txt)}`;
 }
 
 // ── Card de unidad de temporada (reusada en la landing y en las páginas por barrio) ──
@@ -75,7 +76,7 @@ export function UnidadTempCard({
   const quincena = tramoId ? tramoById(tramoId) : undefined;
   const precioTramo = tramoId ? tarifaDe(u, tramoId) : undefined;
   const precio = precioTramo ?? tarifaDesde(u);
-  const wa = waTemporada(titulo, quincena?.label);
+  const wa = waTemporada(titulo, quincena?.label, u.oficina);
   const barrioSlug = BARRIOS_TEMPORADA.some((b) => b === u.barrio) ? slugBarrio(u.barrio) : null;
 
   return (
@@ -412,15 +413,12 @@ export default function Temporada() {
             Contanos las fechas, cuántos son y en qué zona querés estar. Tenemos propiedades que no siempre
             están publicadas.
           </p>
-          <a
-            href={waTemporada("una propiedad de temporada")}
-            target="_blank"
-            rel="noreferrer"
+          <WhatsAppCTA
+            mensaje="Hola Potente Propiedades, busco una propiedad de temporada. ¿Me ayudan?"
             className="btn-primary reveal"
-            data-delay="140ms"
           >
             <Phone size={16} /> Consultar por WhatsApp
-          </a>
+          </WhatsAppCTA>
         </div>
       </section>
 

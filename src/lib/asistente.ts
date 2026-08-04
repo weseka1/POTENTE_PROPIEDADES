@@ -10,17 +10,9 @@ export type CampoLite = {
   hectareas?: number;
   aptitud?: string;
   operacion?: string;
+  oficina?: "chauvin" | "puntamogotes";
   precio?: string; // campos = "A consultar"; urbanas = precio real formateado
 };
-
-// WhatsApp al que deriva el asistente: el central (Mateo, orquestador).
-import { WA_CENTRAL } from "@/config/marca";
-
-export const WHATSAPP = WA_CENTRAL;
-
-export function linkWhatsApp(texto: string): string {
-  return `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(texto)}`;
-}
 
 export type RespuestaAsistente = {
   respuesta: string;
