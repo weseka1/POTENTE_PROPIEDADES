@@ -120,7 +120,7 @@ export default function CalendarioTemporada({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_1fr]">
       {/* ── Lista de unidades ── */}
-      <aside className="pcard max-h-[640px] space-y-1.5 overflow-y-auto p-2">
+      <aside className="pcard max-h-[640px] min-w-0 space-y-1.5 overflow-y-auto p-2">
         {unidades.map((u) => {
           const activa = u.id === sel.id;
           const vivas = vivasDe(u.id);
@@ -171,9 +171,11 @@ export default function CalendarioTemporada({
       </aside>
 
       {/* ── Calendario de la unidad seleccionada ── */}
-      <section className="pcard p-4 sm:p-5">
+      <section className="pcard min-w-0 overflow-hidden p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
+          {/* flex-1 + basis 0: el título trunca en vez de reclamar su ancho natural
+              (con basis auto + wrap, un título largo estiraba la página en mobile) */}
+          <div className="min-w-0 flex-1 basis-0">
             <p className="truncate font-display text-base font-semibold text-graph">{tituloDe(sel)}</p>
             <p className="text-[12px] text-graph-400">
               {sel.barrio} · hasta {sel.capacidad} personas

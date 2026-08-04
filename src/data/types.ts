@@ -47,12 +47,16 @@ export interface Lead {
   estado: EstadoLead;
   asignado: string;
   notas: string;
+  /** Multi-oficina: sin oficina = central (Mateo, orquestador). Derivar = setearla. */
+  oficina?: "chauvin" | "puntamogotes";
 }
 
 export type TipoCliente = "comprador" | "propietario" | "inversor";
 
 export interface Cliente {
   id: string;
+  /** Multi-oficina: los clientes de cada oficina viven en la suya. */
+  oficina?: "chauvin" | "puntamogotes";
   nombre: string;
   tipo: TipoCliente;
   telefono: string;
@@ -140,6 +144,8 @@ export interface TemporadaTramo {
 // Propiedad ofrecida en temporada. Se apoya en una Propiedad de la cartera (propiedadId).
 export interface UnidadTemporada {
   id: string;
+  /** Multi-oficina: qué oficina administra la unidad en temporada. */
+  oficina?: "chauvin" | "puntamogotes";
   propiedadId: string;
   ambientes: number;
   capacidad: number; // personas

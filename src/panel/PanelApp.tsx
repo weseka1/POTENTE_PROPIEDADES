@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import ProfileGate from "./components/ProfileGate";
 import { ProfilesProvider, useProfiles, canAccess } from "./profiles";
+import { DataScope } from "@/lib/DataProvider";
 import { ToastProvider } from "./components/Toast";
 
 // Si el perfil activo no puede ver la sección actual, lo manda a la primera permitida.
@@ -40,6 +41,14 @@ const panelStyles = `
 @keyframes slideUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
 `;
 
+
+// El panel entero ve los datos por el ojo de su perfil: una oficina ve SOLO lo suyo,
+// Mateo (central) ve todo. Es el corazón del modelo orquestador.
+function ScopeDatosPorPerfil({ children }: { children: React.ReactNode }) {
+  const { activo } = useProfiles();
+  return <DataScope oficina={activo?.oficina}>{children}</DataScope>;
+}
+
 export default function PanelApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
@@ -62,6 +71,7 @@ export default function PanelApp() {
   return (
     <ToastProvider>
       <ProfilesProvider>
+        <ScopeDatosPorPerfil>
         <style>{panelStyles}</style>
         <div className="panel-bg min-h-screen font-sans text-graph antialiased">
           <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
@@ -91,6 +101,7 @@ export default function PanelApp() {
           </div>
         </div>
         <ProfileGate />
+        </ScopeDatosPorPerfil>
       </ProfilesProvider>
     </ToastProvider>
   );

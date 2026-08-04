@@ -30,7 +30,7 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // SUBIR esta versión. El 13-jul se reemplazó el catálogo entero por el real y esta
 // versión quedó igual → los navegadores que ya habían visitado la demo siguieron
 // mostrando los datos viejos del localStorage por una semana (le pasó a Juani).
-const SEED_VERSION = "2026-08-04-upgrade-f1";
+const SEED_VERSION = "2026-08-04-upgrade-f2-oficinas";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 /** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */
@@ -124,6 +124,7 @@ interface DataCtx {
   actualizarMensaje: (convId: string, msgId: string, patch: Partial<MensajeConv>) => Promise<void>;
   borrarMensaje: (convId: string, msgId: string) => Promise<void>;
   setEstadoConversacion: (convId: string, estado: EstadoConv) => Promise<void>;
+  setOficinaConversacion: (convId: string, oficina?: "chauvin" | "puntamogotes") => void;
   // derivados
   kpis: ReturnType<typeof computeKpis>;
   consultasPorMes: typeof seedConsultasMes;
@@ -146,6 +147,55 @@ function computeKpis(propiedades: Propiedad[], leads: Lead[], operaciones: Opera
     comisionPipelineUSD: operaciones.filter((o) => o.etapa !== "escritura").reduce((a, o) => a + (o.valorUSD * o.comisionPct) / 100, 0),
     conversion: leads.length ? Math.round((leads.filter((l) => l.estado === "cerrado").length / leads.length) * 100) : 0,
   };
+}
+
+
+// ===== Aislamiento MULTI-OFICINA =====
+// Re-provee el MISMO contexto de datos filtrado por oficina: montado en el panel
+// con la oficina del perfil activo, cada oficina ve SOLO lo suyo (propiedades,
+// clientes, consultas, conversaciones, temporada) sin tocar ninguna página.
+// Perfil central (Mateo, sin oficina) → pasa todo tal cual: el orquestador ve TODO.
+// Las mutaciones no se filtran: siguen operando sobre la colección completa.
+export function DataScope({ oficina, children }: { oficina?: "chauvin" | "puntamogotes"; children: ReactNode }) {
+  const full = useContext(Ctx);
+  const value = useMemo(() => {
+    if (!oficina) return full;
+    const propiedades = full.propiedades.filter((p) => p.oficina === oficina);
+    const idsProps = new Set(propiedades.map((p) => p.id));
+    const leads = full.leads.filter((l) => l.oficina === oficina);
+    const clientes = full.clientes.filter((c) => c.oficina === oficina);
+    const conversaciones = full.conversaciones.filter((c) => c.oficina === oficina);
+    const operaciones = full.operaciones.filter((o) => o.campoId != null && idsProps.has(o.campoId));
+    const visitas = full.visitas.filter((v) => v.campoId != null && idsProps.has(v.campoId));
+    const unidadesTemporada = full.unidadesTemporada.filter((u) => u.oficina === oficina);
+    const idsUnidades = new Set(unidadesTemporada.map((u) => u.id));
+    const reservasTemporada = full.reservasTemporada.filter((r) => idsUnidades.has(r.unidadId));
+
+    const canal: Record<string, number> = {};
+    leads.forEach((l) => (canal[l.canal] = (canal[l.canal] || 0) + 1));
+    const labelCanal: Record<string, string> = { web: "Web propia", whatsapp: "WhatsApp", mail: "Mail", telefono: "Teléfono", portal: "Portales" };
+    const etapas = [
+      { key: "consulta", label: "Consulta" }, { key: "visita", label: "Visita" }, { key: "oferta", label: "Oferta" },
+      { key: "reserva", label: "Reserva" }, { key: "boleto", label: "Boleto" }, { key: "escritura", label: "Escritura" },
+    ];
+    const aptitud: Record<string, number> = {};
+    propiedades.filter((c) => c.estado !== "vendido").forEach((c) => {
+      const k = c.categoria === "campo" ? c.aptitud || "campo" : c.categoria;
+      aptitud[k] = (aptitud[k] || 0) + (c.precioUSD || 0);
+    });
+
+    return {
+      ...full,
+      propiedades, leads, clientes, conversaciones, operaciones, visitas, unidadesTemporada, reservasTemporada,
+      getProp: (id: string) => propiedades.find((p) => p.id === id),
+      conversacionesNoLeidas: conversaciones.filter((c) => c.noLeida).length,
+      kpis: computeKpis(propiedades, leads, operaciones, clientes),
+      leadsPorCanal: Object.entries(canal).map(([k, v]) => ({ name: labelCanal[k] || k, value: v })),
+      embudo: etapas.map((e) => ({ etapa: e.label, cantidad: operaciones.filter((o) => o.etapa === e.key).length })),
+      carteraPorAptitud: Object.entries(aptitud).map(([k, v]) => ({ name: k, value: v })),
+    };
+  }, [full, oficina]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -355,6 +405,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const setEstadoConversacion = (convId: string, estado: EstadoConv) =>
     patchConv(convId, (c) => ({ ...c, estado, noLeida: false, ...(estado === "ia" ? { motivo: undefined } : {}) }));
 
+  // Derivación del orquestador: mover la conversación a una oficina (o traerla al central).
+  const setOficinaConversacion = (convId: string, oficina?: "chauvin" | "puntamogotes") =>
+    patchConv(convId, (c) => ({ ...c, oficina }));
+
   const conversacionesNoLeidas = useMemo(() => conversaciones.filter((c) => c.noLeida).length, [conversaciones]);
 
   const kpis = useMemo(() => computeKpis(propiedades, leads, operaciones, clientes), [propiedades, leads, operaciones, clientes]);
@@ -391,7 +445,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, deleteLead, updateOperacion, addCliente, updateCliente, deleteCliente,
         addVisita, updateVisita, deleteVisita, addTasacion, updateTasacion, deleteTasacion, addArrendamiento, updateArrendamiento, deleteArrendamiento,
         unidadesTemporada, reservasTemporada, addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada, addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
-        conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion,
+        conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion, setOficinaConversacion,
         kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}
     >

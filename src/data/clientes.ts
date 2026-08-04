@@ -29,6 +29,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-003",
+    oficina: "chauvin",
     nombre: "Familia Núñez",
     tipo: "comprador",
     telefono: "+54 9 223 540-2277",
@@ -42,6 +43,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-004",
+    oficina: "puntamogotes",
     nombre: "Sofía Larralde",
     tipo: "comprador",
     telefono: "+54 9 223 468-1123",
@@ -58,6 +60,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-005",
+    oficina: "chauvin",
     nombre: "Hernán Bidegain",
     tipo: "comprador",
     telefono: "+54 9 223 509-3345",
@@ -71,6 +74,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-006",
+    oficina: "puntamogotes",
     nombre: "Estudio Iribarren",
     tipo: "propietario",
     telefono: "+54 9 223 495-6070",
@@ -82,6 +86,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-007",
+    oficina: "chauvin",
     nombre: "Julieta Ferrari",
     tipo: "comprador",
     telefono: "+54 9 223 530-7788",
@@ -95,6 +100,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-008",
+    oficina: "puntamogotes",
     nombre: "Grupo Peregrina Inversiones",
     tipo: "inversor",
     telefono: "+54 9 223 477-1200",
@@ -111,6 +117,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-009",
+    oficina: "chauvin",
     nombre: "Diego Antonelli",
     tipo: "comprador",
     telefono: "+54 9 2291 44-5566",
@@ -124,6 +131,7 @@ export const clientes: Cliente[] = [
   },
   {
     id: "CLI-010",
+    oficina: "puntamogotes",
     nombre: "Valentina Ruiz",
     tipo: "comprador",
     telefono: "+54 9 223 481-9034",

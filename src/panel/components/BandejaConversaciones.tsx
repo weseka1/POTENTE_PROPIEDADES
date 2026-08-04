@@ -173,7 +173,7 @@ export default function BandejaConversaciones({
 }) {
   const {
     conversaciones, propiedades, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje,
-    setEstadoConversacion, updateLead,
+    setEstadoConversacion, setOficinaConversacion, updateLead,
   } = useData();
   const { push } = useToast();
 
@@ -452,9 +452,21 @@ export default function BandejaConversaciones({
                     </button>
                   )}
                   {sel.estado !== "cerrada" ? (
-                    <button onClick={cerrar} title="Cerrar conversación" className="grid h-9 w-9 place-items-center rounded-xl border border-graph/15 text-graph-400 transition hover:border-red-400/40 hover:text-red-600">
-                      <X size={15} />
-                    </button>
+                    <>
+                      <select
+                        value={sel.oficina || ""}
+                        onChange={(e) => setOficinaConversacion(sel.id, (e.target.value || undefined) as "chauvin" | "puntamogotes" | undefined)}
+                        title="Derivar la conversación a una oficina"
+                        className="h-9 rounded-xl border border-graph/15 bg-paper-100 px-2 text-xs font-medium text-graph-500 outline-none transition hover:border-brand/40"
+                      >
+                        <option value="">Central (Mateo)</option>
+                        <option value="chauvin">→ Of. 1 Chauvín</option>
+                        <option value="puntamogotes">→ Of. 2 P. Mogotes</option>
+                      </select>
+                      <button onClick={cerrar} title="Cerrar conversación" className="grid h-9 w-9 place-items-center rounded-xl border border-graph/15 text-graph-400 transition hover:border-red-400/40 hover:text-red-600">
+                        <X size={15} />
+                      </button>
+                    </>
                   ) : (
                     <button onClick={devolver} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-graph/15 px-3 text-xs font-semibold text-graph-500 transition hover:border-brand/40 hover:text-brand">
                       Reabrir

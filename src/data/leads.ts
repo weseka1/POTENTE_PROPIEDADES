@@ -46,6 +46,7 @@ export const leads: Lead[] = [
     canal: "whatsapp",
     estado: "negociacion",
     asignado: "Valeria (Mogotes)",
+    oficina: "puntamogotes",
     notas: "Hizo oferta por el departamento de Lomas de Stella Maris. Negociando diferencia con la venta de su unidad actual.",
   },
   {
@@ -57,6 +58,7 @@ export const leads: Lead[] = [
     canal: "web",
     estado: "negociacion",
     asignado: "Gustavo (Chauvín)",
+    oficina: "chauvin",
     notas: "Reservó el chalet de Chauvín apto crédito. Coordinar boleto con su escribano para la primera semana de julio.",
   },
   {
@@ -68,6 +70,7 @@ export const leads: Lead[] = [
     canal: "web",
     estado: "visita",
     asignado: "Gustavo (Chauvín)",
+    oficina: "chauvin",
     notas: "Visita agendada a la casa con piscina de Arenas del Sur. Piden ver también el chalet del lote de 917 m2 en Bosques de Peralta Ramos.",
   },
   {
@@ -101,6 +104,7 @@ export const leads: Lead[] = [
     canal: "whatsapp",
     estado: "visita",
     asignado: "Valeria (Mogotes)",
+    oficina: "puntamogotes",
     notas: "Visita el lote de El Marquesado el sábado a la mañana. Confirmar punto de encuentro sobre la ruta 11.",
   },
   {
@@ -112,6 +116,7 @@ export const leads: Lead[] = [
     canal: "web",
     estado: "visita",
     asignado: "Valeria (Mogotes)",
+    oficina: "puntamogotes",
     notas: "Visitó el 2 ambientes en alquiler de Macrocentro. Junta la documentación para el seguro de caución.",
   },
   {
@@ -134,6 +139,7 @@ export const leads: Lead[] = [
     canal: "whatsapp",
     estado: "cerrado",
     asignado: "Valeria (Mogotes)",
+    oficina: "puntamogotes",
     notas: "Compró el departamento de Macrocentro. Escritura firmada, operación cerrada.",
   },
   {

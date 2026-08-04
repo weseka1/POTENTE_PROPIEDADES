@@ -29,6 +29,8 @@ export type EstadoConv = "ia" | "vos" | "cerrada";
 
 export interface Conversacion {
   id: string;
+  /** Multi-oficina: las conversaciones entran a Mateo (sin oficina) y él deriva. */
+  oficina?: "chauvin" | "puntamogotes";
   canal: CanalConv;
   nombre: string;
   /** Teléfono, mail o usuario, según el canal. */
@@ -84,6 +86,7 @@ export const conversaciones: Conversacion[] = [
     nombre: "Nicolás Peralta",
     contacto: "+54 9 223 552-8811",
     propiedadId: "POT-193849",
+    oficina: "puntamogotes",
     leadId: "LEAD-102",
     estado: "vos",
     noLeida: true,
@@ -120,6 +123,7 @@ export const conversaciones: Conversacion[] = [
     nombre: "Martín Bermúdez",
     contacto: "+54 9 223 508-4412",
     propiedadId: "POT-222304",
+    oficina: "chauvin",
     estado: "ia",
     noLeida: false,
     mensajes: [

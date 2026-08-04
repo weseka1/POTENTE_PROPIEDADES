@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-export type Perfil = { id: string; nombre: string; rol: string; foto: string | null; color: string; admin?: boolean; permisos?: string[] };
+export type Perfil = { id: string; nombre: string; rol: string; foto: string | null; color: string; admin?: boolean; permisos?: string[]; oficina?: "chauvin" | "puntamogotes" };
 
 /* Secciones del panel. basic=true → la ven TODOS. El resto solo el admin (o quien él habilite). */
 export const SECCIONES = [
@@ -31,9 +31,11 @@ export function canAccess(p: Perfil | undefined, key: string): boolean {
 
 const PALETA = ["#0C4DA2", "#1495D8", "#083469", "#2F6FC2", "#0A4189", "#7FA9DE"];
 const DEFAULTS: Perfil[] = [
-  { id: "mateo", nombre: "Mateo", rol: "Dirección", foto: null, color: "#0C4DA2", admin: true, permisos: [] },
-  { id: "puntamogotes", nombre: "Punta Mogotes", rol: "Sucursal", foto: null, color: "#1495D8", admin: false, permisos: [] },
-  { id: "chauvin", nombre: "Chauvín", rol: "Sucursal", foto: null, color: "#083469", admin: false, permisos: [] },
+  { id: "mateo", nombre: "Mateo", rol: "Dirección", foto: null, color: "#0C4DA2", admin: true, permisos: [] }, // central: ve TODO
+  // Las oficinas ven su tajada de cartera y temporada (el scope las limita a lo suyo).
+  // "asistente" queda afuera a propósito: la IA es solo del orquestador (pedido Mateo).
+  { id: "puntamogotes", nombre: "Punta Mogotes", rol: "Oficina 2", foto: null, color: "#1495D8", admin: false, permisos: ["inicio", "cartera", "temporada"], oficina: "puntamogotes" },
+  { id: "chauvin", nombre: "Chauvín", rol: "Oficina 1", foto: null, color: "#083469", admin: false, permisos: ["inicio", "cartera", "temporada"], oficina: "chauvin" },
 ];
 const LS_PERFILES = "potente_perfiles", LS_ACTIVO = "potente_perfil_activo";
 
@@ -44,8 +46,13 @@ function loadPerfiles(): Perfil[] {
       // migración de perfiles viejos (guardados antes del sistema de permisos)
       const m: Perfil[] = r.map((p: any) => ({
         ...p,
-        permisos: Array.isArray(p.permisos) ? p.permisos : [],
         admin: typeof p.admin === "boolean" ? p.admin : (p.id === "mateo" || p.rol === "Dirección"),
+        // migración multi-oficina: perfiles guardados antes del campo oficina
+        oficina: p.oficina ?? (p.id === "puntamogotes" ? "puntamogotes" : p.id === "chauvin" ? "chauvin" : undefined),
+        // ...y perfiles de oficina sin los permisos del upgrade (cartera/temporada)
+        permisos: (p.id === "puntamogotes" || p.id === "chauvin") && !(p.permisos || []).length
+          ? ["inicio", "cartera", "temporada"]
+          : (Array.isArray(p.permisos) ? p.permisos : []),
       }));
       if (!m.some((p) => p.admin)) { // siempre al menos un administrador (preferí Dirección / Mateo)
         const i = m.findIndex((p) => p.rol === "Dirección" || p.id === "mateo" || /mateo/i.test(p.nombre));

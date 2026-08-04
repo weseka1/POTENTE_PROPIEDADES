@@ -74,6 +74,8 @@ export default function PropiedadDetalle() {
   const caracs = p.caracteristicas ?? [];
   const similares = propiedades.filter((x) => x.id !== p.id && x.categoria === p.categoria).slice(0, 3);
   const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
+  // Cada consulta va al WhatsApp de la oficina que vende la propiedad (sin oficina → central).
+  const waProp = waDigits(p.oficina);
 
   const datos: { icon: any; l: string; v: string }[] = [];
   if (p.categoria === "campo") {
@@ -238,7 +240,7 @@ export default function PropiedadDetalle() {
             )}
 
             <div className="mt-6 space-y-3">
-              <a href={`https://wa.me/${WA}?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn-primary w-full">
+              <a href={`https://wa.me/${waProp}?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn-primary w-full">
                 <Phone size={16} /> Consultar por WhatsApp
               </a>
               <button onClick={() => toggle(p.id)} className={`flex w-full items-center justify-center gap-2 rounded-full border py-2.5 text-sm font-semibold transition ${fav ? "border-brand bg-brand-50 text-brand" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>

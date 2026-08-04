@@ -32,11 +32,12 @@ function busca(c: Cliente): string {
   return partes.join(" · ");
 }
 
-const BLANK = { nombre: "", tipo: "comprador", telefono: "", email: "", localidad: "", buscaZona: "", buscaHasMin: "", buscaHasMax: "", presupuestoUSD: "", notas: "" };
+const BLANK = { nombre: "", tipo: "comprador", telefono: "", email: "", localidad: "", oficina: "", buscaZona: "", buscaHasMin: "", buscaHasMax: "", presupuestoUSD: "", notas: "" };
 type FormState = typeof BLANK;
 
 function toForm(c: Cliente): FormState {
   return {
+    oficina: c.oficina || "",
     nombre: c.nombre,
     tipo: c.tipo,
     telefono: c.telefono,
@@ -53,6 +54,7 @@ function toForm(c: Cliente): FormState {
 // Campos comunes al alta y a la edición (lo que no es id / operaciones / fecha de alta).
 function datosDesdeForm(form: FormState) {
   return {
+    oficina: (form.oficina || undefined) as Cliente["oficina"],
     nombre: form.nombre.trim(),
     tipo: form.tipo as TipoCliente,
     telefono: form.telefono.trim(),
@@ -311,6 +313,17 @@ function ClienteForm({ form, setF }: { form: FormState; setF: (k: keyof FormStat
               { value: "comprador", label: "Comprador" },
               { value: "propietario", label: "Propietario" },
               { value: "inversor", label: "Inversor" },
+            ]}
+          />
+        </Field>
+        <Field label="Oficina">
+          <Select
+            value={form.oficina}
+            onChange={(v) => setF("oficina", v)}
+            options={[
+              { value: "", label: "Central (Mateo)" },
+              { value: "chauvin", label: "Oficina 1 · Chauvín" },
+              { value: "puntamogotes", label: "Oficina 2 · Punta Mogotes" },
             ]}
           />
         </Field>

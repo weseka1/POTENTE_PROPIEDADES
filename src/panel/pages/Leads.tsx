@@ -25,7 +25,9 @@ export default function Leads() {
     push(`Consulta movida a “${estadoLead[nuevo].label}”`, "info");
   };
   const setAsignado = (id: string, asignado: string) => {
-    updateLead(id, { asignado });
+    // Derivación del orquestador: asignar a una oficina mueve el lead a esa oficina.
+    const oficina = asignado === "Punta Mogotes" ? "puntamogotes" : asignado === "Chauvín" ? "chauvin" : undefined;
+    updateLead(id, { asignado, oficina });
     push(`Consulta asignada a ${asignado}`, "success");
   };
   const eliminar = (l: Lead) => {
