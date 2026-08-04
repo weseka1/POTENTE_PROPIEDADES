@@ -14,7 +14,7 @@ import { fmtPrecio, fmtHa, fmtNum } from "@/lib/format";
 import { useFavorites } from "./context/FavoritesContext";
 import { esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 
-import { waDigits, OFICINAS, HORARIO } from "@/config/marca";
+import { waDigits, OFICINAS } from "@/config/marca";
 
 const WA = waDigits();
 const opLabel: Record<string, string> = { venta: "Venta", alquiler: "Alquiler", arrendamiento: "Arrendamiento" };
@@ -103,7 +103,8 @@ export default function PropiedadDetalle() {
         </Link>
       </div>
 
-      <section className="container-x mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      {/* Galería directa (R3-4, pedido Mateo): carrusel grande + tira con TODAS las fotos. */}
+      <section className="container-x mt-6">
         <div
           className="relative overflow-hidden rounded-2xl"
           onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
@@ -114,7 +115,7 @@ export default function PropiedadDetalle() {
             touchX.current = null;
           }}
         >
-          <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[16/10] w-full object-cover" />
+          <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[16/10] max-h-[560px] w-full object-cover md:aspect-[16/9]" />
           <button
             onClick={() => toggle(p.id)}
             className={`absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full backdrop-blur transition ${
@@ -146,17 +147,20 @@ export default function PropiedadDetalle() {
             </>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-4 lg:grid-cols-1">
-          {fotos.slice(0, 3).map((f, i) => (
-            <button
-              key={i}
-              onClick={() => setActiva(i)}
-              className={`overflow-hidden rounded-xl ring-2 transition ${activa === i ? "ring-brand" : "ring-transparent hover:ring-graph/30"}`}
-            >
-              <img src={f} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt="" className="aspect-[16/10] w-full object-cover lg:aspect-[16/9]" />
-            </button>
-          ))}
-        </div>
+        {fotos.length > 1 && (
+          <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
+            {fotos.map((f, i) => (
+              <button
+                key={i}
+                onClick={() => setActiva(i)}
+                aria-label={`Foto ${i + 1}`}
+                className={`h-16 w-24 shrink-0 overflow-hidden rounded-lg ring-2 transition md:h-20 md:w-28 ${activa === i ? "ring-brand" : "ring-transparent hover:ring-graph/30"}`}
+              >
+                <img src={f} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt="" loading="lazy" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="container-x mt-12 grid gap-12 pb-12 lg:grid-cols-[1.6fr_1fr]">
@@ -251,9 +255,10 @@ export default function PropiedadDetalle() {
             <div className="mt-6 border-t border-graph/10 pt-6 text-sm text-graph-500">
               <p className="font-medium text-graph">Potente Propiedades</p>
               {OFICINAS.map((o) => (
-                <p key={o.id} className="mt-1">{o.direccion} ({o.nombre}) · {o.telefono}</p>
+                <p key={o.id} className="mt-1">
+                  {o.direccion} ({o.nombre}) · {o.telefono} · {o.horario}
+                </p>
               ))}
-              <p>{HORARIO}</p>
             </div>
           </div>
         </aside>

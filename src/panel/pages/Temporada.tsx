@@ -5,7 +5,7 @@ import { Building2, Percent, Wallet, BadgeCheck, Users, ArrowRight, Ban, Plus, T
 import { useData } from "@/lib/DataProvider";
 import type { ReservaTemporada, EstadoReserva, TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
-import { precioSugerido, nochesEntre, reservaEnConflicto } from "@/data/temporada";
+import { precioSugerido, nochesEntre, reservaEnConflicto, TRAMOS } from "@/data/temporada";
 import CalendarioTemporada from "../components/CalendarioTemporada";
 import { fmtARS } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
@@ -86,9 +86,11 @@ export default function Temporada() {
   const setF = (k: keyof NuevaForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const [detalleId, setDetalleId] = useState<string | null>(null);
 
-  // edición inline del tarifario
+  // edición inline del tarifario (valor por noche y precio de cada quincena)
   const [tEdit, setTEdit] = useState<string | null>(null);
   const [tDraft, setTDraft] = useState("");
+  const [qEdit, setQEdit] = useState<{ uId: string; tramo: TemporadaTramoId } | null>(null);
+  const [qDraft, setQDraft] = useState("");
 
   // alta y edición de unidades de temporada
   const emptyNueva: NuevaUnidadForm = { propiedadId: "", barrio: "", ambientes: "2", capacidad: "4", comisionPct: "15", frenteAlMar: false, comodidades: ["wifi"] };
@@ -176,6 +178,18 @@ export default function Temporada() {
     await updateUnidadTemporada(u.id, { tarifaNocheARS: Number(raw) || 0 });
     setTEdit(null);
     push("Tarifa por noche actualizada ✓", "success");
+  };
+  // Precio de la quincena = el que publica la web (R3-3: Mateo carga los suyos a mano).
+  const abrirQuincena = (u: UnidadTemporada, tramo: TemporadaTramoId) => {
+    setQEdit({ uId: u.id, tramo });
+    setQDraft(String(u.tarifas[tramo] ?? ""));
+  };
+  const guardarQuincena = async (u: UnidadTemporada) => {
+    if (!qEdit) return;
+    const raw = qDraft.replace(/[^\d]/g, "");
+    await updateUnidadTemporada(u.id, { tarifas: { ...u.tarifas, [qEdit.tramo]: Number(raw) || 0 } });
+    setQEdit(null);
+    push("Precio de la quincena actualizado ✓", "success");
   };
 
   // ── Sumar propiedad a la temporada ──
@@ -437,40 +451,79 @@ export default function Temporada() {
       {tab === "tarifario" && (
         <div className="pcard overflow-hidden">
           <div className="border-b border-graph/[0.07] px-5 py-3.5">
-            <p className="text-sm font-semibold text-graph">Tarifa por noche</p>
+            <p className="text-sm font-semibold text-graph">Tarifario por unidad</p>
             <p className="mt-0.5 text-xs text-graph-400">
-              El valor de la noche en temporada alta (enero). El sistema lo baja solo para diciembre y marzo con la curva del mercado.
-              Tocá el valor para editarlo.
+              El precio de cada quincena es el que se publica en la web. La tarifa por noche se usa para reservas por fechas sueltas.
+              Tocá cualquier valor para editarlo.
             </p>
           </div>
           <div className="divide-y divide-graph/[0.06]">
             {unidadesTemporada.map((u) => {
               const editando = tEdit === u.id;
               return (
-                <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-graph">{tituloCorto(u)}</p>
-                    <p className="text-[11px] text-graph-400">{u.barrio} · {u.ambientes} amb · comisión {u.comisionPct}%</p>
+                <div key={u.id} className="px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-graph">{tituloCorto(u)}</p>
+                      <p className="text-[11px] text-graph-400">{u.barrio} · {u.ambientes} amb · comisión {u.comisionPct}%</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editando ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={tDraft}
+                          onChange={(e) => setTDraft(e.target.value)}
+                          onBlur={() => guardarTarifa(u)}
+                          onKeyDown={(e) => { if (e.key === "Enter") guardarTarifa(u); if (e.key === "Escape") setTEdit(null); }}
+                          className="h-9 w-36 rounded-lg border border-brand/40 bg-graph/[0.04] px-3 text-right text-sm text-graph outline-none focus:ring-2 focus:ring-brand/15"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => abrirTarifa(u)}
+                          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-graph transition hover:bg-graph/[0.06]"
+                        >
+                          {fmtARS(u.tarifaNocheARS)} <span className="text-[11px] font-normal text-graph-400">/noche</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {editando ? (
-                      <input
-                        type="number"
-                        autoFocus
-                        value={tDraft}
-                        onChange={(e) => setTDraft(e.target.value)}
-                        onBlur={() => guardarTarifa(u)}
-                        onKeyDown={(e) => { if (e.key === "Enter") guardarTarifa(u); if (e.key === "Escape") setTEdit(null); }}
-                        className="h-9 w-36 rounded-lg border border-brand/40 bg-graph/[0.04] px-3 text-right text-sm text-graph outline-none focus:ring-2 focus:ring-brand/15"
-                      />
-                    ) : (
-                      <button
-                        onClick={() => abrirTarifa(u)}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-graph transition hover:bg-graph/[0.06]"
-                      >
-                        {fmtARS(u.tarifaNocheARS)} <span className="text-[11px] font-normal text-graph-400">/noche</span>
-                      </button>
-                    )}
+                  {/* Precio publicado de cada quincena (R3-3: editable a mano por Mateo). */}
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                    {TRAMOS.map((t) => {
+                      const enEdicion = qEdit?.uId === u.id && qEdit.tramo === t.id;
+                      return (
+                        <div
+                          key={t.id}
+                          className={cn(
+                            "rounded-lg border px-2.5 py-2 transition",
+                            enEdicion ? "border-brand/40 bg-brand/[0.04]" : "border-graph/10 bg-graph/[0.03] hover:border-brand/30"
+                          )}
+                        >
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-graph-400">
+                            {t.corto}{t.pico ? " · pico" : ""}
+                          </p>
+                          {enEdicion ? (
+                            <input
+                              type="number"
+                              autoFocus
+                              value={qDraft}
+                              onChange={(e) => setQDraft(e.target.value)}
+                              onBlur={() => guardarQuincena(u)}
+                              onKeyDown={(e) => { if (e.key === "Enter") guardarQuincena(u); if (e.key === "Escape") setQEdit(null); }}
+                              className="mt-0.5 h-7 w-full rounded-md border border-brand/40 bg-white/60 px-1.5 text-sm font-semibold text-graph outline-none focus:ring-2 focus:ring-brand/15"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => abrirQuincena(u, t.id)}
+                              className="mt-0.5 block w-full truncate text-left text-sm font-semibold text-graph transition hover:text-brand"
+                            >
+                              {fmtARS(u.tarifas[t.id] ?? 0)}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

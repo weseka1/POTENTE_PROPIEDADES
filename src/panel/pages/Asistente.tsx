@@ -64,7 +64,7 @@ const DEFAULT_IA: IAConfig = {
   contexto: "Somos Potente Propiedades, inmobiliaria de Mar del Plata con más de 50 años y tres generaciones en el rubro. Trabajamos venta y alquiler de casas, departamentos, locales y terrenos, con oficinas en Punta Mogotes y Chauvín. Nos conocen por la seriedad y por conocer a fondo cada barrio de la ciudad.",
   conocimiento: [
     { id: "k1", tema: "Zonas y barrios", texto: "Trabajamos propiedades en Punta Mogotes, Chauvín, Playa Grande, Güemes, Centro y alrededores." },
-    { id: "k2", tema: "Horarios y contacto", texto: "Horario para coordinar visitas: lunes a viernes de 9 a 16 hs, en cualquiera de las dos oficinas." },
+    { id: "k2", tema: "Horarios y contacto", texto: "Horarios para coordinar visitas: Chauvín, lunes a viernes de 9 a 16 hs; Punta Mogotes, lunes a viernes de 9 a 18 hs y sábados hasta las 12." },
     { id: "k3", tema: "Precios de referencia", texto: "Ante una consulta puntual, dar superficie, barrio y características principales. El precio final lo confirma un asesor." },
   ],
   canales: { whatsapp: false, instagram: false, messenger: false, web: true, mail: false, telefono: false },
@@ -72,7 +72,17 @@ const DEFAULT_IA: IAConfig = {
 
 function useIAConfig() {
   const [cfg, setCfg] = useState<IAConfig>(() => {
-    try { return { ...DEFAULT_IA, ...JSON.parse(localStorage.getItem("potente_ia_config") || "{}") }; } catch { return DEFAULT_IA; }
+    try {
+      const saved = JSON.parse(localStorage.getItem("potente_ia_config") || "{}");
+      // Migración 4-ago: horario por oficina — si quedó guardado el texto viejo
+      // ("9 a 16 en cualquiera de las dos"), lo pisamos con el default nuevo.
+      if (Array.isArray(saved.conocimiento)) {
+        saved.conocimiento = saved.conocimiento.map((k: IAConfig["conocimiento"][number]) =>
+          k.id === "k2" && k.texto.includes("en cualquiera de las dos oficinas") ? DEFAULT_IA.conocimiento[1] : k
+        );
+      }
+      return { ...DEFAULT_IA, ...saved };
+    } catch { return DEFAULT_IA; }
   });
   useEffect(() => { try { localStorage.setItem("potente_ia_config", JSON.stringify(cfg)); } catch { /* noop */ } }, [cfg]);
   return [cfg, setCfg] as const;

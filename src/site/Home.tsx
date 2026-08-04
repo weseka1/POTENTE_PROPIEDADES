@@ -490,7 +490,7 @@ function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
             <textarea rows={4} value={f.mensaje} onChange={(e) => set("mensaje", e.target.value)} placeholder="Busco un depto de 3 ambientes cerca de Güemes, o una casa en Punta Mogotes..." className="w-full rounded-lg border border-graph/15 bg-paper-100 px-4 py-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand" />
           </label>
           <button type="submit" className="btn-primary w-full">Enviar consulta <ArrowRight size={16} /></button>
-          <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 16.</p>
+          <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 18 y sábados a la mañana.</p>
         </div>
       )}
     </form>

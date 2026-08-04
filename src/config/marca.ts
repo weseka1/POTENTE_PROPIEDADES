@@ -19,8 +19,8 @@ export interface Oficina {
   nota: string;
 }
 
-export const HORARIO = "Lun a Vie 9 a 16 hs";
-
+// Horarios DISTINTOS por oficina (WhatsApp Mateo 4-ago 9:39: Trabajadores
+// atiende más tarde y los sábados; pisa el "ambas 9 a 16" de la videollamada).
 export const OFICINAS: Oficina[] = [
   {
     id: "chauvin",
@@ -29,7 +29,7 @@ export const OFICINAS: Oficina[] = [
     direccion: "Córdoba 3719",
     telefono: "223 512-9032",
     whatsapp: "5492235129032",
-    horario: HORARIO,
+    horario: "Lun a Vie 9 a 16 hs",
     maps: "https://maps.google.com/?q=Cordoba+3719,+Mar+del+Plata",
     nota: "En el corazón de Chauvín, cerca de Güemes y Playa Grande.",
   },
@@ -40,7 +40,7 @@ export const OFICINAS: Oficina[] = [
     direccion: "Av. de los Trabajadores 2439",
     telefono: "223 628-2659",
     whatsapp: "5492235851198",
-    horario: HORARIO,
+    horario: "Lun a Vie 9 a 18 hs · Sáb hasta 12",
     maps: "https://maps.google.com/?q=Av.+de+los+Trabajadores+2439,+Mar+del+Plata",
     nota: "Frente a la costa, a metros de las playas de Punta Mogotes.",
   },
