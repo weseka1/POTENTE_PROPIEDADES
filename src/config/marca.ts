@@ -62,9 +62,16 @@ export const waUrl = (oficinaId?: string | null, mensaje?: string): string =>
 
 export const INSTAGRAM = {
   usuario: "potentepropiedades",
-  // Reels/posts destacados (URLs completas de instagram.com/reel/...). Cuando Mateo
-  // pase los suyos, se pegan acá y la home muestra ESOS en vez del feed del perfil.
-  reels: [] as string[],
+  // Reels REALES de @potentepropiedades (relevados 4-ago del perfil, más nuevos
+  // primero). Para destacar otros: pegar acá la URL completa del reel.
+  reels: [
+    "https://www.instagram.com/reel/DbL67Szx_M2/",
+    "https://www.instagram.com/reel/DaYW-NzxwFp/",
+    "https://www.instagram.com/reel/DaERkh-RY7A/",
+    "https://www.instagram.com/reel/DZLpkgexoxv/",
+    "https://www.instagram.com/reel/DZDQub9RFQG/",
+    "https://www.instagram.com/reel/DYYSokKxRVW/",
+  ] as string[],
 };
 
 export const REDES = {
