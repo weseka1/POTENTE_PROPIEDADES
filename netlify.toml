@@ -4,6 +4,10 @@
   command = "npm run build"
   publish = "dist"
 
+# Fija la versión de Node para que el auto-deploy de Netlify use la misma que probamos localmente.
+[build.environment]
+  NODE_VERSION = "22"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"

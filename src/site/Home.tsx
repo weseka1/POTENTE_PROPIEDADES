@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles, SlidersHorizontal,
   ShieldCheck, MapPin, Phone, Mail, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves, BedDouble, Maximize,
+  Camera, Handshake,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -291,12 +292,15 @@ export default function Home() {
             <h2 className="mt-3 font-display text-4xl font-medium tracking-tight text-graph md:text-5xl">Todo el negocio inmobiliario, en un solo lugar</h2>
             <p className="mt-5 text-lg text-graph-500">Acompañamos cada operación de principio a fin, con el conocimiento de la ciudad y el respaldo de tres generaciones.</p>
           </div>
-          <div className="grid gap-px overflow-hidden rounded-2xl bg-graph/10 md:grid-cols-2 lg:grid-cols-4">
+          {/* Audio Mateo 5-ago: sumar un ítem para vendedores y otro para compradores. */}
+          <div className="grid gap-px overflow-hidden rounded-2xl bg-graph/10 md:grid-cols-2 lg:grid-cols-3">
             {[
               { icon: HomeIcon, t: "Venta de propiedades", d: "Casas, departamentos, PH, locales y lotes en toda Mar del Plata, con cartera propia." },
               { icon: KeyRound, t: "Alquileres", d: "Anuales y de temporada, con contratos claros, garantías verificadas y seguimiento." },
               { icon: FileSearch, t: "Tasaciones", d: "Valuación profesional para venta, garantía o sucesión, con informe escrito y sin cargo." },
               { icon: TrendingUp, t: "Asesoramiento", d: "Inversión en ladrillo marplatense: renta de temporada, reciclados y pozo. Te ayudamos a elegir." },
+              { icon: Camera, t: "Para quien vende", d: "Producción de fotos y video de tu propiedad, publicación y ofrecimiento en los mejores portales." },
+              { icon: Handshake, t: "Para quien compra", d: "Asesoramiento y acompañamiento en toda la operación, de la primera visita a la escritura." },
             ].map((s, i) => (
               <div key={i} className="reveal group bg-paper-100 p-8 transition hover:bg-paper-200" data-delay={`${i * 80}ms`}>
                 <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-50 text-brand transition group-hover:bg-brand group-hover:text-white"><s.icon size={22} /></span>
