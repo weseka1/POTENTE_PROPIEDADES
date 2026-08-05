@@ -62,6 +62,14 @@ export default function Home() {
   });
   const navigate = useNavigate();
   const { propiedades, addLead } = useData();
+
+  // WhatsApp Mateo 5-ago: "Quiero vender" y "Quiero comprar" mandan AL FORMULARIO
+  // (todo entra al embudo → le llega a Mateo → él deriva a la oficina).
+  const [motivoContacto, setMotivoContacto] = useState<"" | "comprar" | "vender">("");
+  const irAlFormulario = (m: "comprar" | "vender") => {
+    setMotivoContacto(m);
+    document.getElementById("contacto")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const zonas = [...new Set(propiedades.map((c) => c.zona))].sort();
   const destacados = propiedades.filter((p) => p.destacado).slice(0, 6);
   const countByCat = (cat: string) => propiedades.filter((p) => p.categoria === cat).length;
@@ -317,16 +325,11 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-8 flex flex-wrap items-center gap-5">
-                  <WhatsAppCTA
-                    mensaje="Hola Potente Propiedades, quiero vender mi propiedad. ¿Cómo arrancamos?"
-                    className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50"
-                  >
+                {/* Mateo 5-ago: solo el botón, y manda al formulario (embudo → Mateo deriva). */}
+                <div className="mt-8">
+                  <button onClick={() => irAlFormulario("vender")} className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50">
                     Quiero vender <ArrowRight size={16} />
-                  </WhatsAppCTA>
-                  <a href="#tasaciones" className="text-sm font-semibold text-white/70 transition hover:text-white">
-                    Tasación sin cargo
-                  </a>
+                  </button>
                 </div>
               </div>
             </div>
@@ -349,13 +352,10 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-8 flex flex-wrap items-center gap-5">
-                <Link to="/propiedades" className="btn-primary">
+              <div className="mt-8">
+                <button onClick={() => irAlFormulario("comprar")} className="btn-primary">
                   Quiero comprar <ArrowRight size={16} />
-                </Link>
-                <Link to="/temporada" className="text-sm font-semibold text-graph-500 transition hover:text-brand">
-                  Ver temporada
-                </Link>
+                </button>
               </div>
             </div>
           </div>
@@ -396,7 +396,7 @@ export default function Home() {
             <p className="reveal mt-5 text-lg text-white/75" data-delay="120ms">Te hacemos una tasación profesional, con informe escrito y valor de mercado real. Conocemos la ciudad, los precios y los compradores.</p>
             <div className="reveal mt-8 flex flex-wrap gap-4" data-delay="200ms">
               <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero pedir una tasación de mi propiedad." className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Pedir tasación</WhatsAppCTA>
-              <a href="#contacto" className="btn-ghost !border-white/30 !text-white hover:!border-white">Dejar mis datos</a>
+              <button onClick={() => irAlFormulario("vender")} className="btn-ghost !border-white/30 !text-white hover:!border-white">Dejar mis datos</button>
             </div>
             <div className="reveal mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/70" data-delay="260ms">
               {["Informe escrito", "Valor de mercado real", "Sin cargo ni compromiso"].map((x) => (
@@ -451,7 +451,7 @@ export default function Home() {
                 Direcciones y teléfonos viven en "Pasá cuando quieras" y en el footer. */}
             <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero hacer una consulta." className="btn-primary reveal mt-9"><Phone size={16} /> Escribinos por WhatsApp</WhatsAppCTA>
           </div>
-          <ContactForm onEnviar={addLead} />
+          <ContactForm onEnviar={addLead} motivo={motivoContacto} />
         </div>
       </section>
 
@@ -526,10 +526,28 @@ function Select({ label, value, onChange, options, placeholder }: { label: strin
   );
 }
 
-function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
+// El formulario del embudo: motivo (comprar/vender/otra) + datos. El lead entra
+// etiquetado a la bandeja central de Mateo y él deriva a la oficina (C2, 5-ago).
+const MOTIVOS = [
+  { id: "comprar", label: "Quiero comprar", tag: "COMPRA", ph: "Busco un depto de 3 ambientes cerca de Güemes, o una casa en Punta Mogotes..." },
+  { id: "vender", label: "Quiero vender / tasar", tag: "VENDE · pide tasación", ph: "Quiero vender mi depto de 2 ambientes en el centro. Me gustaría saber cuánto vale hoy..." },
+  { id: "consulta", label: "Otra consulta", tag: "CONSULTA", ph: "Contanos en qué te podemos ayudar..." },
+] as const;
+
+function ContactForm({ onEnviar, motivo }: { onEnviar: (l: any) => void; motivo?: "" | "comprar" | "vender" }) {
   const [sent, setSent] = useState(false);
-  const [f, setF] = useState({ nombre: "", telefono: "", mensaje: "" });
+  const [f, setF] = useState({ nombre: "", telefono: "", mensaje: "", motivo: "" as string });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // Si vienen de "Quiero vender/comprar", el motivo llega pre-elegido.
+  useEffect(() => {
+    if (motivo) {
+      setF((p) => ({ ...p, motivo }));
+      setSent(false);
+    }
+  }, [motivo]);
+
+  const m = MOTIVOS.find((x) => x.id === f.motivo);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -542,7 +560,7 @@ function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
       canal: "web",
       estado: "nueva",
       asignado: "Sin asignar",
-      notas: f.mensaje,
+      notas: `${m ? `[${m.tag}] ` : ""}${f.mensaje}`,
     });
     setSent(true);
   };
@@ -557,11 +575,30 @@ function ContactForm({ onEnviar }: { onEnviar: (l: any) => void }) {
         </div>
       ) : (
         <div className="space-y-4">
+          <div>
+            <span className="mb-1.5 block text-[11px] uppercase tracking-widest2 text-graph-400">¿Qué querés hacer?</span>
+            <div className="flex flex-wrap gap-2">
+              {MOTIVOS.map((x) => (
+                <button
+                  key={x.id}
+                  type="button"
+                  onClick={() => set("motivo", x.id)}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    f.motivo === x.id
+                      ? "border-brand bg-brand text-white"
+                      : "border-graph/15 text-graph-500 hover:border-brand/50 hover:text-brand"
+                  }`}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Field label="Nombre y apellido" placeholder="Juan Pérez" value={f.nombre} onChange={(v) => set("nombre", v)} />
           <Field label="Teléfono / WhatsApp" placeholder="+54 9 223 ..." value={f.telefono} onChange={(v) => set("telefono", v)} />
           <label className="block">
             <span className="mb-1.5 block text-[11px] uppercase tracking-widest2 text-graph-400">Mensaje</span>
-            <textarea rows={4} value={f.mensaje} onChange={(e) => set("mensaje", e.target.value)} placeholder="Busco un depto de 3 ambientes cerca de Güemes, o una casa en Punta Mogotes..." className="w-full rounded-lg border border-graph/15 bg-paper-100 px-4 py-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand" />
+            <textarea rows={4} value={f.mensaje} onChange={(e) => set("mensaje", e.target.value)} placeholder={m?.ph ?? "Contanos en qué te podemos ayudar..."} className="w-full rounded-lg border border-graph/15 bg-paper-100 px-4 py-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand" />
           </label>
           <button type="submit" className="btn-primary w-full">Enviar consulta <ArrowRight size={16} /></button>
           <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 18 y sábados a la mañana.</p>
