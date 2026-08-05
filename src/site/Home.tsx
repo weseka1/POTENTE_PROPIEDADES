@@ -314,10 +314,14 @@ export default function Home() {
                 <h3 className="mt-4 font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
                   Tu propiedad, presentada como se debe
                 </h3>
-                <ul className="mt-7 divide-y divide-white/10 border-y border-white/10">
+                {/* Juani 5-ago: que se note que se INVIERTE en cada propiedad. */}
+                <p className="mt-3 text-sm leading-relaxed text-white/70">
+                  No publicamos y esperamos: invertimos en cada propiedad para que se venda mejor y más rápido.
+                </p>
+                <ul className="mt-6 divide-y divide-white/10 border-y border-white/10">
                   {[
-                    "Producción de fotos y video profesional de tu propiedad",
-                    "Publicación y ofrecimiento en los mejores portales",
+                    "Equipo profesional propio de fotografía y video",
+                    "Inversión en publicidad y en los mejores portales",
                     "Difusión en redes y cartera de compradores propia",
                   ].map((t) => (
                     <li key={t} className="flex items-start gap-3 py-3.5 text-sm leading-relaxed text-white/85">
