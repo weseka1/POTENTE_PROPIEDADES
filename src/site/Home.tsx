@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles, SlidersHorizontal,
   ShieldCheck, MapPin, Phone, Mail, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves, BedDouble, Maximize,
-  Camera, Handshake,
+  Camera, Handshake, Check,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -292,19 +292,89 @@ export default function Home() {
             <h2 className="mt-3 font-display text-4xl font-medium tracking-tight text-graph md:text-5xl">Todo el negocio inmobiliario, en un solo lugar</h2>
             <p className="mt-5 text-lg text-graph-500">Acompañamos cada operación de principio a fin, con el conocimiento de la ciudad y el respaldo de tres generaciones.</p>
           </div>
-          {/* Audio Mateo 5-ago: sumar un ítem para vendedores y otro para compradores. */}
-          <div className="grid gap-px overflow-hidden rounded-2xl bg-graph/10 md:grid-cols-2 lg:grid-cols-3">
+          {/* Audio Mateo 5-ago: vendedores y compradores, protagonistas de la sección.
+              Dos paneles con materia distinta (navy fotográfico vs. papel con hairlines)
+              y los cuatro servicios de siempre en tira editorial abajo. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="reveal relative overflow-hidden rounded-2xl p-8 md:p-10">
+              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url(/img/props/casa3.jpg)" }} aria-hidden />
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-950/[0.96] via-brand-950/[0.88] to-brand/70" aria-hidden />
+              <div className="relative">
+                <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-widest2 text-sea">
+                  <Camera size={15} /> 01 · Para quien vende
+                </p>
+                <h3 className="mt-4 font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
+                  Tu propiedad, presentada como se debe
+                </h3>
+                <ul className="mt-7 divide-y divide-white/10 border-y border-white/10">
+                  {[
+                    "Producción de fotos y video profesional de tu propiedad",
+                    "Publicación y ofrecimiento en los mejores portales",
+                    "Difusión en redes y cartera de compradores propia",
+                  ].map((t) => (
+                    <li key={t} className="flex items-start gap-3 py-3.5 text-sm leading-relaxed text-white/85">
+                      <Check size={15} className="mt-0.5 shrink-0 text-sea" /> {t}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-8 flex flex-wrap items-center gap-5">
+                  <WhatsAppCTA
+                    mensaje="Hola Potente Propiedades, quiero vender mi propiedad. ¿Cómo arrancamos?"
+                    className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50"
+                  >
+                    Quiero vender <ArrowRight size={16} />
+                  </WhatsAppCTA>
+                  <a href="#tasaciones" className="text-sm font-semibold text-white/70 transition hover:text-white">
+                    Tasación sin cargo
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="reveal flex flex-col rounded-2xl border border-graph/10 bg-paper p-8 shadow-card md:p-10" data-delay="120ms">
+              <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-widest2 text-brand">
+                <Handshake size={15} /> 02 · Para quien compra
+              </p>
+              <h3 className="mt-4 font-display text-2xl font-semibold tracking-tight text-graph md:text-3xl">
+                Comprá acompañado, no solo
+              </h3>
+              <ul className="mt-7 divide-y divide-graph/10 border-y border-graph/10">
+                {[
+                  "Búsqueda guiada según lo que necesitás y tu presupuesto",
+                  "Visitas coordinadas y asesoramiento en la negociación",
+                  "Acompañamiento en toda la operación, de la reserva a la escritura",
+                ].map((t) => (
+                  <li key={t} className="flex items-start gap-3 py-3.5 text-sm leading-relaxed text-graph-500">
+                    <Check size={15} className="mt-0.5 shrink-0 text-brand" /> {t}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 flex flex-wrap items-center gap-5">
+                <Link to="/propiedades" className="btn-primary">
+                  Quiero comprar <ArrowRight size={16} />
+                </Link>
+                <Link to="/temporada" className="text-sm font-semibold text-graph-500 transition hover:text-brand">
+                  Ver temporada
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Los cuatro de siempre, en tira editorial con hairlines. */}
+          <div className="reveal mt-4 grid gap-px overflow-hidden rounded-2xl border border-graph/10 bg-graph/10 md:grid-cols-2 lg:grid-cols-4" data-delay="200ms">
             {[
-              { icon: HomeIcon, t: "Venta de propiedades", d: "Casas, departamentos, PH, locales y lotes en toda Mar del Plata, con cartera propia." },
-              { icon: KeyRound, t: "Alquileres", d: "Anuales y de temporada, con contratos claros, garantías verificadas y seguimiento." },
-              { icon: FileSearch, t: "Tasaciones", d: "Valuación profesional para venta, garantía o sucesión, con informe escrito y sin cargo." },
-              { icon: TrendingUp, t: "Asesoramiento", d: "Inversión en ladrillo marplatense: renta de temporada, reciclados y pozo. Te ayudamos a elegir." },
-              { icon: Camera, t: "Para quien vende", d: "Producción de fotos y video de tu propiedad, publicación y ofrecimiento en los mejores portales." },
-              { icon: Handshake, t: "Para quien compra", d: "Asesoramiento y acompañamiento en toda la operación, de la primera visita a la escritura." },
-            ].map((s, i) => (
-              <div key={i} className="reveal group bg-paper-100 p-8 transition hover:bg-paper-200" data-delay={`${i * 80}ms`}>
-                <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-50 text-brand transition group-hover:bg-brand group-hover:text-white"><s.icon size={22} /></span>
-                <h3 className="mt-6 font-display text-xl font-semibold text-graph">{s.t}</h3>
+              { icon: HomeIcon, t: "Venta de propiedades", d: "Casas, departamentos, PH, locales y lotes, con cartera propia." },
+              { icon: KeyRound, t: "Alquileres", d: "Anuales y de temporada, contratos claros y garantías verificadas." },
+              { icon: FileSearch, t: "Tasaciones", d: "Valuación profesional con informe escrito, sin cargo." },
+              { icon: TrendingUp, t: "Asesoramiento", d: "Inversión en ladrillo marplatense: renta, reciclados y pozo." },
+            ].map((s) => (
+              <div key={s.t} className="group bg-paper-100 p-6 transition hover:bg-paper-200">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand transition group-hover:bg-brand group-hover:text-white">
+                    <s.icon size={17} />
+                  </span>
+                  <h3 className="font-display text-base font-semibold text-graph">{s.t}</h3>
+                </div>
                 <p className="mt-3 text-sm leading-relaxed text-graph-500">{s.d}</p>
               </div>
             ))}
