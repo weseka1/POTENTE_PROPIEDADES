@@ -321,7 +321,8 @@ export default function Home() {
                 <ul className="mt-6 divide-y divide-white/10 border-y border-white/10">
                   {[
                     "Equipo profesional propio de fotografía y video",
-                    "Inversión en publicidad y en los mejores portales",
+                    "Publicación en nuestra web y en los principales portales del país",
+                    "Inversión en publicidad para llegar a más compradores",
                     "Difusión en redes y cartera de compradores propia",
                   ].map((t) => (
                     <li key={t} className="flex items-start gap-3 py-3.5 text-sm leading-relaxed text-white/85">

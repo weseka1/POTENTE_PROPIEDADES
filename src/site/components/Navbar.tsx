@@ -5,13 +5,15 @@ import { useFavorites } from "../context/FavoritesContext";
 
 import WhatsAppCTA from "./WhatsAppCTA";
 
+// Menú resumido (pedido Mateo 5-ago): fuera Casas/Deptos (viven como filtros del
+// catálogo), entran Nosotros (la historia, 3 generaciones) y Contacto (formulario).
 const cats = [
   { to: "/propiedades?operacion=venta", label: "En venta" },
   { to: "/propiedades?operacion=alquiler", label: "Alquileres" },
   { to: "/temporada", label: "Temporada" },
-  { to: "/propiedades?cat=casa", label: "Casas" },
-  { to: "/propiedades?cat=departamento", label: "Deptos" },
   { to: "/#tasaciones", label: "Tasaciones" },
+  { to: "/#nosotros", label: "Nosotros" },
+  { to: "/#contacto", label: "Contacto" },
 ];
 
 export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | "solid" }) {
@@ -78,11 +80,11 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
           <div className="hidden items-center gap-7 lg:flex">
             {cats.map((c) =>
               c.to.includes("#") ? (
-                <a key={c.to} href={c.to} className="link-underline text-sm font-medium text-graph-500 hover:text-graph">
+                <a key={c.to} href={c.to} className="link-underline whitespace-nowrap text-sm font-medium text-graph-500 hover:text-graph">
                   {c.label}
                 </a>
               ) : (
-                <Link key={c.to} to={c.to} className="link-underline text-sm font-medium text-graph-500 hover:text-graph">
+                <Link key={c.to} to={c.to} className="link-underline whitespace-nowrap text-sm font-medium text-graph-500 hover:text-graph">
                   {c.label}
                 </Link>
               )
