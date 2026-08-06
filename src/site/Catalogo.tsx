@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import Navbar from "./components/Navbar";
@@ -7,7 +7,7 @@ import PropiedadCard from "./components/PropiedadCard";
 import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
-import { fmtUSD } from "@/lib/format";
+import { fmtUSD, fmtARS } from "@/lib/format";
 
 import WhatsAppCTA from "./components/WhatsAppCTA";
 import { useReveal } from "@/lib/hooks";
@@ -118,6 +118,31 @@ export default function Catalogo() {
     return CHIPS_CARACT.map((c) => ({ ...c, n: cuantas(c.term) })).filter((c) => c.n >= 2);
   }, [blobs]);
 
+  // ── Precio como slider doble (pedido Mateo 5-ago, tipo Airbnb/Bochile) ──────
+  // El tope NO es el máximo absoluto (una joya de U$S 900.000 haría tediosa la
+  // barrita): es el percentil 90 de la cartera redondeado — "el punto justo".
+  // Alquileres se filtran en PESOS; ventas en dólares.
+  const moneda: "USD" | "ARS" = f.operacion === "alquiler" ? "ARS" : "USD";
+  const pasoPrecio = moneda === "USD" ? 10_000 : 50_000;
+  const precioDe = (p: (typeof propiedades)[number]) => (moneda === "ARS" ? p.precioARS ?? null : p.precioUSD ?? null);
+  const topePrecio = useMemo(() => {
+    const vals = propiedades
+      .filter((p) => (f.operacion ? p.operacion === f.operacion : p.operacion === "venta"))
+      .map((p) => (moneda === "ARS" ? p.precioARS : p.precioUSD))
+      .filter((n): n is number => typeof n === "number" && n > 0)
+      .sort((a, b) => a - b);
+    if (!vals.length) return moneda === "USD" ? 300_000 : 1_000_000;
+    const p90 = vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.9))];
+    return Math.max(pasoPrecio * 5, Math.ceil(p90 / pasoPrecio) * pasoPrecio);
+  }, [propiedades, f.operacion, moneda, pasoPrecio]);
+
+  // Cambió la operación → cambia la moneda/escala: el rango vuelve a cero.
+  const primeraVez = useRef(true);
+  useEffect(() => {
+    if (primeraVez.current) { primeraVez.current = false; return; }
+    setF((p) => ({ ...p, min: "", max: "" }));
+  }, [f.operacion]);
+
   const resultados = useMemo(() => {
     // "4+" en ambientes/dormitorios/baños significa "o más".
     const cumpleNum = (valor: number | undefined, filtro: string) => {
@@ -130,6 +155,7 @@ export default function Catalogo() {
     const tokens = norm(f.q).split(/\s+/).filter(Boolean);
     let r = propiedades.filter((p) => {
       const blob = blobs.get(p.id) || "";
+      const precio = precioDe(p);
       return (
         (!f.cat || p.categoria === f.cat) &&
         (!f.operacion || p.operacion === f.operacion) &&
@@ -137,8 +163,8 @@ export default function Catalogo() {
         cumpleNum(p.ambientes, f.amb) &&
         cumpleNum(p.dormitorios, f.dorm) &&
         cumpleNum(p.banos, f.banos) &&
-        (!min || (p.precioUSD != null && p.precioUSD >= min)) &&
-        (!max || (p.precioUSD != null && p.precioUSD <= max)) &&
+        (!min || (precio != null && precio >= min)) &&
+        (!max || (precio != null && precio <= max)) &&
         f.caract.every((c) => blob.includes(norm(c))) &&
         tokens.every((t) => variantes(t).some((v) => blob.includes(norm(v))))
       );
@@ -184,8 +210,8 @@ export default function Catalogo() {
     ...(f.amb ? [{ k: "amb" as const, label: `${f.amb} amb` }] : []),
     ...(f.dorm ? [{ k: "dorm" as const, label: `${f.dorm} dorm` }] : []),
     ...(f.banos ? [{ k: "banos" as const, label: `${f.banos} baño${f.banos === "1" ? "" : "s"}` }] : []),
-    ...(f.min ? [{ k: "min" as const, label: `desde ${fmtUSD(Number(f.min), { short: true })}` }] : []),
-    ...(f.max ? [{ k: "max" as const, label: `hasta ${fmtUSD(Number(f.max), { short: true })}` }] : []),
+    ...(f.min ? [{ k: "min" as const, label: `desde ${moneda === "ARS" ? fmtARS(Number(f.min), { short: true }) : fmtUSD(Number(f.min), { short: true })}` }] : []),
+    ...(f.max ? [{ k: "max" as const, label: `hasta ${moneda === "ARS" ? fmtARS(Number(f.max), { short: true }) : fmtUSD(Number(f.max), { short: true })}` }] : []),
     ...f.caract.map((c) => ({ k: `c:${c}` as const, label: CHIPS_CARACT.find((x) => x.term === c)?.label ?? c })),
     ...(f.q ? [{ k: "q" as const, label: `“${f.q}”` }] : []),
   ];
@@ -229,16 +255,18 @@ export default function Catalogo() {
         </div>
       </header>
 
-      {/* Tabs de categoría */}
-      <div className="sticky top-[64px] z-30 border-y border-graph/10 bg-paper/95 backdrop-blur">
-        <div className="container-x flex flex-col gap-3 py-3">
+      {/* Tabs de categoría — panel glass sobre gris (Mateo 5-ago: "muy blanca") */}
+      <div className="sticky top-[64px] z-30 border-y border-graph/10 bg-gradient-to-b from-paper-200/95 to-paper-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl">
+        <div className="container-x flex flex-col gap-3 py-3.5">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {tabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setCat(t.key)}
                 className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                  f.cat === t.key ? "bg-brand text-white" : "bg-paper-200 text-graph-500 hover:bg-graph/5"
+                  f.cat === t.key
+                    ? "bg-brand text-white shadow-[0_6px_16px_-6px_rgba(12,77,162,0.55)]"
+                    : "bg-white/75 text-graph-500 ring-1 ring-graph/10 hover:bg-white hover:text-graph"
                 }`}
               >
                 {t.label} <span className="opacity-60">({t.n})</span>
@@ -256,8 +284,16 @@ export default function Catalogo() {
             <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
             <FSelect value={f.dorm} onChange={(v) => set("dorm", v)} options={[{ v: "1", l: "1 dormitorio" }, { v: "2", l: "2 dormitorios" }, { v: "3", l: "3 dormitorios" }, { v: "4+", l: "4 o más" }]} ph="Dormitorios" />
             <FSelect value={f.banos} onChange={(v) => set("banos", v)} options={[{ v: "1", l: "1 baño" }, { v: "2", l: "2 baños" }, { v: "3+", l: "3 o más" }]} ph="Baños" />
-            <FSelect value={f.min} onChange={(v) => set("min", v)} options={[50000, 80000, 100000, 150000, 200000, 300000].map((n) => ({ v: String(n), l: `Desde ${fmtUSD(n, { short: true })}` }))} ph="Precio desde" />
-            <FSelect value={f.max} onChange={(v) => set("max", v)} options={[80000, 100000, 150000, 200000, 300000, 500000].map((n) => ({ v: String(n), l: `Hasta ${fmtUSD(n, { short: true })}` }))} ph="Precio hasta" />
+            <RangoPrecio
+              min={Number(f.min) || 0}
+              max={Number(f.max) || 0}
+              tope={topePrecio}
+              paso={pasoPrecio}
+              moneda={moneda}
+              onChange={(lo, hi) =>
+                setF((p) => ({ ...p, min: lo <= 0 ? "" : String(lo), max: hi >= topePrecio ? "" : String(hi) }))
+              }
+            />
             <div className="ml-auto flex items-center gap-3">
               {hayFiltros && (
                 <button onClick={limpiar} className="flex items-center gap-1 text-xs text-graph-500 hover:text-brand">
@@ -287,10 +323,10 @@ export default function Catalogo() {
                   <button
                     key={c.term}
                     onClick={() => toggleCaract(c.term)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition ${
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1 transition ${
                       activa
-                        ? "border-brand bg-brand text-white"
-                        : "border-graph/15 bg-paper-100 text-graph-500 hover:border-brand/50 hover:text-brand"
+                        ? "bg-brand text-white ring-brand"
+                        : "bg-white/75 text-graph-500 ring-graph/10 hover:bg-white hover:text-brand hover:ring-brand/40"
                     }`}
                   >
                     {c.label}
@@ -320,7 +356,8 @@ export default function Catalogo() {
         </div>
       </div>
 
-      <section className="py-12">
+      {/* Fondo gris suave: las tarjetas blancas ganan relieve (nada de blanco sobre blanco). */}
+      <section className="bg-paper-200/60 py-12">
         <div className="container-x">
           <p className="mb-6 text-sm text-graph-500">
             {resultados.length} {resultados.length === 1 ? "propiedad" : "propiedades"}
@@ -372,7 +409,54 @@ function FSelect({ value, onChange, options, ph, noEmpty }: { value: string; onC
       placeholder={ph}
       size="sm"
       className="min-w-[9.5rem]"
-      triggerClassName="capitalize rounded-lg"
+      triggerClassName="capitalize rounded-lg !bg-white/80"
     />
+  );
+}
+
+// ── Slider de precio doble (pedido Mateo 5-ago: "una línea con un puntito", tipo
+// Airbnb/Bochile). Dos ranges nativos superpuestos; el CSS .rango deja los eventos
+// SOLO en los thumbs. En el tope, el rango queda abierto ("300k+").
+function RangoPrecio({
+  min, max, tope, paso, moneda, onChange,
+}: {
+  min: number;
+  max: number;
+  tope: number;
+  paso: number;
+  moneda: "USD" | "ARS";
+  onChange: (lo: number, hi: number) => void;
+}) {
+  const fmt = (n: number) => (moneda === "ARS" ? fmtARS(n, { short: true }) : fmtUSD(n, { short: true }));
+  const lo = Math.min(min, tope - paso);
+  const hi = max > 0 ? Math.min(max, tope) : tope;
+  const abierto = lo <= 0 && hi >= tope;
+  const etiqueta = abierto ? "Cualquiera" : `${fmt(lo)} – ${hi >= tope ? `${fmt(tope)}+` : fmt(hi)}`;
+  return (
+    <div className="rango w-full sm:w-60">
+      <div className="mb-0.5 flex items-baseline justify-between gap-3">
+        <span className="text-[10px] font-semibold uppercase tracking-widest2 text-graph-400">Precio</span>
+        <span className={`text-xs font-semibold ${abierto ? "text-graph-400" : "text-brand-700"}`}>{etiqueta}</span>
+      </div>
+      <div className="relative h-5">
+        <div className="absolute top-1/2 h-[3px] w-full -translate-y-1/2 rounded-full bg-graph/15" />
+        <div
+          className="absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-brand"
+          style={{ left: `${(lo / tope) * 100}%`, right: `${100 - (hi / tope) * 100}%` }}
+        />
+        <input
+          type="range" min={0} max={tope} step={paso} value={lo}
+          aria-label="Precio desde"
+          onChange={(e) => onChange(Math.min(Number(e.target.value), hi - paso), hi)}
+          className="absolute inset-0 w-full appearance-none bg-transparent"
+        />
+        <input
+          type="range" min={0} max={tope} step={paso} value={hi}
+          aria-label="Precio hasta"
+          onChange={(e) => onChange(lo, Math.max(Number(e.target.value), lo + paso))}
+          className="absolute inset-0 w-full appearance-none bg-transparent"
+        />
+      </div>
+    </div>
   );
 }

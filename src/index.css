@@ -293,3 +293,39 @@ html.lenis body {
 [data-tip-side="bottom"]:hover::after {
   transform: translateX(-50%) translateY(0) scale(1);
 }
+
+/* ── Slider de precio doble (tipo Airbnb/Bochile): dos ranges superpuestos.
+   El input no recibe eventos, SOLO el thumb — así los dos conviven en la misma pista. */
+.rango input[type="range"] {
+  pointer-events: none;
+}
+.rango input[type="range"]::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 17px;
+  width: 17px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1.5px solid rgba(12, 77, 162, 0.55);
+  box-shadow: 0 2px 8px rgba(13, 21, 33, 0.28);
+  cursor: grab;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.rango input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+  border-color: rgba(12, 77, 162, 0.9);
+}
+.rango input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+.rango input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  height: 17px;
+  width: 17px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1.5px solid rgba(12, 77, 162, 0.55);
+  box-shadow: 0 2px 8px rgba(13, 21, 33, 0.28);
+  cursor: grab;
+}
