@@ -10,7 +10,9 @@
     "dev": "vite",
     "build": "node scripts/gen-sitemap.mjs && vite build",
     "preview": "vite preview",
-    "start": "tsx server/index.ts"
+    "start": "tsx server/index.ts",
+    "sembrar": "tsx scripts/sembrar-db.ts",
+    "verificar-db": "tsx scripts/verificar-db.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",

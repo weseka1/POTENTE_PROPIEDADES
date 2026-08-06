@@ -1,4 +1,6 @@
 // Barrido completo: cada ruta del panel y del sitio, contando errores reales.
+import { pedirSesion, guionSesion } from "./login.mjs";
+
 const BASE = "http://localhost:9222";
 const APP = process.env.APP || "http://localhost:5177";
 
@@ -38,8 +40,10 @@ await send("Page.addScriptToEvaluateOnNewDocument", {
 
 const ir = async (url, ms = 2800) => { await send("Page.navigate", { url }); await new Promise((r) => setTimeout(r, ms)); };
 
+// Sesión real de Supabase (el atajo demo quedó desactivado al conectar la base).
 await ir(APP + "/", 1200);
-await evaluar(`localStorage.clear(); localStorage.setItem("potente_demo_auth","1"); localStorage.setItem("potente_perfil_activo","mateo"); return 1;`);
+const sesionMateo = await pedirSesion("mateo");
+await evaluar(guionSesion(sesionMateo));
 
 const RUIDO = [/React DevTools/i, /Download the React/i, /favicon/i, /^console\.error: Warning:/i, /ResizeObserver loop/i];
 

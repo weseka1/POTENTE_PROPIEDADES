@@ -21,8 +21,12 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: ANTHROPIC_API_KEY
-        sync: false # el asistente Marina (sin esto la web anda igual; el chat avisa que no está configurado)
+        sync: false # SECRETA: se carga a mano en Render. Es la del asistente Marina.
+      # Base de datos propia de Potente (São Paulo). Estas dos van en el archivo a
+      # propósito: son PÚBLICAS — viajan al navegador dentro del bundle igual. Lo
+      # que protege los datos es el RLS de la base, no esconder esta clave
+      # (verificado con `npm run verificar-db`). La service_role NUNCA va acá.
       - key: VITE_SUPABASE_URL
-        sync: false # vacías = demo con datos de muestra locales (modo actual)
+        value: https://gqhpgexqbnqqqeynbucu.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        sync: false
+        value: sb_publishable_LQ_JxpWjM__E0uO2s3hcUA_L_hLFJgw

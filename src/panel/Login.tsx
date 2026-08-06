@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Mail, Lock, Loader2, ArrowRight, Sprout } from "lucide-react";
-import { usePanelAuth, DEMO_EMAIL } from "./auth";
+import { usePanelAuth, DEMO_EMAIL, PUENTE_DEMO_ACTIVO } from "./auth";
 
 export default function Login() {
   const { authed, signIn } = usePanelAuth();
@@ -55,9 +55,13 @@ export default function Login() {
             {busy ? <Loader2 size={17} className="animate-spin" /> : <>Entrar <ArrowRight size={16} /></>}
           </button>
 
-          <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-graph-400">
-            <Sprout size={12} className="text-brand" /> Acceso de demo: <b className="font-semibold text-graph-500">{DEMO_EMAIL}</b> · potente2026
-          </p>
+          {/* El acceso de prueba solo se muestra en la demo sin base de datos.
+              Con la base conectada, cada oficina entra con su propio usuario. */}
+          {PUENTE_DEMO_ACTIVO && (
+            <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-graph-400">
+              <Sprout size={12} className="text-brand" /> Acceso de demo: <b className="font-semibold text-graph-500">{DEMO_EMAIL}</b> · potente2026
+            </p>
+          )}
         </form>
 
         <p className="mt-5 text-center text-[11px] text-graph-400">Potente Propiedades · Inmobiliaria · Mar del Plata</p>
