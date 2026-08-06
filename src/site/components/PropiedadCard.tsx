@@ -1,5 +1,6 @@
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler } from "lucide-react";
+import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
 import { useFavorites } from "../context/FavoritesContext";
@@ -26,6 +27,12 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
   const { esFavorito, toggle } = useFavorites();
   const fav = esFavorito(p.id);
 
+  // Hasta 5 fotos hojeables desde la tarjeta: alcanza para enganchar sin
+  // convertir el catálogo en una descarga de cientos de imágenes.
+  const galeria = (p.fotos?.length ? p.fotos : [NO_IMG]).slice(0, 5);
+  const [foto, setFoto] = useState(0);
+  const gesto = useRef<{ x: number; movio: boolean } | null>(null);
+
   const specs: { icon: any; label: string }[] = [];
   if (p.categoria === "campo") {
     if (p.hectareas) specs.push({ icon: Maximize, label: fmtHa(p.hectareas) });
@@ -42,20 +49,79 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
       to={`/propiedad/${p.id}`}
       className="group relative flex flex-col overflow-hidden rounded-2xl bg-paper-100 ring-1 ring-graph/10 transition duration-500 hover:ring-brand/40 hover:shadow-card"
     >
-      <div className="relative aspect-[4/3] overflow-hidden">
-        <img
-          src={p.fotos?.[0] || NO_IMG}
-          onError={(e) => { e.currentTarget.src = NO_IMG; }}
-          alt={p.titulo}
-          // Las primeras tarjetas se ven sin scrollear: cargan ya y con prioridad
-          // (son la imagen grande que mide Google). El resto, recién al acercarse.
-          loading={prioritaria ? "eager" : "lazy"}
-          fetchPriority={prioritaria ? "high" : "auto"}
-          // Decodificar fuera del hilo principal: la página no se traba mientras carga.
-          decoding="async"
-          className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-graph/80 via-transparent to-transparent" />
+      <div
+        className="relative aspect-[4/3] overflow-hidden"
+        // Deslizar con el dedo cambia de foto; si hubo deslizamiento, no se
+        // entra a la propiedad (si no, cada swipe navegaría sin querer).
+        onPointerDown={(e) => { gesto.current = { x: e.clientX, movio: false }; }}
+        onPointerMove={(e) => {
+          const g = gesto.current;
+          if (!g || g.movio) return;
+          const dx = e.clientX - g.x;
+          if (Math.abs(dx) > 40) {
+            g.movio = true;
+            setFoto((n) => Math.max(0, Math.min(galeria.length - 1, n + (dx < 0 ? 1 : -1))));
+          }
+        }}
+        onClickCapture={(e) => { if (gesto.current?.movio) { e.preventDefault(); e.stopPropagation(); } }}
+        onPointerUp={() => { setTimeout(() => (gesto.current = null), 0); }}
+        style={{ touchAction: "pan-y" }}
+      >
+        {/* Se pueden hojear las fotos SIN entrar a la propiedad: las de al lado
+            se precargan y el cambio va con la curva de siempre. */}
+        <div
+          className="flex h-full w-full"
+          style={{ transform: `translate3d(${-foto * 100}%, 0, 0)`, transition: "transform 620ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+        >
+          {galeria.map((src, n) => (
+            <img
+              key={`${src}-${n}`}
+              src={src}
+              onError={(e) => { e.currentTarget.src = NO_IMG; }}
+              alt={n === 0 ? p.titulo : ""}
+              // La primera tarjeta se ve sin scrollear: carga ya y con prioridad
+              // (es la imagen grande que mide Google). El resto, al acercarse.
+              loading={prioritaria && n === 0 ? "eager" : "lazy"}
+              fetchPriority={prioritaria && n === 0 ? "high" : "auto"}
+              decoding="async"
+              draggable={false}
+              className="h-full w-full shrink-0 grow-0 basis-full object-cover transition duration-700 group-hover:scale-[1.03]"
+            />
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-graph/80 via-transparent to-transparent" />
+
+        {/* Hojear con el mouse (aparecen al acercarse) o con el dedo. */}
+        {galeria.length > 1 && (
+          <>
+            <button
+              onClick={(e) => { e.preventDefault(); setFoto((n) => Math.max(0, n - 1)); }}
+              aria-label="Foto anterior"
+              className={`absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-graph shadow backdrop-blur transition duration-300 hover:scale-110 ${
+                foto === 0 ? "pointer-events-none opacity-0" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={(e) => { e.preventDefault(); setFoto((n) => Math.min(galeria.length - 1, n + 1)); }}
+              aria-label="Foto siguiente"
+              className={`absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-graph shadow backdrop-blur transition duration-300 hover:scale-110 ${
+                foto === galeria.length - 1 ? "pointer-events-none opacity-0" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
+              <ChevronRight size={16} />
+            </button>
+            <div className="pointer-events-none absolute inset-x-0 bottom-14 flex justify-center gap-1">
+              {galeria.map((_, n) => (
+                <span
+                  key={n}
+                  className={`h-1 rounded-full bg-white transition-all duration-500 ${n === foto ? "w-4 opacity-95" : "w-1 opacity-50"}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-graph backdrop-blur">

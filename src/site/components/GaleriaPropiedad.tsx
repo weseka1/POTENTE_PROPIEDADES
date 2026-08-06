@@ -1,0 +1,350 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ChevronLeft, ChevronRight, Heart, X, Expand } from "lucide-react";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GALERÍA DE PROPIEDAD — deslizar como en el iPhone
+   ───────────────────────────────────────────────────────────────────────────
+   Qué la hace sentir bien (y no un carrusel más):
+
+   · La foto SIGUE AL DEDO. No espera a que sueltes para decidir: se mueve
+     contigo, uno a uno. Eso es el 80% de la sensación.
+   · Al soltar decide por VELOCIDAD, no solo por distancia: un envión corto y
+     rápido pasa de foto, igual que en el teléfono.
+   · En la primera y la última hay RESISTENCIA (goma): se puede tirar, pero
+     cuesta y vuelve. Comunica "no hay más" sin un frenazo seco.
+   · La animación usa una curva expo — arranca rápido y frena suave. Es la
+     diferencia entre "programado" y "natural".
+   · Tocar la foto la abre a pantalla completa, con el mismo gesto adentro.
+
+   Accesibilidad: flechas del teclado, Escape para cerrar, foco visible, y si
+   el sistema pide menos movimiento, las transiciones se acortan.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const NO_IMG =
+  "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
+
+/** Curva de Apple: sale rápido y se posa. La misma de los botones del sitio. */
+const CURVA = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+/** Cuánto cede el borde cuando ya no hay más fotos (goma). */
+const resistencia = (exceso: number) => Math.sign(exceso) * Math.pow(Math.abs(exceso), 0.72) * 0.5;
+
+type Props = {
+  fotos: string[];
+  titulo: string;
+  favorito?: boolean;
+  onToggleFavorito?: () => void;
+};
+
+export default function GaleriaPropiedad({ fotos, titulo, favorito, onToggleFavorito }: Props) {
+  const imagenes = fotos.length ? fotos : [NO_IMG];
+  const [i, setI] = useState(0);
+  const [ampliada, setAmpliada] = useState(false);
+
+  useEffect(() => { setI(0); }, [fotos]);
+
+  return (
+    <>
+      <Riel
+        imagenes={imagenes}
+        titulo={titulo}
+        i={i}
+        setI={setI}
+        onAmpliar={() => setAmpliada(true)}
+        favorito={favorito}
+        onToggleFavorito={onToggleFavorito}
+      />
+
+      {/* Tira de miniaturas: la activa se agranda apenas y se centra sola. */}
+      {imagenes.length > 1 && <Tira imagenes={imagenes} i={i} setI={setI} />}
+
+      {ampliada && (
+        <Visor imagenes={imagenes} titulo={titulo} i={i} setI={setI} onCerrar={() => setAmpliada(false)} />
+      )}
+    </>
+  );
+}
+
+/* ── El riel deslizable ───────────────────────────────────────────────────── */
+
+function Riel({
+  imagenes, titulo, i, setI, onAmpliar, favorito, onToggleFavorito, altura = "aspect-[4/3]",
+}: {
+  imagenes: string[];
+  titulo: string;
+  i: number;
+  setI: (n: number) => void;
+  onAmpliar?: () => void;
+  favorito?: boolean;
+  onToggleFavorito?: () => void;
+  altura?: string;
+}) {
+  const marco = useRef<HTMLDivElement>(null);
+  const pista = useRef<HTMLDivElement>(null);
+  const [arrastre, setArrastre] = useState(0);
+  const gesto = useRef<{ x0: number; t0: number; ultimaX: number; ultimoT: number; activo: boolean; movio: boolean } | null>(null);
+
+  const ancho = () => marco.current?.clientWidth || 1;
+  const ir = useCallback((n: number) => setI(Math.max(0, Math.min(imagenes.length - 1, n))), [imagenes.length, setI]);
+
+  // Mientras el dedo está apoyado no hay transición: la foto va pegada al gesto.
+  const estilo = {
+    transform: `translate3d(${-i * 100}%, 0, 0) translate3d(${arrastre}px, 0, 0)`,
+    transition: gesto.current?.activo ? "none" : `transform 620ms ${CURVA}`,
+  } as const;
+
+  const alApoyar = (e: React.PointerEvent) => {
+    if (imagenes.length < 2) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    gesto.current = { x0: e.clientX, t0: performance.now(), ultimaX: e.clientX, ultimoT: performance.now(), activo: true, movio: false };
+  };
+
+  const alMover = (e: React.PointerEvent) => {
+    const g = gesto.current;
+    if (!g?.activo) return;
+    const dx = e.clientX - g.x0;
+    if (Math.abs(dx) > 6) g.movio = true;
+    g.ultimaX = e.clientX;
+    g.ultimoT = performance.now();
+
+    // En los extremos, el riel cede pero se resiste: no se despega del borde.
+    const enElBorde = (i === 0 && dx > 0) || (i === imagenes.length - 1 && dx < 0);
+    setArrastre(enElBorde ? resistencia(dx) * 3 : dx);
+  };
+
+  const alSoltar = () => {
+    const g = gesto.current;
+    if (!g?.activo) return;
+    const dx = g.ultimaX - g.x0;
+    const ms = Math.max(1, g.ultimoT - g.t0);
+    const velocidad = dx / ms; // px por milisegundo
+
+    // Pasa de foto si recorriste un cuarto del ancho O si fue un envión rápido.
+    const suficiente = Math.abs(dx) > ancho() * 0.25 || Math.abs(velocidad) > 0.45;
+    if (suficiente && Math.abs(dx) > 10) ir(i + (dx < 0 ? 1 : -1));
+
+    gesto.current = { ...g, activo: false };
+    setArrastre(0);
+
+    // El navegador dispara "click" justo después de soltar. Mientras la marca de
+    // "hubo deslizamiento" siga puesta, ese click se ignora (si no, terminar un
+    // arrastre abriría la pantalla completa sin querer). Se limpia en el tick
+    // siguiente, cuando ese click ya pasó, para que el próximo toque sí abra.
+    setTimeout(() => { if (gesto.current) gesto.current.movio = false; }, 0);
+  };
+
+  // Precargar la siguiente y la anterior: al deslizar ya están listas.
+  useEffect(() => {
+    [i + 1, i - 1].forEach((n) => {
+      if (n >= 0 && n < imagenes.length) { const img = new Image(); img.src = imagenes[n]; }
+    });
+  }, [i, imagenes]);
+
+  return (
+    <div
+      ref={marco}
+      className={`group relative select-none overflow-hidden rounded-2xl bg-graph/5 ${altura}`}
+      onPointerDown={alApoyar}
+      onPointerMove={alMover}
+      onPointerUp={alSoltar}
+      onPointerCancel={alSoltar}
+      style={{ touchAction: "pan-y" }}
+    >
+      <div ref={pista} className="flex h-full w-full" style={estilo}>
+        {imagenes.map((src, n) => (
+          <div key={`${src}-${n}`} className="h-full w-full shrink-0 grow-0 basis-full overflow-hidden">
+            <img
+              src={src}
+              onError={(e) => { e.currentTarget.src = NO_IMG; }}
+              alt={n === 0 ? titulo : ""}
+              draggable={false}
+              loading={n === 0 ? "eager" : "lazy"}
+              decoding="async"
+              onClick={() => { if (!gesto.current?.movio) onAmpliar?.(); }}
+              className="h-full w-full cursor-zoom-in object-cover"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Sombra suave abajo: los controles se leen sobre cualquier foto. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-graph/50 to-transparent" aria-hidden />
+
+      {onToggleFavorito && (
+        <button
+          onClick={onToggleFavorito}
+          aria-label={favorito ? "Quitar de favoritos" : "Guardar en favoritos"}
+          className={`absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full backdrop-blur transition duration-300 hover:scale-105 ${
+            favorito ? "bg-brand text-white" : "bg-graph/50 text-white hover:bg-graph/70"
+          }`}
+        >
+          <Heart size={20} fill={favorito ? "currentColor" : "none"} />
+        </button>
+      )}
+
+      {onAmpliar && (
+        <button
+          onClick={onAmpliar}
+          aria-label="Ver en pantalla completa"
+          className="absolute left-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-graph/50 text-white opacity-0 backdrop-blur transition duration-300 hover:scale-105 hover:bg-graph/70 focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Expand size={18} />
+        </button>
+      )}
+
+      {imagenes.length > 1 && (
+        <>
+          <Flecha lado="izq" oculta={i === 0} onClick={() => ir(i - 1)} />
+          <Flecha lado="der" oculta={i === imagenes.length - 1} onClick={() => ir(i + 1)} />
+
+          {/* Puntitos: hasta 8, si hay más se muestra el contador. */}
+          {imagenes.length <= 8 ? (
+            <div className="absolute inset-x-0 bottom-4 flex justify-center gap-1.5">
+              {imagenes.map((_, n) => (
+                <button
+                  key={n}
+                  onClick={() => ir(n)}
+                  aria-label={`Foto ${n + 1}`}
+                  className={`h-1.5 rounded-full bg-white transition-all duration-500 ${
+                    n === i ? "w-6 opacity-100" : "w-1.5 opacity-50 hover:opacity-80"
+                  }`}
+                />
+              ))}
+            </div>
+          ) : (
+            <span className="absolute bottom-4 right-4 rounded-full bg-graph/60 px-2.5 py-1 text-xs font-semibold tabular-nums text-white backdrop-blur">
+              {i + 1} / {imagenes.length}
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Flecha({ lado, oculta, onClick }: { lado: "izq" | "der"; oculta: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={oculta}
+      aria-label={lado === "izq" ? "Foto anterior" : "Foto siguiente"}
+      className={`absolute top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-graph shadow-card backdrop-blur transition duration-300 hover:scale-105 hover:bg-white
+        ${lado === "izq" ? "left-3" : "right-3"}
+        ${oculta ? "pointer-events-none opacity-0" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}
+        max-md:opacity-100`}
+    >
+      {lado === "izq" ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+    </button>
+  );
+}
+
+/* ── Miniaturas ───────────────────────────────────────────────────────────── */
+
+function Tira({ imagenes, i, setI }: { imagenes: string[]; i: number; setI: (n: number) => void }) {
+  const cinta = useRef<HTMLDivElement>(null);
+
+  // La miniatura activa siempre a la vista, sin que el usuario tenga que buscarla.
+  useLayoutEffect(() => {
+    const activa = cinta.current?.children[i] as HTMLElement | undefined;
+    activa?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [i]);
+
+  return (
+    <div
+      ref={cinta}
+      className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {imagenes.map((f, n) => (
+        <button
+          key={`${f}-${n}`}
+          onClick={() => setI(n)}
+          aria-label={`Ver foto ${n + 1}`}
+          aria-current={n === i}
+          className={`relative h-16 w-24 shrink-0 overflow-hidden rounded-lg transition-all duration-500 md:h-20 md:w-28 ${
+            n === i ? "ring-2 ring-brand" : "opacity-60 ring-1 ring-graph/10 hover:opacity-100"
+          }`}
+          style={{ transitionTimingFunction: CURVA }}
+        >
+          <img
+            src={f}
+            onError={(e) => { e.currentTarget.src = NO_IMG; }}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            className="h-full w-full object-cover"
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── Pantalla completa ────────────────────────────────────────────────────── */
+
+function Visor({
+  imagenes, titulo, i, setI, onCerrar,
+}: {
+  imagenes: string[];
+  titulo: string;
+  i: number;
+  setI: (n: number) => void;
+  onCerrar: () => void;
+}) {
+  // Entrada: aparece con un respiro, no de golpe.
+  const [entrando, setEntrando] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setEntrando(false), 20);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Teclado y scroll de fondo.
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+      if (e.key === "ArrowRight") setI(Math.min(imagenes.length - 1, i + 1));
+      if (e.key === "ArrowLeft") setI(Math.max(0, i - 1));
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", alTeclear);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", alTeclear);
+    };
+  }, [i, imagenes.length, onCerrar, setI]);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={`Fotos de ${titulo}`}
+      onClick={onCerrar}
+      className={`fixed inset-0 z-[100] flex flex-col justify-center bg-graph/95 backdrop-blur-xl transition-opacity duration-500 ${
+        entrando ? "opacity-0" : "opacity-100"
+      }`}
+      style={{ transitionTimingFunction: CURVA }}
+    >
+      <button
+        onClick={onCerrar}
+        aria-label="Cerrar"
+        className="absolute right-4 top-4 z-10 grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition hover:scale-105 hover:bg-white/20"
+      >
+        <X size={20} />
+      </button>
+
+      <span className="absolute left-5 top-6 z-10 text-sm font-medium tabular-nums text-white/60">
+        {i + 1} / {imagenes.length}
+      </span>
+
+      {/* El mismo riel adentro: se desliza igual que afuera. */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`mx-auto w-full max-w-5xl px-4 transition-transform duration-500 ${entrando ? "scale-[0.97]" : "scale-100"}`}
+        style={{ transitionTimingFunction: CURVA }}
+      >
+        <Riel imagenes={imagenes} titulo={titulo} i={i} setI={setI} altura="aspect-[4/3] max-h-[82vh]" />
+      </div>
+    </div>,
+    document.body
+  );
+}

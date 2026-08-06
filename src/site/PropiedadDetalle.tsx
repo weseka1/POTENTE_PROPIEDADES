@@ -7,6 +7,7 @@ import {
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
+import GaleriaPropiedad from "./components/GaleriaPropiedad";
 import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
@@ -27,11 +28,8 @@ export default function PropiedadDetalle() {
   const { id } = useParams();
   const { getProp, propiedades } = useData();
   const p = getProp(id || "");
-  const [activa, setActiva] = useState(0);
-  // Galería: flechas + swipe con el dedo (pedido Mateo 3-ago), foto por foto sobre TODAS las fotos.
-  const touchX = useRef<number | null>(null);
+  // La galería maneja su propio estado (ver components/GaleriaPropiedad).
   const { esFavorito, toggle } = useFavorites();
-  useEffect(() => { setActiva(0); }, [id]); // resetear la foto activa al navegar a otra propiedad
   // Video subido como archivo → reproductor embebido. En modo demo (idb:) el
   // archivo vive en el navegador que lo cargó; si acá no está, la sección se oculta.
   const videoUrl = useVideoUrl(p?.video);
@@ -70,7 +68,6 @@ export default function PropiedadDetalle() {
 
   const fav = esFavorito(p.id);
   const fotos = p.fotos?.length ? p.fotos : [NO_IMG];
-  const fotoActiva = fotos[activa] || fotos[0];
   const caracs = p.caracteristicas ?? [];
   const similares = propiedades.filter((x) => x.id !== p.id && x.categoria === p.categoria).slice(0, 3);
   const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
@@ -103,69 +100,16 @@ export default function PropiedadDetalle() {
         </Link>
       </div>
 
-      {/* Galería directa (R3-4, pedido Mateo): carrusel grande + tira con TODAS las fotos.
-          El ancho se limita para que el 4:3 no quede desmesurado en pantallas grandes:
-          la proporción manda, y así la foto se ve ENTERA (sin el recorte del 16:9). */}
+      {/* Galería: se desliza siguiendo el dedo, con resistencia en los extremos y
+          apertura a pantalla completa. El ancho se limita para que el 4:3 no quede
+          desmesurado en pantallas grandes (ver components/GaleriaPropiedad). */}
       <section className="container-x mt-6 max-w-[900px]">
-        <div
-          className="relative overflow-hidden rounded-2xl"
-          onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
-          onTouchEnd={(e) => {
-            if (touchX.current === null) return;
-            const dx = e.changedTouches[0].clientX - touchX.current;
-            if (Math.abs(dx) > 40) setActiva((a) => (a + (dx < 0 ? 1 : -1) + fotos.length) % fotos.length);
-            touchX.current = null;
-          }}
-        >
-          {/* 4:3 — el formato en que Mateo saca las fotos (pedido 6-ago). En 16:9
-              se recortaban arriba y abajo y se perdía parte del ambiente.
-              Sin tope de altura: cualquier tope volvería a romper la proporción. */}
-          <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[4/3] w-full object-cover" />
-          <button
-            onClick={() => toggle(p.id)}
-            className={`absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full backdrop-blur transition ${
-              fav ? "bg-brand text-white" : "bg-graph/60 text-white hover:bg-graph/80"
-            }`}
-            aria-label="Favorito"
-          >
-            <Heart size={20} fill={fav ? "currentColor" : "none"} />
-          </button>
-          {fotos.length > 1 && (
-            <>
-              <button
-                onClick={() => setActiva((a) => (a - 1 + fotos.length) % fotos.length)}
-                aria-label="Foto anterior"
-                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-graph shadow-card backdrop-blur transition hover:bg-white"
-              >
-                <ChevronLeft size={22} />
-              </button>
-              <button
-                onClick={() => setActiva((a) => (a + 1) % fotos.length)}
-                aria-label="Foto siguiente"
-                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-graph shadow-card backdrop-blur transition hover:bg-white"
-              >
-                <ChevronRight size={22} />
-              </button>
-              <span className="absolute bottom-3 right-3 rounded-full bg-graph/70 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">
-                {activa + 1} / {fotos.length}
-              </span>
-            </>
-          )}
-        </div>
-        {fotos.length > 1 && (
-          <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
-            {fotos.map((f, i) => (
-              <button
-                key={i}
-                onClick={() => setActiva(i)}
-                aria-label={`Foto ${i + 1}`}
-                className={`h-16 w-24 shrink-0 overflow-hidden rounded-lg ring-2 transition md:h-20 md:w-28 ${activa === i ? "ring-brand" : "ring-transparent hover:ring-graph/30"}`}
-              >
-                <img src={f} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt="" loading="lazy" className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
+        <GaleriaPropiedad
+          fotos={fotos}
+          titulo={p.titulo}
+          favorito={fav}
+          onToggleFavorito={() => toggle(p.id)}
+        />
       </section>
 
       <section className="container-x mt-12 grid gap-12 pb-12 lg:grid-cols-[1.6fr_1fr]">
