@@ -119,9 +119,9 @@ export default function Catalogo() {
   }, [blobs]);
 
   // ── Precio como slider doble (pedido Mateo 5-ago, tipo Airbnb/Bochile) ──────
-  // El tope NO es el máximo absoluto (una joya de U$S 900.000 haría tediosa la
-  // barrita): es el percentil 90 de la cartera redondeado — "el punto justo".
-  // Alquileres se filtran en PESOS; ventas en dólares.
+  // Tope = la propiedad MÁS CARA de la cartera + ~10% de aire "por si les
+  // ingresa algo" (Juani 5-ago), redondeado a un número lindo. Más allá del
+  // tope el rango queda abierto ("Cualquiera"). Alquileres en PESOS.
   const moneda: "USD" | "ARS" = f.operacion === "alquiler" ? "ARS" : "USD";
   const pasoPrecio = moneda === "USD" ? 10_000 : 50_000;
   const precioDe = (p: (typeof propiedades)[number]) => (moneda === "ARS" ? p.precioARS ?? null : p.precioUSD ?? null);
@@ -129,11 +129,11 @@ export default function Catalogo() {
     const vals = propiedades
       .filter((p) => (f.operacion ? p.operacion === f.operacion : p.operacion === "venta"))
       .map((p) => (moneda === "ARS" ? p.precioARS : p.precioUSD))
-      .filter((n): n is number => typeof n === "number" && n > 0)
-      .sort((a, b) => a - b);
-    if (!vals.length) return moneda === "USD" ? 300_000 : 1_000_000;
-    const p90 = vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.9))];
-    return Math.max(pasoPrecio * 5, Math.ceil(p90 / pasoPrecio) * pasoPrecio);
+      .filter((n): n is number => typeof n === "number" && n > 0);
+    if (!vals.length) return moneda === "USD" ? 500_000 : 1_500_000;
+    const masCara = Math.max(...vals);
+    const redondeo = moneda === "USD" ? 50_000 : 100_000;
+    return Math.max(pasoPrecio * 10, Math.ceil((masCara * 1.1) / redondeo) * redondeo);
   }, [propiedades, f.operacion, moneda, pasoPrecio]);
 
   // Cambió la operación → cambia la moneda/escala: el rango vuelve a cero.
