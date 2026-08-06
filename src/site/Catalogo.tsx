@@ -125,16 +125,18 @@ export default function Catalogo() {
   const moneda: "USD" | "ARS" = f.operacion === "alquiler" ? "ARS" : "USD";
   const pasoPrecio = moneda === "USD" ? 10_000 : 50_000;
   const precioDe = (p: (typeof propiedades)[number]) => (moneda === "ARS" ? p.precioARS ?? null : p.precioUSD ?? null);
+  // Piso del tope: aunque hoy la cartera sea chica, la barra tiene que dar aire
+  // (Juani 5-ago: en alquiler tiene que pasar holgado del millón de pesos).
+  const TOPE_MINIMO = { USD: 500_000, ARS: 2_000_000 } as const;
   const topePrecio = useMemo(() => {
     const vals = propiedades
       .filter((p) => (f.operacion ? p.operacion === f.operacion : p.operacion === "venta"))
       .map((p) => (moneda === "ARS" ? p.precioARS : p.precioUSD))
       .filter((n): n is number => typeof n === "number" && n > 0);
-    if (!vals.length) return moneda === "USD" ? 500_000 : 1_500_000;
-    const masCara = Math.max(...vals);
     const redondeo = moneda === "USD" ? 50_000 : 100_000;
-    return Math.max(pasoPrecio * 10, Math.ceil((masCara * 1.1) / redondeo) * redondeo);
-  }, [propiedades, f.operacion, moneda, pasoPrecio]);
+    const conAire = vals.length ? Math.ceil((Math.max(...vals) * 1.1) / redondeo) * redondeo : 0;
+    return Math.max(TOPE_MINIMO[moneda], conAire);
+  }, [propiedades, f.operacion, moneda]);
 
   // Cambió la operación → cambia la moneda/escala: el rango vuelve a cero.
   const primeraVez = useRef(true);
@@ -197,6 +199,8 @@ export default function Catalogo() {
   const hayFiltros = Boolean(f.operacion || f.zona || f.q || f.amb || f.dorm || f.banos || f.min || f.max || f.caract.length);
 
   // Lo que se está aplicando, a la vista y removible de a uno.
+  const precioChip = (n: number) =>
+    moneda === "ARS" ? `${fmtARS(n, { short: true })} ARS` : fmtUSD(n, { short: true });
   type FiltroKey = "operacion" | "zona" | "amb" | "dorm" | "banos" | "min" | "max" | "q";
   const quitar = (k: FiltroKey) => {
     setF((p) => ({ ...p, [k]: "" }));
@@ -210,8 +214,9 @@ export default function Catalogo() {
     ...(f.amb ? [{ k: "amb" as const, label: `${f.amb} amb` }] : []),
     ...(f.dorm ? [{ k: "dorm" as const, label: `${f.dorm} dorm` }] : []),
     ...(f.banos ? [{ k: "banos" as const, label: `${f.banos} baño${f.banos === "1" ? "" : "s"}` }] : []),
-    ...(f.min ? [{ k: "min" as const, label: `desde ${moneda === "ARS" ? fmtARS(Number(f.min), { short: true }) : fmtUSD(Number(f.min), { short: true })}` }] : []),
-    ...(f.max ? [{ k: "max" as const, label: `hasta ${moneda === "ARS" ? fmtARS(Number(f.max), { short: true }) : fmtUSD(Number(f.max), { short: true })}` }] : []),
+    // Con moneda explícita: "$500k ARS" nunca se confunde con "U$S 500K".
+    ...(f.min ? [{ k: "min" as const, label: `desde ${precioChip(Number(f.min))}` }] : []),
+    ...(f.max ? [{ k: "max" as const, label: `hasta ${precioChip(Number(f.max))}` }] : []),
     ...f.caract.map((c) => ({ k: `c:${c}` as const, label: CHIPS_CARACT.find((x) => x.term === c)?.label ?? c })),
     ...(f.q ? [{ k: "q" as const, label: `“${f.q}”` }] : []),
   ];
@@ -290,6 +295,8 @@ export default function Catalogo() {
               tope={topePrecio}
               paso={pasoPrecio}
               moneda={moneda}
+              // Sin operación elegida el precio se lee en dólares (las ventas): decirlo.
+              nota={moneda === "ARS" ? "por mes" : f.operacion ? "" : "en venta"}
               onChange={(lo, hi) =>
                 setF((p) => ({ ...p, min: lo <= 0 ? "" : String(lo), max: hi >= topePrecio ? "" : String(hi) }))
               }
@@ -418,24 +425,40 @@ function FSelect({ value, onChange, options, ph, noEmpty }: { value: string; onC
 // Airbnb/Bochile). Dos ranges nativos superpuestos; el CSS .rango deja los eventos
 // SOLO en los thumbs. En el tope, el rango queda abierto ("300k+").
 function RangoPrecio({
-  min, max, tope, paso, moneda, onChange,
+  min, max, tope, paso, moneda, nota, onChange,
 }: {
   min: number;
   max: number;
   tope: number;
   paso: number;
   moneda: "USD" | "ARS";
+  nota?: string;
   onChange: (lo: number, hi: number) => void;
 }) {
   const fmt = (n: number) => (moneda === "ARS" ? fmtARS(n, { short: true }) : fmtUSD(n, { short: true }));
   const lo = Math.min(min, tope - paso);
   const hi = max > 0 ? Math.min(max, tope) : tope;
   const abierto = lo <= 0 && hi >= tope;
-  const etiqueta = abierto ? "Cualquiera" : `${fmt(lo)} – ${hi >= tope ? `${fmt(tope)}+` : fmt(hi)}`;
+  // Sin símbolos repetidos: la moneda la canta el badge, el rango va en números.
+  const desnudo = (n: number) => fmt(n).replace(/^(U\$S|\$)\s?/, "");
+  const etiqueta = abierto
+    ? "Cualquiera"
+    : `${desnudo(lo)} – ${hi >= tope ? `${desnudo(tope)}+` : desnudo(hi)}`;
   return (
-    <div className="rango w-full sm:w-60">
+    <div className="rango w-full sm:w-64">
       <div className="mb-0.5 flex items-baseline justify-between gap-3">
-        <span className="text-[10px] font-semibold uppercase tracking-widest2 text-graph-400">Precio</span>
+        <span className="flex items-baseline gap-1.5 text-[10px] font-semibold uppercase tracking-widest2 text-graph-400">
+          Precio
+          {/* Moneda SIEMPRE cantada: dólares en azul de marca, pesos en terracota. */}
+          <span
+            className={`rounded px-1.5 py-px text-[10px] font-bold tracking-normal ${
+              moneda === "USD" ? "bg-brand/10 text-brand-700" : "bg-clay/15 text-clay"
+            }`}
+          >
+            {moneda === "USD" ? "U$S" : "$ ARS"}
+          </span>
+          {nota && <span className="text-[9px] font-medium normal-case tracking-normal text-graph-400">{nota}</span>}
+        </span>
         <span className={`text-xs font-semibold ${abierto ? "text-graph-400" : "text-brand-700"}`}>{etiqueta}</span>
       </div>
       <div className="relative h-5">
