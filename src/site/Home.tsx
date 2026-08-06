@@ -119,10 +119,12 @@ export default function Home() {
               muted
               loop
               playsInline
-              poster="/video/hero-poster.jpg"
+              poster="/video/hero-mdq-poster.jpg"
               className="h-full w-full object-cover"
             >
-              <source src="/video/hero-loop.mp4" type="video/mp4" />
+              {/* hero-mdq: dron sobre playa urbana (Mixkit 20889, boomerang ida+vuelta,
+                  grade frío). Nombre NUEVO a propósito: cache-bust del hero-loop viejo. */}
+              <source src="/video/hero-mdq.mp4" type="video/mp4" />
             </video>
           )}
           {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
