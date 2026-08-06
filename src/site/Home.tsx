@@ -263,8 +263,8 @@ export default function Home() {
             </Link>
           </div>
           <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
-            {destacados.map((p) => (
-              <div key={p.id} className="reveal"><PropiedadCard p={p} /></div>
+            {destacados.map((p, i) => (
+              <div key={p.id} className="reveal"><PropiedadCard p={p} prioritaria={i < 3} /></div>
             ))}
           </div>
         </div>
@@ -306,10 +306,12 @@ export default function Home() {
               Dos paneles con materia distinta (navy fotográfico vs. papel con hairlines)
               y los cuatro servicios de siempre en tira editorial abajo. */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="reveal relative overflow-hidden rounded-2xl p-8 md:p-10">
+            {/* Los dos paneles son columnas flex y el botón va con mt-auto: quedan
+                alineados aunque uno tenga más texto que el otro (pedido Mateo 6-ago). */}
+            <div className="reveal relative flex overflow-hidden rounded-2xl p-8 md:p-10">
               <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url(/img/props/casa3.jpg)" }} aria-hidden />
               <div className="absolute inset-0 bg-gradient-to-br from-brand-950/[0.96] via-brand-950/[0.88] to-brand/70" aria-hidden />
-              <div className="relative">
+              <div className="relative flex w-full flex-col">
                 <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-widest2 text-sea">
                   <Camera size={15} /> 01 · Para quien vende
                 </p>
@@ -333,7 +335,7 @@ export default function Home() {
                   ))}
                 </ul>
                 {/* Mateo 5-ago: solo el botón, y manda al formulario (embudo → Mateo deriva). */}
-                <div className="mt-8">
+                <div className="mt-8 pt-2 md:mt-auto">
                   <button onClick={() => irAlFormulario("vender")} className="btn-primary !bg-white !text-brand-950 hover:!bg-sea-50">
                     Quiero vender <ArrowRight size={16} />
                   </button>
@@ -352,14 +354,15 @@ export default function Home() {
                 {[
                   "Búsqueda guiada según lo que necesitás y tu presupuesto",
                   "Visitas coordinadas y asesoramiento en la negociación",
-                  "Acompañamiento en toda la operación, de la reserva a la escritura",
+                  "Te acompañamos en todo el proceso: cada consulta, respondida",
+                  "Seguimiento hasta el final, de la reserva a la escritura",
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-3 py-3.5 text-sm leading-relaxed text-graph-500">
                     <Check size={15} className="mt-0.5 shrink-0 text-brand" /> {t}
                   </li>
                 ))}
               </ul>
-              <div className="mt-8">
+              <div className="mt-8 pt-2 md:mt-auto">
                 <button onClick={() => irAlFormulario("comprar")} className="btn-primary">
                   Quiero comprar <ArrowRight size={16} />
                 </button>

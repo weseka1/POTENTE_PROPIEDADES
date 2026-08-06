@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home, PenTool } from "lucide-react";
+import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home, PenTool, Pencil } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
@@ -261,8 +261,17 @@ export default function CampoDrawer({
 
             {/* acciones */}
             <div className="flex flex-wrap gap-2 pt-1">
+              {/* Editar completo (pedido Mateo 6-ago): abre el mismo formulario de
+                  carga con todo puesto, para cambiar fotos, video, datos y ficha. */}
               <Btn
                 variant="primary"
+                className="flex-1"
+                onClick={() => navigate(`/panel/cargar?id=${prop.id}`)}
+              >
+                <Pencil size={15} /> Editar propiedad
+              </Btn>
+              <Btn
+                variant="ghost"
                 className="flex-1"
                 onClick={() => {
                   const precio = fmtPrecio(prop);
@@ -270,7 +279,7 @@ export default function CampoDrawer({
                   window.open(`https://wa.me/?text=${msg}`, "_blank");
                 }}
               >
-                <MessageSquare size={15} /> Compartir por WhatsApp
+                <MessageSquare size={15} /> Compartir
               </Btn>
               <Btn
                 variant="ghost"

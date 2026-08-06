@@ -156,7 +156,9 @@ export default function Cartera() {
                     {c.destacado && <Badge tone="wheat" className="bg-white/90 backdrop-blur">★ Destacado</Badge>}
                   </div>
                   <div className="absolute bottom-3 right-3">
-                    <span className="rounded-lg bg-graph/85 px-2.5 py-1 font-display text-sm font-semibold text-graph backdrop-blur">
+                    {/* El precio estaba en texto oscuro sobre chapa oscura: no se leía
+                        (lo marcó Mateo, 6-ago). Va blanco sobre la chapa. */}
+                    <span className="rounded-lg bg-graph/85 px-2.5 py-1 font-display text-sm font-semibold text-white shadow-sm backdrop-blur">
                       {fmtPrecio(c, { short: true })}
                     </span>
                   </div>

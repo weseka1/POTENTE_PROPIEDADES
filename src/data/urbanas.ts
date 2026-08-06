@@ -36,7 +36,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-224497",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH en Estacion Norte",
     operacion: "alquiler",
     precioUSD: null,
@@ -144,7 +144,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-222311",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet en Chauvín · Ideal Estudio, Consultorio u Oficina · Excelente Ubicación",
     operacion: "venta",
     precioUSD: 127999,
@@ -171,7 +171,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-222304",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet en Chauvín · Construcción Sólida · Cochera · Apta Crédito",
     operacion: "venta",
     precioUSD: 127999,
@@ -198,7 +198,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-220752",
-    categoria: "local",
+    categoria: "oficina",
     titulo: "Oficina en El Jardin De Peralta Ramos",
     operacion: "alquiler",
     precioUSD: null,
@@ -224,7 +224,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-220745",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH en El Jardin De Peralta Ramos",
     operacion: "alquiler",
     precioUSD: null,
@@ -304,7 +304,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-219651",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH 2 ambientes",
     operacion: "alquiler",
     precioUSD: null,
@@ -357,7 +357,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-218900",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH en Peralta Ramos Oeste",
     operacion: "venta",
     precioUSD: 62000,
@@ -382,7 +382,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-218676",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH con cochera en Punta Mogotes",
     operacion: "venta",
     precioUSD: 65000,
@@ -460,7 +460,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-217432",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH en Barrio San Jose",
     operacion: "alquiler",
     precioUSD: null,
@@ -512,7 +512,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-215843",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet sobre lote de 917 m² con cochera en Bosques de Peralta Ramos",
     operacion: "venta",
     precioUSD: 219000,
@@ -563,7 +563,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-214854",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet con cochera en Punta Mogotes",
     operacion: "venta",
     precioUSD: 85000,
@@ -589,7 +589,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-214811",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet con cochera en Punta Mogotes",
     operacion: "venta",
     precioUSD: 75000,
@@ -919,7 +919,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-201760",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet al frente mas casa al fondo con posibilidad de quincho",
     operacion: "venta",
     precioUSD: 85000,
@@ -944,7 +944,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-200344",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH en Barrio Don Bosco",
     operacion: "venta",
     precioUSD: 57000,
@@ -995,7 +995,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-199565",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet mas departamento con cochera en Parque Luro",
     operacion: "venta",
     precioUSD: 160000,
@@ -1314,7 +1314,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-170876",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH a una cuadra de Clínica Colón",
     operacion: "venta",
     precioUSD: 95000,
@@ -1363,7 +1363,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-170757",
-    categoria: "local",
+    categoria: "galpon",
     titulo: "Galpón de 1165 m² sobre 12 de Octubre",
     operacion: "venta",
     precioUSD: 450000,
@@ -1412,7 +1412,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-166823",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "¡Retasado! Chalet de 3 ambientes mas departamento al fondo de 3 ambientes",
     operacion: "venta",
     precioUSD: 110000,
@@ -1511,7 +1511,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-161465",
-    categoria: "departamento",
+    categoria: "ph",
     titulo: "PH de 2 dormitorios en Barrio San Jose",
     operacion: "venta",
     precioUSD: 78000,
@@ -1649,7 +1649,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-155977",
-    categoria: "local",
+    categoria: "galpon",
     titulo: "Galpón 683 m² Cubiertos en Mar del Plata",
     operacion: "venta",
     precioUSD: 450000,
@@ -1719,7 +1719,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-154923",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 2 dormitorios en Colina de Peralta Ramos",
     operacion: "venta",
     precioUSD: 115000,
@@ -1831,7 +1831,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-154615",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 4 dormitorios con cochera en Punta Mogotes",
     operacion: "venta",
     precioUSD: 145000,
@@ -1857,7 +1857,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-154613",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 3 dormitorios con cochera en Punta Mogotes",
     operacion: "venta",
     precioUSD: 140000,
@@ -1883,7 +1883,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-154612",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 5 dormitorios en Punta Mogotes",
     operacion: "venta",
     precioUSD: 140000,
@@ -2007,7 +2007,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-154217",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 3 dormitorios con cochera en Colina de Peralta Ramos",
     operacion: "venta",
     precioUSD: 95000,
@@ -2220,7 +2220,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-153995",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 4 dormitorios en Punta Mogotes",
     operacion: "venta",
     precioUSD: 900000,
@@ -2271,7 +2271,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-153931",
-    categoria: "casa",
+    categoria: "chalet",
     titulo: "Chalet de 4 dormitorios en Colina de Peralta Ramos",
     operacion: "venta",
     precioUSD: 220000,
@@ -2413,7 +2413,7 @@ export const urbanas: Propiedad[] = [
   },
   {
     id: "POT-153256",
-    categoria: "local",
+    categoria: "galpon",
     titulo: "Galpón de 233 m² en El Gaucho",
     operacion: "venta",
     precioUSD: 62000,

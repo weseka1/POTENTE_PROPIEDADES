@@ -387,9 +387,11 @@ export default function Catalogo() {
             </div>
           ) : (
             <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
-              {resultados.map((p) => (
+              {resultados.map((p, i) => (
                 <div key={p.id} className="reveal">
-                  <PropiedadCard p={p} />
+                  {/* Las 3 primeras entran en pantalla sin scrollear: cargan con
+                      prioridad. Las demás, recién cuando el visitante se acerca. */}
+                  <PropiedadCard p={p} prioritaria={i < 3} />
                 </div>
               ))}
             </div>

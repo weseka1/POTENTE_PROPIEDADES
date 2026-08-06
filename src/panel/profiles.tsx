@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { usePanelAuth } from "./auth";
 
 export type Perfil = { id: string; nombre: string; rol: string; foto: string | null; color: string; admin?: boolean; permisos?: string[]; oficina?: "chauvin" | "puntamogotes" };
 
@@ -93,6 +94,9 @@ type Ctx = {
   add: () => void;
   update: (id: string, patch: Partial<Perfil>) => void;
   remove: (id: string) => void;
+  /** true cuando el perfil lo fija el usuario que entró y NO se puede cambiar
+   *  (una oficina no puede ponerse el sombrero de Dirección). */
+  perfilFijo: boolean;
 };
 const ProfilesCtx = createContext<Ctx | null>(null);
 export const useProfiles = () => { const c = useContext(ProfilesCtx); if (!c) throw new Error("useProfiles fuera de ProfilesProvider"); return c; };
@@ -102,12 +106,34 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
   const [activoId, setActivoId] = useState<string>(() => { try { return localStorage.getItem(LS_ACTIVO) || ""; } catch { return ""; } });
   const [gateOpen, setGateOpen] = useState<boolean>(() => { try { return !localStorage.getItem(LS_ACTIVO); } catch { return true; } });
 
+  // ── El usuario que entró manda sobre el perfil ──────────────────────────────
+  // Si alguien entra con el usuario de una oficina, el panel se pone en ESE
+  // perfil y no lo deja cambiar. Antes el perfil salía de localStorage y se
+  // elegía libremente: entrabas como Chauvín y podías ponerte "Mateo · Dirección".
+  // Los datos igual estaban protegidos por la base, pero la pantalla mentía.
+  // En la demo sin base no hay usuario, así que se sigue eligiendo a mano.
+  const { oficina: oficinaUsuario } = usePanelAuth();
+  const perfilDelUsuario = oficinaUsuario ? perfiles.find((p) => p.oficina === oficinaUsuario) : undefined;
+  const perfilFijo = Boolean(perfilDelUsuario);
+
   useEffect(() => { try { localStorage.setItem(LS_PERFILES, JSON.stringify(perfiles)); } catch { /* noop */ } }, [perfiles]);
   useEffect(() => { try { if (activoId) localStorage.setItem(LS_ACTIVO, activoId); } catch { /* noop */ } }, [activoId]);
 
-  const activo = perfiles.find((p) => p.id === activoId) || perfiles[0];
+  // Con perfil fijo, cerrar la pantalla de selección: no hay nada que elegir.
+  useEffect(() => {
+    if (perfilDelUsuario) {
+      setActivoId(perfilDelUsuario.id);
+      setGateOpen(false);
+    }
+  }, [perfilDelUsuario?.id]);
 
-  const pick = (id: string) => { setActivoId(id); setGateOpen(false); };
+  const activo = perfilDelUsuario ?? perfiles.find((p) => p.id === activoId) ?? perfiles[0];
+
+  const pick = (id: string) => {
+    if (perfilFijo) return; // una oficina no cambia de perfil
+    setActivoId(id);
+    setGateOpen(false);
+  };
   const update = (id: string, patch: Partial<Perfil>) => setPerfiles((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   const add = () => setPerfiles((ps) => {
     const id = "p" + Math.random().toString(36).slice(2, 8);
@@ -121,7 +147,12 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
   });
 
   return (
-    <ProfilesCtx.Provider value={{ perfiles, activo, gateOpen, openGate: () => setGateOpen(true), closeGate: () => setGateOpen(false), pick, add, update, remove }}>
+    <ProfilesCtx.Provider value={{
+      perfiles, activo, gateOpen,
+      openGate: () => { if (!perfilFijo) setGateOpen(true); },
+      closeGate: () => setGateOpen(false),
+      pick, add, update, remove, perfilFijo,
+    }}>
       {children}
     </ProfilesCtx.Provider>
   );

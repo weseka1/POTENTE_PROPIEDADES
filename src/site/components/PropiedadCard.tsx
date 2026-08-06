@@ -21,7 +21,8 @@ const estadoLabel: Record<string, string> = { reservado: "Reservado", vendido: "
 // Placeholder gris si una propiedad (de la DB real) no tiene foto → nunca rompe la card ni muestra el ícono de imagen rota.
 const NO_IMG = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
 
-export default function PropiedadCard({ p }: { p: Propiedad }) {
+/** `prioritaria` = está arriba de todo y se ve sin scrollear: su foto carga ya. */
+export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad; prioritaria?: boolean }) {
   const { esFavorito, toggle } = useFavorites();
   const fav = esFavorito(p.id);
 
@@ -46,7 +47,12 @@ export default function PropiedadCard({ p }: { p: Propiedad }) {
           src={p.fotos?.[0] || NO_IMG}
           onError={(e) => { e.currentTarget.src = NO_IMG; }}
           alt={p.titulo}
-          loading="lazy"
+          // Las primeras tarjetas se ven sin scrollear: cargan ya y con prioridad
+          // (son la imagen grande que mide Google). El resto, recién al acercarse.
+          loading={prioritaria ? "eager" : "lazy"}
+          fetchPriority={prioritaria ? "high" : "auto"}
+          // Decodificar fuera del hilo principal: la página no se traba mientras carga.
+          decoding="async"
           className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-graph/80 via-transparent to-transparent" />

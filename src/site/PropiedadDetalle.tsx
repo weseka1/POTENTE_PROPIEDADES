@@ -103,8 +103,10 @@ export default function PropiedadDetalle() {
         </Link>
       </div>
 
-      {/* Galería directa (R3-4, pedido Mateo): carrusel grande + tira con TODAS las fotos. */}
-      <section className="container-x mt-6">
+      {/* Galería directa (R3-4, pedido Mateo): carrusel grande + tira con TODAS las fotos.
+          El ancho se limita para que el 4:3 no quede desmesurado en pantallas grandes:
+          la proporción manda, y así la foto se ve ENTERA (sin el recorte del 16:9). */}
+      <section className="container-x mt-6 max-w-[900px]">
         <div
           className="relative overflow-hidden rounded-2xl"
           onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
@@ -115,7 +117,10 @@ export default function PropiedadDetalle() {
             touchX.current = null;
           }}
         >
-          <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[16/10] max-h-[560px] w-full object-cover md:aspect-[16/9]" />
+          {/* 4:3 — el formato en que Mateo saca las fotos (pedido 6-ago). En 16:9
+              se recortaban arriba y abajo y se perdía parte del ambiente.
+              Sin tope de altura: cualquier tope volvería a romper la proporción. */}
+          <img src={fotoActiva} onError={(e) => { e.currentTarget.src = NO_IMG; }} alt={p.titulo} className="aspect-[4/3] w-full object-cover" />
           <button
             onClick={() => toggle(p.id)}
             className={`absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full backdrop-blur transition ${

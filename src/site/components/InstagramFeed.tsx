@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Instagram, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { INSTAGRAM, REDES } from "@/config/marca";
 
@@ -9,6 +9,31 @@ import { INSTAGRAM, REDES } from "@/config/marca";
 export default function InstagramFeed() {
   const pista = useRef<HTMLDivElement>(null);
   const mover = (dir: 1 | -1) => pista.current?.scrollBy({ left: dir * 316, behavior: "smooth" });
+
+  // ── Rotación automática (idea de Juani, 6-ago) ─────────────────────────────
+  // Los reels avanzan solos cada 5 segundos y al llegar al final vuelven al
+  // principio. Se detiene mientras el visitante tiene el mouse encima o está
+  // deslizando: nada peor que una vitrina que se mueve justo cuando la mirás.
+  // Tampoco corre si la sección no está a la vista, ni si el sistema pide
+  // menos movimiento (accesibilidad).
+  const [pausada, setPausada] = useState(false);
+  useEffect(() => {
+    const pista_ = pista.current;
+    if (!pista_ || pausada) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let visible = false;
+    const observer = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }, { threshold: 0.3 });
+    observer.observe(pista_);
+
+    const id = setInterval(() => {
+      if (!visible) return;
+      const finDelRecorrido = pista_.scrollLeft + pista_.clientWidth >= pista_.scrollWidth - 8;
+      pista_.scrollTo({ left: finDelRecorrido ? 0 : pista_.scrollLeft + 316, behavior: "smooth" });
+    }, 5000);
+
+    return () => { clearInterval(id); observer.disconnect(); };
+  }, [pausada]);
 
   return (
     <section className="border-t border-graph/10 bg-paper-200/50 py-24">
@@ -29,7 +54,13 @@ export default function InstagramFeed() {
         </div>
 
         {INSTAGRAM.reels.length > 0 ? (
-          <div className="reveal relative">
+          <div
+            className="reveal relative"
+            // Se frena mientras la persona mira o interactúa con la vitrina.
+            onMouseEnter={() => setPausada(true)}
+            onMouseLeave={() => setPausada(false)}
+            onTouchStart={() => setPausada(true)}
+          >
             <div
               ref={pista}
               className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

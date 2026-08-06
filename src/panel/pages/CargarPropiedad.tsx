@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Home as HomeIcon, Sprout, FileText, User, Ruler, ClipboardCheck, Lock } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Home as HomeIcon, Sprout, FileText, User, Ruler, ClipboardCheck, Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import Select from "@/components/Select";
 import { supabase } from "@/lib/supabase";
-import { aDataUrlComprimida } from "@/lib/imagenes";
+import { aDataUrlComprimida, aArchivoWeb } from "@/lib/imagenes";
 import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 import { OFICINAS, getOficina } from "@/config/marca";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
@@ -46,25 +46,81 @@ const MEJORAS_URB = [
   "Riego", "Expensas", "Ascensores", "Patio", "Amenities", "Cochera", "Balcón", "Living", "Comedor", "Cocina",
 ];
 
+const FORM_VACIO = {
+  categoria: "departamento", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires", oficina: "",
+  direccion: "", precioUSD: "", precioARS: "", precioPorHa: "", hectareas: "", aptitud: "agrícola",
+  ambientes: "", dormitorios: "", banos: "", cocheras: "", m2cubiertos: "", m2totales: "",
+  descripcion: "", caracteristicas: "", estado: "disponible", destacado: false, esNuevo: true, esOportunidad: false,
+  video: "",
+  // ficha completa (estilo papel)
+  ficha: { autorizacionVenta: false, cartel: false, aptaCredito: false, llaves: false } as Ficha,
+};
+
+/** Pasa una propiedad guardada al formulario (los números viajan como texto). */
+function aFormulario(p: Propiedad) {
+  const t = (v: any) => (v === null || v === undefined ? "" : String(v));
+  return {
+    ...FORM_VACIO,
+    categoria: p.categoria, operacion: p.operacion, titulo: p.titulo,
+    zona: p.zona, provincia: p.provincia, oficina: p.oficina ?? "", direccion: p.direccion ?? "",
+    precioUSD: t(p.precioUSD), precioARS: t(p.precioARS), precioPorHa: t(p.precioPorHa),
+    hectareas: t(p.hectareas), aptitud: p.aptitud ?? "agrícola",
+    ambientes: t(p.ambientes), dormitorios: t(p.dormitorios), banos: t(p.banos), cocheras: t(p.cocheras),
+    m2cubiertos: t(p.m2cubiertos), m2totales: t(p.m2totales),
+    descripcion: p.descripcion ?? "", caracteristicas: (p.caracteristicas ?? []).join(", "),
+    estado: p.estado, destacado: Boolean(p.destacado),
+    esNuevo: Boolean(p.esNuevo), esOportunidad: Boolean(p.esOportunidad),
+    video: p.video ?? "",
+    ficha: { ...FORM_VACIO.ficha, ...(p.ficha ?? {}) } as Ficha,
+  };
+}
+
+/**
+ * Cargar y EDITAR propiedades — el mismo formulario para las dos cosas.
+ * Con `?id=POT-123` en la dirección abre esa propiedad con todo cargado (fotos,
+ * video, ficha, características) y al guardar la actualiza en vez de crear otra.
+ * Así editar una propiedad tiene exactamente las mismas posibilidades que crearla.
+ */
 export default function CargarPropiedad() {
-  const { addPropiedad } = useData();
+  const { addPropiedad, updatePropiedad, propiedades } = useData();
   const { push } = useToast();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const idEditar = params.get("id");
+  const original = idEditar ? propiedades.find((p) => p.id === idEditar) : undefined;
+  const editando = Boolean(original);
 
-  const [f, setF] = useState<any>({
-    categoria: "departamento", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires", oficina: "",
-    direccion: "", precioUSD: "", precioPorHa: "", hectareas: "", aptitud: "agrícola",
-    ambientes: "", dormitorios: "", banos: "", cocheras: "", m2cubiertos: "", m2totales: "",
-    descripcion: "", caracteristicas: "", estado: "disponible", destacado: false, esNuevo: true, esOportunidad: false,
-    video: "",
-    // ficha completa (estilo papel)
-    ficha: { autorizacionVenta: false, cartel: false, aptaCredito: false, llaves: false } as Ficha,
-  });
-  const [fotos, setFotos] = useState<string[]>([]);
-  const [planos, setPlanos] = useState<string[]>([]);
+  const [f, setF] = useState<any>(() => (original ? aFormulario(original) : { ...FORM_VACIO }));
+  const [fotos, setFotos] = useState<string[]>(() => original?.fotos ?? []);
+  const [planos, setPlanos] = useState<string[]>(() => original?.ficha?.planos ?? []);
+
+  // La cartera puede tardar en llegar de la base: cuando aparece, llenar el formulario.
+  const yaCargado = useRef(false);
+  useEffect(() => {
+    if (!original || yaCargado.current) return;
+    yaCargado.current = true;
+    setF(aFormulario(original));
+    setFotos(original.fotos ?? []);
+    setPlanos(original.ficha?.planos ?? []);
+  }, [original?.id]);
   const [subiendo, setSubiendo] = useState(false);
   const [subiendoPlano, setSubiendoPlano] = useState(false);
   const [guardado, setGuardado] = useState(false);
+
+  // ── Orden de las fotos (pedido Mateo 6-ago) ────────────────────────────────
+  // La foto 1 es la portada: la que se ve en el catálogo y en los destacados.
+  // Se puede arrastrar (escritorio) o mover con flechas (celular).
+  const [arrastrando, setArrastrando] = useState<number | null>(null);
+  const moverFoto = (desde: number | null, hasta: number) => {
+    if (desde === null || desde === hasta) return;
+    setFotos((p) => {
+      const next = [...p];
+      const [foto] = next.splice(desde, 1);
+      next.splice(hasta, 0, foto);
+      return next;
+    });
+    setArrastrando(null);
+  };
 
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const setFicha = (k: keyof Ficha, v: any) => setF((p: any) => ({ ...p, ficha: { ...p.ficha, [k]: v } }));
@@ -124,8 +180,17 @@ export default function CargarPropiedad() {
     for (const file of Array.from(files)) {
       try {
         if (supabase) {
-          const path = `${prefijo}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
-          const { error } = await supabase.storage.from("potente").upload(path, file, { upsert: true });
+          // Comprimir SIEMPRE antes de subir: la foto que saca un celular pesa
+          // 4-8 MB y así viaja entera al visitante. En WebP quedan 150-300 KB.
+          const liviana = await aArchivoWeb(file);
+          const path = `${prefijo}/${Date.now()}-${liviana.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+          const { error } = await supabase.storage.from("potente").upload(path, liviana, {
+            upsert: true,
+            contentType: liviana.type,
+            // Cada subida usa un nombre nuevo, así que el archivo nunca cambia:
+            // se puede cachear un año y el visitante que vuelve no la baja de nuevo.
+            cacheControl: "31536000",
+          });
           if (!error) {
             const url = supabase.storage.from("potente").getPublicUrl(path).data.publicUrl;
             setter((p) => [...p, url]);
@@ -165,11 +230,14 @@ export default function CargarPropiedad() {
     }
 
     const p: Propiedad = {
-      id: "PROP-" + Date.now(),
+      // Al editar se conserva el ID original: es el que usan la web, las
+      // reservas de temporada y las consultas ya asociadas.
+      id: original?.id ?? "PROP-" + Date.now(),
       categoria: f.categoria,
       titulo: f.titulo,
       operacion: f.operacion,
       precioUSD: num(f.precioUSD) ?? null,
+      precioARS: num(f.precioARS) ?? null,
       precioPorHa: esCampo ? num(f.precioPorHa) ?? null : null,
       zona: f.zona,
       provincia: f.provincia,
@@ -193,9 +261,14 @@ export default function CargarPropiedad() {
       oficina: f.oficina || undefined,
       ficha,
     };
-    await addPropiedad(p);
+    if (editando) {
+      await updatePropiedad(p.id, p);
+      push("Cambios guardados ✓ — ya se ven en la web", "success");
+    } else {
+      await addPropiedad(p);
+      push("Propiedad publicada ✓ — ya está en la web", "success");
+    }
     setGuardado(true);
-    push("Propiedad publicada ✓ — ya está en la web", "success");
     setTimeout(() => navigate("/panel/cartera"), 1400);
   };
 
@@ -214,11 +287,15 @@ export default function CargarPropiedad() {
   return (
     <form onSubmit={guardar}>
       <PageHeader
-        title="Cargar propiedad"
-        subtitle="La ficha completa de Potente, digital: cargá todos los datos como en la ficha de papel."
+        title={editando ? "Editar propiedad" : "Cargar propiedad"}
+        subtitle={
+          editando
+            ? `Cambiá lo que necesites: fotos, video, precio o cualquier dato de la ficha. ${original?.id ?? ""}`
+            : "La ficha completa de Potente, digital: cargá todos los datos como en la ficha de papel."
+        }
         actions={
           <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-white transition hover:bg-brand-600">
-            <UploadCloud size={16} /> Publicar propiedad
+            <UploadCloud size={16} /> {editando ? "Guardar cambios" : "Publicar propiedad"}
           </button>
         }
       />
@@ -384,16 +461,69 @@ export default function CargarPropiedad() {
               <span className="text-xs text-graph-400">JPG, PNG — varias a la vez</span>
             </label>
             {fotos.length > 0 && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {fotos.map((src, i) => (
-                  <div key={i} className="group relative overflow-hidden rounded-lg ring-1 ring-graph/10">
-                    <img src={src} alt="" className="aspect-square w-full object-cover" />
-                    <button type="button" onClick={() => setFotos((p) => p.filter((_, j) => j !== i))} className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-graph/80 text-white opacity-0 transition group-hover:opacity-100">
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <>
+                <p className="mt-4 text-xs text-graph-400">
+                  <b className="font-semibold text-graph-500">La primera es la portada.</b>{" "}
+                  Arrastrá para reordenar, o usá las flechas.
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {fotos.map((src, i) => (
+                    <div
+                      key={`${src}-${i}`}
+                      // Arrastrar y soltar para reordenar (escritorio).
+                      draggable
+                      onDragStart={() => setArrastrando(i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => moverFoto(arrastrando, i)}
+                      onDragEnd={() => setArrastrando(null)}
+                      className={`group relative cursor-grab overflow-hidden rounded-lg ring-1 transition active:cursor-grabbing ${
+                        arrastrando === i ? "opacity-40 ring-brand" : "ring-graph/10"
+                      }`}
+                    >
+                      {/* 4:3 como las saca la cámara: así se ve la foto entera, sin recortes. */}
+                      <img src={src} alt="" className="aspect-[4/3] w-full object-cover" />
+
+                      {i === 0 && (
+                        <span className="absolute left-1 top-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white">
+                          PORTADA
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setFotos((p) => p.filter((_, j) => j !== i))}
+                        title="Quitar esta foto"
+                        className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-graph/80 text-white opacity-0 transition group-hover:opacity-100"
+                      >
+                        <X size={13} />
+                      </button>
+
+                      {/* Flechas: en el celular no se puede arrastrar. */}
+                      <div className="absolute inset-x-1 bottom-1 flex items-center justify-between opacity-0 transition group-hover:opacity-100">
+                        <button
+                          type="button"
+                          disabled={i === 0}
+                          onClick={() => moverFoto(i, i - 1)}
+                          title="Mover antes"
+                          className="grid h-6 w-6 place-items-center rounded-full bg-white/90 text-graph shadow disabled:opacity-30"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        <span className="rounded-full bg-graph/70 px-1.5 text-[10px] font-semibold text-white">{i + 1}</span>
+                        <button
+                          type="button"
+                          disabled={i === fotos.length - 1}
+                          onClick={() => moverFoto(i, i + 1)}
+                          title="Mover después"
+                          className="grid h-6 w-6 place-items-center rounded-full bg-white/90 text-graph shadow disabled:opacity-30"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </section>
 

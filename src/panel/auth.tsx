@@ -11,10 +11,16 @@ const DEMO_PASS = "potente2026";
  *  decidir si muestra el acceso de prueba. Con base conectada, no se muestra. */
 export const PUENTE_DEMO_ACTIVO = !supabase;
 
+export type OficinaUsuario = "chauvin" | "puntamogotes" | null;
+
 type AuthCtx = {
   authed: boolean;
   loading: boolean;
   email: string | null;
+  /** Oficina del usuario que entró, tomada del token. null = dirección (ve todo).
+   *  Sale de app_metadata, que solo se escribe desde el servidor: el usuario no
+   *  puede cambiarla desde el navegador. */
+  oficina: OficinaUsuario;
   signIn: (email: string, pass: string) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
 };
@@ -46,6 +52,9 @@ export function PanelAuthProvider({ children }: { children: ReactNode }) {
 
   const authed = !!session || demo;
   const email = session?.user?.email || (demo ? DEMO_EMAIL : null);
+  // La oficina viaja en el token. En modo demo (sin base) no hay ninguna: se
+  // sigue eligiendo el perfil a mano, como en la demo de siempre.
+  const oficina: OficinaUsuario = session?.user?.app_metadata?.oficina ?? null;
 
   const signIn = async (em: string, pass: string) => {
     const e = em.trim().toLowerCase();
@@ -72,5 +81,5 @@ export function PanelAuthProvider({ children }: { children: ReactNode }) {
     if (supabase) { try { await supabase.auth.signOut(); } catch { /* noop */ } }
   };
 
-  return <Ctx.Provider value={{ authed, loading, email, signIn, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ authed, loading, email, oficina, signIn, signOut }}>{children}</Ctx.Provider>;
 }
