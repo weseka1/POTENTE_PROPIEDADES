@@ -119,12 +119,14 @@ export default function Home() {
               muted
               loop
               playsInline
-              poster="/video/hero-mdq-poster.jpg"
+              poster="/video/hero-poster.jpg"
               className="h-full w-full object-cover"
             >
-              {/* hero-mdq: dron sobre playa urbana (Mixkit 20889, boomerang ida+vuelta,
-                  grade frío). Nombre NUEVO a propósito: cache-bust del hero-loop viejo. */}
-              <source src="/video/hero-mdq.mp4" type="video/mp4" />
+              {/* El video que eligió Mateo: el boomerang del mar (loop sin corte).
+                  El 5-ago probamos uno de dron sobre playa urbana y lo descartó:
+                  prefiere este. El de dron quedó en el historial de git por si
+                  alguna vez se quiere volver (commit 6a07eaf). */}
+              <source src="/video/hero-loop.mp4" type="video/mp4" />
             </video>
           )}
           {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
