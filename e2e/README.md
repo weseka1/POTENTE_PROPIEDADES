@@ -45,6 +45,7 @@ sin las variables de Supabase** (o migrarse, ver abajo).
 | `sweep-final.mjs` | Las 22 rutas del panel y del sitio: que rendericen y **no tiren un solo error de consola** | sesión real | 22 |
 | `deforma.mjs` | Que ninguna ruta estire la página en pantallas angostas (320 y 390 px) | público | 40 |
 | `visitante-sin-ficha.mjs` | **Qué se lleva el navegador de un desconocido.** Espía el tráfico a Supabase: que pida la vista y no la tabla, que no le llegue la ficha interna (propietario, llaves) y que no pida las tablas del panel | público | 7 |
+| `seguridad.mjs` | **Sin navegador, como el que ataca.** Que el Probador de IA no se pueda usar sin sesión (era un proxy abierto a Anthropic), que Marina tenga cupo por IP y que estén las cabeceras de seguridad | pedidos crudos | 9 |
 | `flujos.mjs` | Alta, edición, baja y persistencia de clientes, visitas, tasaciones, contratos, propiedades y reservas. Anti doble reserva. Que el PDF y la planilla **bajen de verdad** | modo demo | 20 |
 | `botones2.mjs` | Hace click en **cada botón** del panel, recargando y reseteando antes de cada uno. Detecta botones rotos o sin efecto | modo demo | 411 botones |
 | `test-bandeja.mjs` | La bandeja del Asistente: burbujas por canal, filtros, WhatsApp con el texto correcto, confirmación de envío, tomar/devolver/cerrar | modo demo | 41 |
@@ -58,7 +59,7 @@ Además, fuera de `e2e/` hay dos verificaciones que corren **contra la base real
 (no necesitan Chrome) y son las más importantes del proyecto:
 
 ```bash
-npm run verificar-db    # 34 · aislamiento por oficina, permisos, integridad, auditoría
+npm run verificar-db    # 37 · aislamiento por oficina, permisos, integridad, auditoría
 npm run verificar-pin   # 10 · el PIN de cada perfil
 ```
 

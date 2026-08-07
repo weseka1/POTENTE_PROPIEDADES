@@ -6,6 +6,7 @@ import {
   Send, Loader2, KeyRound, Upload,
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import { canalLabel } from "../ui/estados";
@@ -133,9 +134,16 @@ Respondé corto, humano y al grano, como un WhatsApp. NO inventes datos (precios
 async function responderConClaude(cfg: IAConfig, msgs: { role: string; content: string }[], key: string): Promise<string> {
   // Sin key en el navegador → usa el servidor (la clave vive segura ahí, como en producción).
   if (!key) {
+    // El Probador va con la sesión del panel: del otro lado se verifica contra
+    // Supabase. Sin esto el endpoint quedaba abierto a cualquiera de internet.
+    const { data: s } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+    const token = s?.session?.access_token;
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ system: buildSystem(cfg), messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
     });
     const data = await res.json().catch(() => ({} as any));

@@ -52,7 +52,7 @@ entrar; lo administra Dirección desde "Administrar perfiles".
 ## Verificar que todo sigue sano
 
 ```bash
-npm run verificar-db    # 34 pruebas: aislamiento por oficina, permisos, integridad
+npm run verificar-db    # 37 pruebas: aislamiento por oficina, permisos, integridad
 npm run verificar-pin   # 10 pruebas: el PIN de cada perfil
 node e2e/sweep-final.mjs   # 22 rutas sin errores de consola
 node e2e/deforma.mjs       # 40 chequeos de que nada desborde en 320 y 390px

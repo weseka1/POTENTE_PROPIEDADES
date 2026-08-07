@@ -3,6 +3,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { atenderAsistente, chatGenerico } from "../netlify/functions/_core";
+import { pasaElCupo, ipDe, tieneSesionDePanel, CABECERAS_SEGURIDAD } from "../netlify/functions/_seguridad";
 
 // ── Server de producción para Render ──────────────────────────────────────────
 // Sirve el build estático (dist/) + expone el asistente en POST /api/asistente.
@@ -25,14 +26,48 @@ try {
 } catch { /* sin .env.local */ }
 
 const app = express();
+
+// Express anuncia "x-powered-by: Express" en cada respuesta. Es regalarle al que
+// escanea la mitad del trabajo: le dice con qué está hecho y qué exploits probar.
+app.disable("x-powered-by");
+
+// Confiar en el proxy de Render/Cloudflare para leer la IP real del visitante.
+app.set("trust proxy", true);
+
+// Cabeceras de seguridad en TODA respuesta (HSTS, anti-clickjacking, etc.).
+app.use((_req, res, next) => {
+  for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
+  next();
+});
+
 app.use(express.json({ limit: "256kb" }));
 
+// ── Marina, el asistente de la web ───────────────────────────────────────────
+// Público a la fuerza: lo usa cualquier visitante. Se limita por IP para que
+// nadie lo use de canilla libre contra la cuenta de Anthropic.
 app.post("/api/asistente", async (req, res) => {
+  const cupo = pasaElCupo(ipDe(req.headers), "asistente");
+  if (!cupo.ok) {
+    res.setHeader("Retry-After", String(cupo.esperarS));
+    return res.status(429).json({ error: "Vas muy rápido. Probá de nuevo en un momento." });
+  }
   const { status, data } = await atenderAsistente(req.body);
   res.status(status).json(data);
 });
 
+// ── El Probador del panel ────────────────────────────────────────────────────
+// 🔒 CERRADO. Antes cualquiera podía mandarle un curl con el system prompt que
+// quisiera y gastar la cuenta de Anthropic: es un chat genérico con la clave del
+// servidor. Ahora exige sesión de panel.
 app.post("/api/chat", async (req, res) => {
+  if (!(await tieneSesionDePanel(req.headers.authorization))) {
+    return res.status(401).json({ error: "Hace falta entrar al panel para usar el Probador." });
+  }
+  const cupo = pasaElCupo(ipDe(req.headers), "chat");
+  if (!cupo.ok) {
+    res.setHeader("Retry-After", String(cupo.esperarS));
+    return res.status(429).json({ error: "Demasiadas pruebas seguidas. Esperá un momento." });
+  }
   const { status, data } = await chatGenerico(req.body);
   res.status(status).json(data);
 });

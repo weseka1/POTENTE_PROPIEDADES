@@ -192,6 +192,57 @@ async function main() {
   });
   chequear("NO puede saltear la bandeja central autoasignando oficina", Boolean(errLeadTrucho));
 
+  console.log("\n═══ 2b · LA PUERTA CIERRA SOLA ═══\n");
+
+  // El agujero más feo que salió en la auditoría del 7-ago: "no tener oficina"
+  // significaba VER TODO (así entraba Mateo), y una cuenta recién creada tampoco
+  // tiene oficina. Encima el registro público estaba abierto. Una cuenta
+  // desconocida nacía con los permisos de la dirección.
+  //
+  // Ahora la dirección se declara con rol=direccion en app_metadata, que solo se
+  // escribe desde el backend. Estas pruebas cuidan las dos mitades.
+
+  const { data: sesionMateo } = await mateo.auth.getSession();
+  const claims = (() => {
+    try {
+      const t = sesionMateo?.session?.access_token ?? "";
+      return JSON.parse(Buffer.from(t.split(".")[1], "base64").toString("utf8"));
+    } catch { return {}; }
+  })();
+  chequear(
+    "La dirección se declara EXPLÍCITAMENTE (rol en el token)",
+    claims?.app_metadata?.rol === "direccion",
+    `rol=${claims?.app_metadata?.rol ?? "(ninguno)"}`
+  );
+  chequear(
+    "Y no le cuelga de 'no tener oficina'",
+    claims?.app_metadata?.oficina === undefined,
+    "Mateo no tiene oficina, pero eso ya no le da permisos"
+  );
+
+  // Registro público: si está abierto, cualquiera se crea una cuenta con la clave
+  // que viaja en la web. Hoy el mail sin confirmar lo frena, pero eso es un
+  // interruptor. Que esté cerrado es el candado de verdad.
+  // La sonda va con una contraseña de UNA letra a propósito: Supabase revisa si
+  // el registro está permitido ANTES de mirar la contraseña, así que la respuesta
+  // dice en qué estado está sin llegar a crear ninguna cuenta.
+  //   registro cerrado → error_code "signup_disabled"
+  //   registro abierto → error_code "weak_password" (o sea: te habría dejado)
+  const registro = await fetch(`${URL}/auth/v1/signup`, {
+    method: "POST",
+    headers: { apikey: KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "sonda.verificacion@potenteprop.com.ar", password: "a" }),
+  });
+  const cuerpoReg: any = await registro.json().catch(() => ({}));
+  const codigo = String(cuerpoReg?.error_code ?? "");
+  chequear(
+    "El registro público está CERRADO",
+    /signup_disabled|not_allowed/i.test(codigo),
+    codigo === "weak_password"
+      ? "🔴 ABIERTO — Supabase → Authentication → Sign In / Providers → apagar 'Allow new users to sign up'"
+      : codigo || `HTTP ${registro.status}`
+  );
+
   console.log("\n═══ 3 · INTEGRIDAD DE LOS DATOS ═══\n");
 
   // Doble reserva: tomo una reserva real y trato de pisarla con otra que se solape.

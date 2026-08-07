@@ -108,6 +108,10 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
 
     return { status: 200, data: { respuesta, camposIds, lead } };
   } catch (e: any) {
-    return { status: 502, data: { error: "El asistente no está disponible en este momento.", detail: String(e?.message ?? e) } };
+    // El detalle del error va al log del servidor, NO al navegador: los mensajes
+    // de la API traen nombres de modelo, ids de organización y estado de la
+    // cuenta. Eso no tiene por qué verlo un visitante.
+    console.error("Asistente · fallo llamando a Anthropic:", e?.message ?? e);
+    return { status: 502, data: { error: "El asistente no está disponible en este momento." } };
   }
 }
