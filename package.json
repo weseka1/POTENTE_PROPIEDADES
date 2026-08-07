@@ -13,7 +13,8 @@
     "start": "tsx server/index.ts",
     "sembrar": "tsx scripts/sembrar-db.ts",
     "verificar-db": "tsx scripts/verificar-db.ts",
-    "verificar-pin": "tsx scripts/verificar-pin.ts"
+    "verificar-pin": "tsx scripts/verificar-pin.ts",
+    "cerrar-puerta": "node scripts/cerrar-puerta.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
