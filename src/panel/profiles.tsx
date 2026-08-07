@@ -8,11 +8,19 @@ import { supabase } from "@/lib/supabase";
    (hasheado) para que valga desde cualquier computadora y no se pueda borrar
    desde el navegador. Ver 02_INFRA/supabase (migración potente_09_pin_por_perfil). */
 
-/** ¿Ese perfil pide PIN? Sin base de datos, nunca. */
+/** ¿Ese perfil pide PIN? Sin base de datos, nunca.
+ *
+ *  ⚠️ Si la consulta FALLA no se asume "no pide PIN": eso haría que un problema
+ *  de red o una función faltante desactive el control sin que nadie se entere.
+ *  Ante la duda se pide el PIN, y quien lo sepa entra igual. */
 export async function perfilPideePin(perfilId: string): Promise<boolean> {
   if (!supabase) return false;
   const { data, error } = await supabase.rpc("potente_pin_puesto", { p_perfil: perfilId });
-  return !error && data === true;
+  if (error) {
+    console.error("No se pudo consultar el PIN del perfil:", error.message);
+    return true; // fallar cerrado
+  }
+  return data === true;
 }
 
 /** Prueba un PIN. La base compara contra el hash; el PIN nunca viaja de vuelta. */

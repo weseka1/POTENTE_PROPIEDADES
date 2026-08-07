@@ -52,7 +52,10 @@ async function main() {
   const chauvin = await entrar("chauvin");
   const anon = createClient(URL, KEY, { auth: { persistSession: false } });
 
-  const PERFIL = "puntamogotes";
+  // ⚠️ Perfil de juguete, NO uno real. Esta prueba pone un PIN y después lo saca:
+  // si corriera sobre "puntamogotes", cada verificación le borraría a Mateo el PIN
+  // que puso, en producción y sin avisar.
+  const PERFIL = "__verificacion__";
   const PIN = "4821";
 
   // 1 · Dirección pone el PIN
@@ -88,6 +91,16 @@ async function main() {
   // 7 · Un PIN corto se rechaza
   const corto = await mateo.rpc("potente_pin_definir", { p_perfil: PERFIL, p_pin: "12" });
   chequear("Rechaza un PIN de menos de 4 números", Boolean(corto.error));
+
+  // 8 · Los PIN reales quedaron como estaban (la prueba no pisa nada de Mateo)
+  const reales = await Promise.all(
+    ["mateo", "chauvin", "puntamogotes"].map((p) => mateo.rpc("potente_pin_puesto", { p_perfil: p })),
+  );
+  chequear("Ningún PIN real se rompió con la prueba", reales.every((r) => !r.error),
+    reales.map((r, i) => `${["mateo", "chauvin", "puntamogotes"][i]}:${r.data ? "con PIN" : "sin PIN"}`).join(" · "));
+
+  // Limpieza: que no quede el perfil de juguete dando vueltas.
+  await mateo.rpc("potente_pin_definir", { p_perfil: PERFIL, p_pin: "" });
 
   console.log(`\n${"═".repeat(46)}`);
   console.log(`  ${ok} pruebas OK · ${fallos.length} fallaron`);

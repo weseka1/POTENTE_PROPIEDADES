@@ -225,157 +225,223 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveLocal("reservas_temporada", reservasTemporada); }, [reservasTemporada]);
   useEffect(() => { saveLocal("conversaciones", conversaciones); }, [conversaciones]);
 
-  // Sincronizar desde Supabase (en segundo plano; si falla, quedan los datos locales)
+  // Sincronizar desde Supabase (en segundo plano; si falla, quedan los datos locales).
+  //
+  // Se sincroniza al arrancar y otra vez cuando alguien entra o sale del panel:
+  // lo que devuelve la base depende de quién pregunta, así que un login tiene que
+  // volver a pedir los datos (si no, el panel recién abierto se queda con lo que
+  // veía el visitante).
   useEffect(() => {
     let cancel = false;
-    (async () => {
+    let ultimaSesion: boolean | null = null;
+
+    const sincronizar = async (haySesion: boolean) => {
       if (!supabase) { setLoading(false); return; }
       try {
-        const [p, l, c, o, v, t, a, ut, rt, cv] = await Promise.all([
-          supabase.from("potente_propiedades").select("*"),
-          supabase.from("potente_leads").select("*"),
-          supabase.from("potente_clientes").select("*"),
-          supabase.from("potente_operaciones").select("*"),
-          supabase.from("potente_visitas").select("*"),
-          supabase.from("potente_tasaciones").select("*"),
-          supabase.from("potente_arrendamientos").select("*"),
+        // El visitante de la web lee la VISTA, no la tabla: trae solo lo publicado
+        // y SIN la ficha interna (propietario, llaves, observaciones). El equipo
+        // logueado sí lee la tabla completa, porque el panel necesita la ficha y
+        // las propiedades sin publicar. La base igual filtra por RLS: esto no es
+        // el candado, es no pedir de más.
+        const fuentePropiedades = haySesion ? "potente_propiedades" : "potente_propiedades_web";
+
+        // El visitante solo necesita catálogo y temporada. Las otras ocho tablas
+        // son del panel: pedírselas era un viaje a São Paulo por cada una para que
+        // el RLS devolviera vacío. Ocho idas y vueltas menos en cada visita.
+        const [p, ut] = await Promise.all([
+          supabase.from(fuentePropiedades).select("*"),
           supabase.from("potente_unidades_temporada").select("*"),
-          supabase.from("potente_reservas_temporada").select("*"),
-          supabase.from("potente_conversaciones").select("*"),
         ]);
         if (cancel) return;
         if (p.data?.length) setPropiedades(p.data as Propiedad[]);
-        if (l.data) setLeads(l.data as Lead[]);
-        if (c.data) setClientes(c.data as Cliente[]);
-        if (o.data) setOperaciones(o.data as Operacion_[]);
-        if (v.data) setVisitas(v.data as Visita[]);
-        if (t.data) setTasaciones(t.data as Tasacion[]);
-        if (a.data) setArrendamientos(a.data as Arrendamiento[]);
         // Temporada: si la tabla existe y responde, manda la base (aunque esté vacía).
         if (!ut.error && ut.data) setUnidadesTemporada(ut.data as UnidadTemporada[]);
-        if (!rt.error && rt.data) setReservasTemporada(rt.data as ReservaTemporada[]);
-        if (!cv.error && cv.data) setConversaciones(cv.data as Conversacion[]);
         if (!p.error) setOnline(true);
+
+        if (haySesion) {
+          const [l, c, o, v, t, a, rt, cv] = await Promise.all([
+            supabase.from("potente_leads").select("*"),
+            supabase.from("potente_clientes").select("*"),
+            supabase.from("potente_operaciones").select("*"),
+            supabase.from("potente_visitas").select("*"),
+            supabase.from("potente_tasaciones").select("*"),
+            supabase.from("potente_arrendamientos").select("*"),
+            supabase.from("potente_reservas_temporada").select("*"),
+            supabase.from("potente_conversaciones").select("*"),
+          ]);
+          if (cancel) return;
+          if (l.data) setLeads(l.data as Lead[]);
+          if (c.data) setClientes(c.data as Cliente[]);
+          if (o.data) setOperaciones(o.data as Operacion_[]);
+          if (v.data) setVisitas(v.data as Visita[]);
+          if (t.data) setTasaciones(t.data as Tasacion[]);
+          if (a.data) setArrendamientos(a.data as Arrendamiento[]);
+          if (!rt.error && rt.data) setReservasTemporada(rt.data as ReservaTemporada[]);
+          if (!cv.error && cv.data) setConversaciones(cv.data as Conversacion[]);
+        }
       } catch {
         /* offline → datos locales */
       } finally {
         if (!cancel) setLoading(false);
       }
-    })();
-    return () => { cancel = true; };
+    };
+
+    if (!supabase) { setLoading(false); return; }
+
+    // onAuthStateChange dispara una vez al suscribirse (INITIAL_SESSION), así que
+    // esa primera vez hace de carga inicial. Después solo se re-sincroniza si
+    // cambió el HECHO de estar logueado: los refrescos de token no cuentan.
+    const { data: sub } = supabase.auth.onAuthStateChange((_evento, sesion) => {
+      const hay = Boolean(sesion);
+      if (hay === ultimaSesion) return;
+      ultimaSesion = hay;
+      // Fuera del callback: supabase-js tiene tomado el candado de sesión mientras
+      // corre, y consultar la base ahí mismo puede quedar esperando para siempre.
+      setTimeout(() => { if (!cancel) void sincronizar(hay); }, 0);
+    });
+
+    return () => { cancel = true; sub.subscription.unsubscribe(); };
   }, []);
+
+
+/**
+ * Corre una operación contra la base y AVISA si falla.
+ *
+ * Antes cada llamada terminaba en `.then(() => {}, () => {})`, que descarta el
+ * error sin dejar rastro. Eso escondió un bug real: entre el 6 y el 7-ago el
+ * formulario de la web usaba `upsert`, la base lo rechazaba por permisos, y el
+ * visitante igual veía "¡Consulta enviada!". Nadie se enteró hasta auditarlo.
+ * Que un error de base sea invisible es peor que el error.
+ */
+async function aviso<T extends { error: unknown }>(que: string, op: PromiseLike<T>) {
+  try {
+    const r = await op;
+    if (r?.error) console.error(`Base de datos · ${que}:`, r.error);
+    return r;
+  } catch (e) {
+    console.error(`Base de datos · ${que} (sin conexión):`, e);
+    return undefined;
+  }
+}
 
   // ===== mutaciones (actualizan estado local SIEMPRE + DB si hay conexión) =====
   const addPropiedad = async (p: Propiedad) => {
     setPropiedades((prev) => [p, ...prev]);
-    if (supabase) await supabase.from("potente_propiedades").upsert(p).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_propiedades", supabase.from("potente_propiedades").upsert(p));
   };
   const updatePropiedad = async (id: string, patch: Partial<Propiedad>) => {
     setPropiedades((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_propiedades").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_propiedades", supabase.from("potente_propiedades").update(patch).eq("id", id));
   };
   const deletePropiedad = async (id: string) => {
     setPropiedades((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_propiedades").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_propiedades", supabase.from("potente_propiedades").delete().eq("id", id));
   };
   const addLead = async (l: Lead) => {
     setLeads((prev) => [l, ...prev]);
-    if (supabase) await supabase.from("potente_leads").upsert(l).then(() => {}, () => {});
+    if (!supabase) return;
+    // ⚠️ INSERT, no upsert. El formulario de la web lo usa un VISITANTE (rol anon),
+    // y su permiso es solo de inserción: un upsert es "insert or update" y la base
+    // lo rechaza entero con 42501. Entre el 6 y el 7-ago esto hizo que ninguna
+    // consulta de la web se guardara, y en silencio. El id lleva Date.now(), así
+    // que no hay colisión posible y el upsert nunca hizo falta.
+    const { error } = await supabase.from("potente_leads").insert(l);
+    if (error) console.error("No se pudo guardar la consulta:", error.message, error.code);
   };
   const updateLead = async (id: string, patch: Partial<Lead>) => {
     setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_leads").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_leads", supabase.from("potente_leads").update(patch).eq("id", id));
   };
   const updateOperacion = async (id: string, patch: Partial<Operacion_>) => {
     setOperaciones((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_operaciones").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_operaciones", supabase.from("potente_operaciones").update(patch).eq("id", id));
   };
   const addCliente = async (c: Cliente) => {
     setClientes((prev) => [c, ...prev]);
-    if (supabase) await supabase.from("potente_clientes").upsert(c).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_clientes", supabase.from("potente_clientes").upsert(c));
   };
   const updateCliente = async (id: string, patch: Partial<Cliente>) => {
     setClientes((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_clientes").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_clientes", supabase.from("potente_clientes").update(patch).eq("id", id));
   };
   const deleteCliente = async (id: string) => {
     setClientes((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_clientes").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_clientes", supabase.from("potente_clientes").delete().eq("id", id));
   };
   const addVisita = async (v: Visita) => {
     setVisitas((prev) => [v, ...prev]);
-    if (supabase) await supabase.from("potente_visitas").upsert(v).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_visitas", supabase.from("potente_visitas").upsert(v));
   };
   const updateVisita = async (id: string, patch: Partial<Visita>) => {
     setVisitas((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_visitas").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_visitas", supabase.from("potente_visitas").update(patch).eq("id", id));
   };
   const addTasacion = async (t: Tasacion) => {
     setTasaciones((prev) => [t, ...prev]);
-    if (supabase) await supabase.from("potente_tasaciones").upsert(t).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_tasaciones", supabase.from("potente_tasaciones").upsert(t));
   };
   const updateTasacion = async (id: string, patch: Partial<Tasacion>) => {
     setTasaciones((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_tasaciones").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_tasaciones", supabase.from("potente_tasaciones").update(patch).eq("id", id));
   };
   const addArrendamiento = async (a: Arrendamiento) => {
     setArrendamientos((prev) => [a, ...prev]);
-    if (supabase) await supabase.from("potente_arrendamientos").upsert(a).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_arrendamientos", supabase.from("potente_arrendamientos").upsert(a));
   };
   const updateArrendamiento = async (id: string, patch: Partial<Arrendamiento>) => {
     setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_arrendamientos").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_arrendamientos", supabase.from("potente_arrendamientos").update(patch).eq("id", id));
   };
   const addUnidadTemporada = async (u: UnidadTemporada) => {
     setUnidadesTemporada((prev) => [u, ...prev]);
-    if (supabase) await supabase.from("potente_unidades_temporada").upsert(u).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_unidades_temporada", supabase.from("potente_unidades_temporada").upsert(u));
   };
   const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>) => {
     setUnidadesTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_unidades_temporada").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_unidades_temporada", supabase.from("potente_unidades_temporada").update(patch).eq("id", id));
   };
   // Sacar una unidad de temporada también borra sus reservas (no dejamos huérfanas).
   const deleteUnidadTemporada = async (id: string) => {
     setUnidadesTemporada((prev) => prev.filter((x) => x.id !== id));
     setReservasTemporada((prev) => prev.filter((r) => r.unidadId !== id));
     if (supabase) {
-      await supabase.from("potente_reservas_temporada").delete().eq("unidadId", id).then(() => {}, () => {});
-      await supabase.from("potente_unidades_temporada").delete().eq("id", id).then(() => {}, () => {});
+      await aviso("delete en potente_reservas_temporada", supabase.from("potente_reservas_temporada").delete().eq("unidadId", id));
+      await aviso("delete en potente_unidades_temporada", supabase.from("potente_unidades_temporada").delete().eq("id", id));
     }
   };
   const deleteReservaTemporada = async (id: string) => {
     setReservasTemporada((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_reservas_temporada").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_reservas_temporada", supabase.from("potente_reservas_temporada").delete().eq("id", id));
   };
   const deleteLead = async (id: string) => {
     setLeads((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_leads").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_leads", supabase.from("potente_leads").delete().eq("id", id));
   };
   const deleteTasacion = async (id: string) => {
     setTasaciones((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_tasaciones").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_tasaciones", supabase.from("potente_tasaciones").delete().eq("id", id));
   };
   const deleteVisita = async (id: string) => {
     setVisitas((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_visitas").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_visitas", supabase.from("potente_visitas").delete().eq("id", id));
   };
   const deleteArrendamiento = async (id: string) => {
     setArrendamientos((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_arrendamientos").delete().eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("delete en potente_arrendamientos", supabase.from("potente_arrendamientos").delete().eq("id", id));
   };
   const addReservaTemporada = async (r: ReservaTemporada) => {
     setReservasTemporada((prev) => [r, ...prev]);
-    if (supabase) await supabase.from("potente_reservas_temporada").upsert(r).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_reservas_temporada", supabase.from("potente_reservas_temporada").upsert(r));
   };
   const updateReservaTemporada = async (id: string, patch: Partial<ReservaTemporada>) => {
     setReservasTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await supabase.from("potente_reservas_temporada").update(patch).eq("id", id).then(() => {}, () => {});
+    if (supabase) await aviso("update en potente_reservas_temporada", supabase.from("potente_reservas_temporada").update(patch).eq("id", id));
   };
 
   // ===== Bandeja de conversaciones =====
   // Toda edición reescribe la conversación completa (los mensajes viven adentro).
   const guardarConv = async (conv: Conversacion) => {
-    if (supabase) await supabase.from("potente_conversaciones").upsert(conv).then(() => {}, () => {});
+    if (supabase) await aviso("upsert en potente_conversaciones", supabase.from("potente_conversaciones").upsert(conv));
   };
   const patchConv = async (convId: string, fn: (c: Conversacion) => Conversacion) => {
     let actualizada: Conversacion | undefined;

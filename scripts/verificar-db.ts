@@ -96,6 +96,46 @@ async function main() {
   chequear("Bandeja aislada: Mogotes no ve hilos de Chauvín", convMogotesDeChauvin === 0);
   chequear("Mateo ve TODA la bandeja", convMateo === 8, `${convMateo} conversaciones`);
 
+  // Temporada: las unidades y, con ellas, las reservas (que llevan el nombre y el
+  // teléfono del inquilino). La reserva no tiene columna oficina: la hereda de su
+  // unidad, así que se prueba contra las unidades de la otra oficina.
+  const unidadesMateo = await contar(mateo, "potente_unidades_temporada");
+  const unidadesChauvin = await contar(chauvin, "potente_unidades_temporada");
+  chequear("Temporada dividida: Chauvín ve MENOS unidades que Mateo",
+    unidadesChauvin >= 0 && unidadesChauvin < unidadesMateo, `${unidadesChauvin} de ${unidadesMateo}`);
+
+  const idsDeMogotes = async (sb: any) => {
+    const { data } = await sb.from("potente_unidades_temporada").select("id").eq("oficina", "puntamogotes");
+    return (data ?? []).map((u: { id: string }) => u.id);
+  };
+  const unidadesMogotes = await idsDeMogotes(mateo);
+  const reservasMateo = await contar(mateo, "potente_reservas_temporada");
+
+  let fugaReservas = -1;
+  if (unidadesMogotes.length) {
+    const { data, error } = await chauvin
+      .from("potente_reservas_temporada")
+      .select("id, inquilino, contacto")
+      .in("unidadId", unidadesMogotes);
+    fugaReservas = error ? -1 : (data?.length ?? 0);
+  }
+  chequear("Chauvín NO ve las reservas (ni los inquilinos) de Mogotes",
+    fugaReservas <= 0, fugaReservas > 0 ? `filtró ${fugaReservas}` : "bloqueado");
+
+  const reservasChauvin = await contar(chauvin, "potente_reservas_temporada");
+  chequear("Mateo ve TODAS las reservas y cada oficina solo las suyas",
+    reservasMateo > 0 && reservasChauvin < reservasMateo, `${reservasChauvin} de ${reservasMateo}`);
+
+  // Tampoco puede crear una reserva sobre una unidad de la otra oficina.
+  if (unidadesMogotes.length) {
+    const { error: errReservaAjena } = await chauvin.from("potente_reservas_temporada").insert({
+      id: `RSV-VERIF-AJENA-${Date.now()}`, unidadId: unidadesMogotes[0],
+      desdeISO: "2028-03-01", hastaISO: "2028-03-05", noches: 4,
+      inquilino: "Verificación", personas: 1, estado: "senada",
+    });
+    chequear("Chauvín no puede reservar una unidad de Mogotes", Boolean(errReservaAjena), errReservaAjena?.code ?? "");
+  }
+
   // Nadie puede pasar una propiedad a la oficina de otro.
   const { error: errRobo } = await chauvin
     .from("potente_propiedades")
@@ -114,6 +154,15 @@ async function main() {
 
   const temporada = await contar(anon, "potente_unidades_temporada");
   chequear("Lee las unidades de temporada activas", temporada > 0, `${temporada} unidades`);
+
+  // La web tiene que leer la VISTA, no la tabla: la ficha interna (propietario,
+  // llaves, observaciones) no puede viajar al navegador de un desconocido.
+  const vista = await anon.from("potente_propiedades_web").select("*").limit(1);
+  chequear("La vista pública existe y responde", !vista.error && (vista.data?.length ?? 0) > 0, vista.error?.message ?? "");
+  chequear("La vista NO trae la ficha interna", !("ficha" in (vista.data?.[0] ?? { ficha: 1 })));
+
+  const catalogoVista = await contar(anon, "potente_propiedades_web");
+  chequear("La vista muestra el mismo catálogo que la web", catalogoVista === catalogo, `${catalogoVista} propiedades`);
 
   for (const tabla of [
     "potente_clientes", "potente_leads", "potente_conversaciones",

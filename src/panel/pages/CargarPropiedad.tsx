@@ -246,6 +246,10 @@ export default function CargarPropiedad() {
       descripcion: f.descripcion,
       estado: f.estado,
       destacado: f.destacado,
+      // Sin esto la propiedad nace con publicado=false (el valor por defecto de
+      // la columna) y NO aparece en la web: Mateo la cargaba y no la veía nadie.
+      // Todo lo que se carga desde el panel se publica.
+      publicado: true,
       esNuevo: f.esNuevo,
       esOportunidad: f.esOportunidad,
       hectareas: esCampo ? num(f.hectareas) : undefined,

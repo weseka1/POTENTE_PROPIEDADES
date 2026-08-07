@@ -34,9 +34,23 @@ export default function Fichas() {
     (async () => {
       if (!supabase) { setLoading(false); return; }
       try {
-        const { data } = await supabase.from("potente_fichas").select("*").order("createdAt", { ascending: false });
-        if (!cancel && data) setFichas(data as FichaRow[]);
-      } catch { /* offline */ }
+        // La tabla guarda { id, data, createdAt }: el contenido de la ficha vive
+        // adentro de `data`. Acá se vuelve a armar la forma que usa la pantalla.
+        const { data, error } = await supabase
+          .from("potente_fichas")
+          .select("*")
+          .order("createdAt", { ascending: false });
+        if (error) console.error("No se pudieron traer las fichas:", error.message);
+        if (!cancel && data) {
+          setFichas(
+            data.map((row: any) => ({
+              id: row.id,
+              createdAt: row.createdAt,
+              ...(row.data ?? {}),
+            })) as FichaRow[]
+          );
+        }
+      } catch (e) { console.error("Fichas sin conexión:", e); }
       if (!cancel) setLoading(false);
     })();
     return () => { cancel = true; };
@@ -48,7 +62,19 @@ export default function Fichas() {
       if (i >= 0) { const c = [...prev]; c[i] = row; return c; }
       return [row, ...prev];
     });
-    if (supabase) await supabase.from("potente_fichas").upsert(row).then(() => {}, () => {});
+    if (supabase) {
+      // La tabla tiene 3 columnas (id, data, createdAt): el resto de la ficha va
+      // adentro de `data`. Mandar el objeto entero fallaba — esas columnas no existen.
+      const { id, createdAt, ...contenido } = row;
+      const { error } = await supabase
+        .from("potente_fichas")
+        .upsert({ id, createdAt, data: contenido });
+      if (error) {
+        console.error("No se pudo guardar la ficha:", error.message, error.code);
+        push("No se pudo guardar la ficha", "error");
+        return;
+      }
+    }
     push("Ficha guardada ✓", "success");
     setSel(null);
   };

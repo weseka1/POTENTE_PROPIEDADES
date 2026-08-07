@@ -1,6 +1,10 @@
 node_modules
 dist
 dist-ssr
+# Secretos: NADA de .env entra al repo (este repositorio es público).
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 .netlify
