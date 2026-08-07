@@ -23,6 +23,11 @@
  *   y eso es justamente lo que queremos que pase.
  */
 import { createClient } from "@supabase/supabase-js";
+// Las credenciales se leen de .env.local: en el repo no va ninguna clave.
+import { cuenta, exigirBase, SUPABASE_URL as URL, SUPABASE_KEY as KEY } from "./credenciales";
+
+exigirBase();
+const { email: EMAIL, password: PASS } = cuenta("mateo");
 import { propiedades } from "../src/data/propiedades";
 import { leads } from "../src/data/leads";
 import { clientes } from "../src/data/clientes";
@@ -32,10 +37,6 @@ import {
 import { unidadesTemporada, reservasTemporada } from "../src/data/temporada";
 import { conversaciones } from "../src/data/conversaciones";
 
-const URL = process.env.SUPABASE_URL ?? "https://gqhpgexqbnqqqeynbucu.supabase.co";
-const KEY = process.env.SUPABASE_KEY ?? "sb_publishable_LQ_JxpWjM__E0uO2s3hcUA_L_hLFJgw";
-const EMAIL = process.env.SEED_EMAIL ?? "mateo@potenteprop.com.ar";
-const PASS = process.env.SEED_PASS ?? "Potente.Mateo.2026";
 const CON_DEMO = process.argv.includes("--con-demo");
 
 const sb = createClient(URL, KEY, { auth: { persistSession: false } });

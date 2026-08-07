@@ -15,15 +15,17 @@
  *   npm run verificar-db
  */
 import { createClient } from "@supabase/supabase-js";
+// Las credenciales se leen de .env.local: en el repo no va ninguna clave.
+import { cuenta, exigirBase, SUPABASE_URL as URL, SUPABASE_KEY as KEY } from "./credenciales";
 
-const URL = process.env.SUPABASE_URL ?? "https://gqhpgexqbnqqqeynbucu.supabase.co";
-const KEY = process.env.SUPABASE_KEY ?? "sb_publishable_LQ_JxpWjM__E0uO2s3hcUA_L_hLFJgw";
+exigirBase();
+
 
 // Las claves del objeto son las que espera signInWithPassword: email y password.
 const CUENTAS = {
-  mateo:   { email: "mateo@potenteprop.com.ar",   password: "Potente.Mateo.2026" },
-  chauvin: { email: "chauvin@potenteprop.com.ar", password: "Potente.Chauvin.2026" },
-  mogotes: { email: "mogotes@potenteprop.com.ar", password: "Potente.Mogotes.2026" },
+  mateo: cuenta("mateo"),
+  chauvin: cuenta("chauvin"),
+  mogotes: cuenta("mogotes"),
 };
 
 let ok = 0;
