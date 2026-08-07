@@ -74,19 +74,31 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
           style={{ transform: `translate3d(${-foto * 100}%, 0, 0)`, transition: "transform 620ms cubic-bezier(0.16, 1, 0.3, 1)" }}
         >
           {galeria.map((src, n) => (
-            <img
+            // Mismo gesto que en la ficha: la que sale se achica apenas y la que
+            // entra crece. En la tarjeta el efecto va más sutil (0,06) para no
+            // marear en una grilla de veinte.
+            <div
               key={`${src}-${n}`}
-              src={src}
-              onError={(e) => { e.currentTarget.src = NO_IMG; }}
-              alt={n === 0 ? p.titulo : ""}
-              // La primera tarjeta se ve sin scrollear: carga ya y con prioridad
-              // (es la imagen grande que mide Google). El resto, al acercarse.
-              loading={prioritaria && n === 0 ? "eager" : "lazy"}
-              fetchPriority={prioritaria && n === 0 ? "high" : "auto"}
-              decoding="async"
-              draggable={false}
-              className="h-full w-full shrink-0 grow-0 basis-full object-cover transition duration-700 group-hover:scale-[1.03]"
-            />
+              className="h-full w-full shrink-0 grow-0 basis-full"
+              style={{
+                transform: `scale(${n === foto ? 1 : 0.94})`,
+                opacity: n === foto ? 1 : 0.7,
+                transition: "transform 620ms cubic-bezier(0.16,1,0.3,1), opacity 620ms cubic-bezier(0.16,1,0.3,1)",
+              }}
+            >
+              <img
+                src={src}
+                onError={(e) => { e.currentTarget.src = NO_IMG; }}
+                alt={n === 0 ? p.titulo : ""}
+                // La primera tarjeta se ve sin scrollear: carga ya y con prioridad
+                // (es la imagen grande que mide Google). El resto, al acercarse.
+                loading={prioritaria && n === 0 ? "eager" : "lazy"}
+                fetchPriority={prioritaria && n === 0 ? "high" : "auto"}
+                decoding="async"
+                draggable={false}
+                className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
+              />
+            </div>
           ))}
         </div>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-graph/80 via-transparent to-transparent" />

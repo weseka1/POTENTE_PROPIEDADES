@@ -89,10 +89,25 @@ function Riel({
   const ir = useCallback((n: number) => setI(Math.max(0, Math.min(imagenes.length - 1, n))), [imagenes.length, setI]);
 
   // Mientras el dedo está apoyado no hay transición: la foto va pegada al gesto.
+  const arrastrando = Boolean(gesto.current?.activo);
   const estilo = {
     transform: `translate3d(${-i * 100}%, 0, 0) translate3d(${arrastre}px, 0, 0)`,
-    transition: gesto.current?.activo ? "none" : `transform 620ms ${CURVA}`,
+    transition: arrastrando ? "none" : `transform 620ms ${CURVA}`,
   } as const;
+
+  // ── El detalle que lo hace sentir iPhone ──────────────────────────────────
+  // La foto que sale se ACHICA y la que entra CRECE, en tiempo real mientras
+  // arrastrás. Para eso hace falta la posición fraccionaria: no "estoy en la 2"
+  // sino "estoy en la 2,37". De ahí sale cuánto escalar cada una.
+  const posicion = i - arrastre / ancho();
+  const profundidad = (n: number) => {
+    const d = Math.min(Math.abs(n - posicion), 1); // 0 = centrada · 1 = ya afuera
+    return {
+      transform: `scale(${1 - d * 0.12})`,
+      opacity: 1 - d * 0.4,
+      transition: arrastrando ? "none" : `transform 620ms ${CURVA}, opacity 620ms ${CURVA}`,
+    };
+  };
 
   const alApoyar = (e: React.PointerEvent) => {
     if (imagenes.length < 2) return;
@@ -144,7 +159,8 @@ function Riel({
   return (
     <div
       ref={marco}
-      className={`group relative select-none overflow-hidden rounded-2xl bg-graph/5 ${altura}`}
+      // El marco no dibuja nada: cada foto trae su propia placa de vidrio.
+      className={`group relative select-none overflow-hidden ${altura}`}
       onPointerDown={alApoyar}
       onPointerMove={alMover}
       onPointerUp={alSoltar}
@@ -153,23 +169,38 @@ function Riel({
     >
       <div ref={pista} className="flex h-full w-full" style={estilo}>
         {imagenes.map((src, n) => (
-          <div key={`${src}-${n}`} className="h-full w-full shrink-0 grow-0 basis-full overflow-hidden">
-            <img
-              src={src}
-              onError={(e) => { e.currentTarget.src = NO_IMG; }}
-              alt={n === 0 ? titulo : ""}
-              draggable={false}
-              loading={n === 0 ? "eager" : "lazy"}
-              decoding="async"
-              onClick={() => { if (!gesto.current?.movio) onAmpliar?.(); }}
-              className="h-full w-full cursor-zoom-in object-cover"
-            />
+          // El hueco entre placas se ve al deslizar, como en Fotos del iPhone.
+          <div key={`${src}-${n}`} className="h-full w-full shrink-0 grow-0 basis-full px-1">
+            {/* La placa: vidrio con puntas bien redondeadas. El borde clarito y
+                el reflejo de arriba son lo que le da el aire de cristal. */}
+            <div
+              style={profundidad(n)}
+              className="relative h-full w-full overflow-hidden rounded-[1.75rem] shadow-[0_20px_60px_-24px_rgba(13,21,33,0.55)] ring-1 ring-white/25"
+            >
+              <img
+                src={src}
+                onError={(e) => { e.currentTarget.src = NO_IMG; }}
+                alt={n === 0 ? titulo : ""}
+                draggable={false}
+                loading={n === 0 ? "eager" : "lazy"}
+                decoding="async"
+                onClick={() => { if (!gesto.current?.movio) onAmpliar?.(); }}
+                className="h-full w-full cursor-zoom-in object-cover"
+              />
+              {/* Reflejo de vidrio: una luz muy tenue en el borde superior. */}
+              <div
+                className="pointer-events-none absolute inset-0 rounded-[1.75rem] bg-gradient-to-b from-white/15 via-transparent to-transparent"
+                aria-hidden
+              />
+            </div>
           </div>
         ))}
       </div>
 
       {/* Sombra suave abajo: los controles se leen sobre cualquier foto. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-graph/50 to-transparent" aria-hidden />
+      {/* Sombra suave abajo, redondeada como la placa: los controles se leen
+          sobre cualquier foto sin taparle las puntas. */}
+      <div className="pointer-events-none absolute inset-x-1 bottom-0 h-24 rounded-b-[1.75rem] bg-gradient-to-t from-graph/50 to-transparent" aria-hidden />
 
       {onToggleFavorito && (
         <button
