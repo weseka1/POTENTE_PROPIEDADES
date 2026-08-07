@@ -96,9 +96,16 @@ if (!SB) {
       falla("No pude cerrar el registro público", await motivo(p1));
     } else {
       const v = await (await fetch(api, { headers: cabeceras })).json();
-      v.disable_signup === true
-        ? bien("Registro público CERRADO")
-        : falla("El registro público sigue abierto", "el PATCH pasó pero no quedó");
+      if (v.disable_signup === true) {
+        bien("Registro público CERRADO");
+        // Que nadie se asuste: cerrar el registro NO impide dar de alta gente
+        // del equipo. El bloqueo vive solo en el endpoint público de signup
+        // (devuelve 422 signup_disabled); crear usuarios desde el panel de
+        // Supabase o por la Admin API sigue funcionando igual.
+        linea("     (dar de alta gente del equipo desde el panel de Supabase sigue andando)");
+      } else {
+        falla("El registro público sigue abierto", "el PATCH pasó pero no quedó");
+      }
     }
 
     // ── (2) Contraseñas filtradas. Puede rebotar por plan. ──────────────────
@@ -124,6 +131,13 @@ if (!SB) {
     // ── (2b) El sustituto en plan free: exigir contraseñas fuertes ──────────
     // No se aplica solo: cambia lo que el equipo puede elegir de contraseña.
     // Las tres actuales (16 caracteres, mezcladas) ya lo cumplen.
+    //
+    // ⚠️ `password_required_characters` NO acepta cualquier cosa: es un enum
+    // CERRADO de 5 valores. El de abajo es el miembro exacto "minúsculas +
+    // mayúsculas + números". Existe uno más fuerte que además exige símbolos,
+    // pero su valor lleva dos backslashes literales adentro y transcribirlo mal
+    // devuelve 400. Para tres cuentas de administración con contraseñas
+    // generadas, no vale la pena el riesgo de escape.
     if (process.argv.includes("--reforzar-claves")) {
       const p3 = await fetch(api, {
         method: "PATCH", headers: cabeceras,
