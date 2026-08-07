@@ -1,6 +1,9 @@
-import { useState } from "react";
-import { X, Camera, Pencil, Trash2, Plus, Check, ShieldCheck } from "lucide-react";
-import { useProfiles, Avatar, fileToAvatar, EXTRA_SECCIONES, type Perfil } from "../profiles";
+import { useEffect, useRef, useState } from "react";
+import { X, Camera, Pencil, Trash2, Plus, Check, ShieldCheck, Lock, Loader2 } from "lucide-react";
+import {
+  useProfiles, Avatar, fileToAvatar, EXTRA_SECCIONES, type Perfil,
+  perfilPideePin, verificarPin, definirPin,
+} from "../profiles";
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -13,9 +16,19 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 export default function ProfileGate() {
   const { perfiles, activo, gateOpen, pick, add, update, remove } = useProfiles();
   const [manage, setManage] = useState(false);
+  // Perfil que está pidiendo PIN para entrar (null = nadie).
+  const [pidiendoPin, setPidiendoPin] = useState<Perfil | null>(null);
+
   if (!gateOpen) return null;
 
   const onPhoto = async (id: string, file?: File) => { if (file) { try { update(id, { foto: await fileToAvatar(file) }); } catch { /* noop */ } } };
+
+  /** Entrar a un perfil: si tiene PIN, primero lo pide. */
+  const elegir = async (p: Perfil) => {
+    if (p.id === activo.id) return pick(p.id); // ya estás adentro de ese
+    if (await perfilPideePin(p.id)) setPidiendoPin(p);
+    else pick(p.id);
+  };
 
   return (
     <div className="panel-bg fixed inset-0 z-[60] flex flex-col items-center justify-center px-6 py-10">
@@ -29,7 +42,7 @@ export default function ProfileGate() {
 
       <div className="mt-10 flex max-w-3xl flex-wrap items-start justify-center gap-7 sm:gap-9">
         {perfiles.map((p) => (
-          <ProfileTile key={p.id} p={p} manage={manage} active={p.id === activo.id} onPick={() => pick(p.id)} onPhoto={onPhoto} update={update} remove={remove} canRemove={perfiles.length > 1} />
+          <ProfileTile key={p.id} p={p} manage={manage} active={p.id === activo.id} onPick={() => elegir(p)} onPhoto={onPhoto} update={update} remove={remove} canRemove={perfiles.length > 1} />
         ))}
 
         {/* agregar */}
@@ -71,6 +84,8 @@ export default function ProfileGate() {
                     })}
                   </div>
                 )}
+                {/* PIN: la segunda llave. Protege el caso de la sesión abierta. */}
+                <ConfigurarPin perfil={p} />
               </div>
             ))}
           </div>
@@ -81,6 +96,140 @@ export default function ProfileGate() {
         className={`mt-12 inline-flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-semibold tracking-wide transition ${manage ? "border-brand bg-brand text-white" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>
         {manage ? <><Check size={15} /> Listo</> : <><Pencil size={14} /> Administrar perfiles</>}
       </button>
+
+      {pidiendoPin && (
+        <PedirPin
+          perfil={pidiendoPin}
+          onCancelar={() => setPidiendoPin(null)}
+          onOk={() => { pick(pidiendoPin.id); setPidiendoPin(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Pedir el PIN para entrar a un perfil ─────────────────────────────────── */
+
+function PedirPin({ perfil, onOk, onCancelar }: { perfil: Perfil; onOk: () => void; onCancelar: () => void }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [probando, setProbando] = useState(false);
+  const campo = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { campo.current?.focus(); }, []);
+
+  const probar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin.length < 4) return;
+    setProbando(true);
+    const ok = await verificarPin(perfil.id, pin);
+    setProbando(false);
+    if (ok) return onOk();
+    setError("PIN incorrecto");
+    setPin("");
+    campo.current?.focus();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-brand-950/50 p-4 backdrop-blur-sm" onClick={onCancelar}>
+      <form
+        onSubmit={probar}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xs rounded-2xl border border-white/40 bg-paper-100/95 p-7 text-center shadow-card backdrop-blur-xl"
+      >
+        <Avatar p={perfil} size={64} className="mx-auto" />
+        <p className="mt-4 font-display text-lg font-semibold text-graph">{perfil.nombre}</p>
+        <p className="mt-1 flex items-center justify-center gap-1.5 text-xs text-graph-400">
+          <Lock size={12} className="text-brand" /> Este perfil pide PIN
+        </p>
+
+        <input
+          ref={campo}
+          value={pin}
+          onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 8)); setError(""); }}
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="••••"
+          className={`mt-5 h-12 w-full rounded-xl border bg-white px-4 text-center font-display text-2xl tracking-[0.5em] text-graph outline-none transition focus:ring-2 ${
+            error ? "border-red-400 focus:ring-red-200" : "border-graph/15 focus:border-brand/60 focus:ring-brand/15"
+          }`}
+        />
+        {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onCancelar} className="h-10 flex-1 rounded-xl border border-graph/15 text-sm font-semibold text-graph-500 transition hover:border-graph/30">
+            Cancelar
+          </button>
+          <button type="submit" disabled={pin.length < 4 || probando} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-50">
+            {probando ? <Loader2 size={15} className="animate-spin" /> : "Entrar"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ── Definir el PIN de un perfil (solo Dirección) ─────────────────────────── */
+
+function ConfigurarPin({ perfil }: { perfil: Perfil }) {
+  const [tiene, setTiene] = useState<boolean | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [pin, setPin] = useState("");
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => { perfilPideePin(perfil.id).then(setTiene); }, [perfil.id]);
+
+  const guardar = async (valor: string) => {
+    const r = await definirPin(perfil.id, valor);
+    if (!r.ok) return setMsg(r.error ?? "No se pudo guardar");
+    setTiene(valor.length >= 4);
+    setEditando(false);
+    setPin("");
+    setMsg(valor ? "PIN guardado ✓" : "PIN quitado");
+    setTimeout(() => setMsg(""), 2500);
+  };
+
+  if (tiene === null) return null;
+
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-graph/[0.07] pt-2.5">
+      <span className="flex items-center gap-1.5 text-[11px] font-medium text-graph-500">
+        <Lock size={12} className={tiene ? "text-brand" : "text-graph-400"} />
+        {tiene ? "Pide PIN para entrar" : "Sin PIN"}
+      </span>
+
+      {editando ? (
+        <>
+          <input
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+            type="password"
+            inputMode="numeric"
+            placeholder="4 a 8 números"
+            className="h-8 w-32 rounded-lg border border-graph/15 bg-white px-2 text-center text-sm tracking-widest text-graph outline-none focus:border-brand/60"
+          />
+          <button onClick={() => guardar(pin)} disabled={pin.length < 4}
+            className="h-8 rounded-lg bg-brand px-3 text-[11px] font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40">
+            Guardar
+          </button>
+          <button onClick={() => { setEditando(false); setPin(""); }} className="text-[11px] text-graph-400 hover:text-graph">
+            Cancelar
+          </button>
+        </>
+      ) : (
+        <>
+          <button onClick={() => setEditando(true)} className="text-[11px] font-semibold text-brand hover:underline">
+            {tiene ? "Cambiar PIN" : "Poner PIN"}
+          </button>
+          {tiene && (
+            <button onClick={() => guardar("")} className="text-[11px] text-graph-400 transition hover:text-red-600">
+              Quitar
+            </button>
+          )}
+        </>
+      )}
+      {msg && <span className="text-[11px] font-medium text-brand-700">{msg}</span>}
     </div>
   );
 }

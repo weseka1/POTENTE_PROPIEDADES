@@ -1,5 +1,33 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePanelAuth } from "./auth";
+import { supabase } from "@/lib/supabase";
+
+/* ── PIN de cada perfil ───────────────────────────────────────────────────────
+   El login ya separa a cada oficina. El PIN cubre el otro caso: que alguien
+   aproveche una sesión abierta para cambiarse de perfil. Vive en la base
+   (hasheado) para que valga desde cualquier computadora y no se pueda borrar
+   desde el navegador. Ver 02_INFRA/supabase (migración potente_09_pin_por_perfil). */
+
+/** ¿Ese perfil pide PIN? Sin base de datos, nunca. */
+export async function perfilPideePin(perfilId: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc("potente_pin_puesto", { p_perfil: perfilId });
+  return !error && data === true;
+}
+
+/** Prueba un PIN. La base compara contra el hash; el PIN nunca viaja de vuelta. */
+export async function verificarPin(perfilId: string, pin: string): Promise<boolean> {
+  if (!supabase) return true;
+  const { data, error } = await supabase.rpc("potente_pin_ok", { p_perfil: perfilId, p_pin: pin });
+  return !error && data === true;
+}
+
+/** Pone o quita el PIN (vacío = lo quita). La base solo deja hacerlo a Dirección. */
+export async function definirPin(perfilId: string, pin: string): Promise<{ ok: boolean; error?: string }> {
+  if (!supabase) return { ok: false, error: "Hace falta la base de datos para guardar el PIN." };
+  const { error } = await supabase.rpc("potente_pin_definir", { p_perfil: perfilId, p_pin: pin });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
 
 export type Perfil = { id: string; nombre: string; rol: string; foto: string | null; color: string; admin?: boolean; permisos?: string[]; oficina?: "chauvin" | "puntamogotes" };
 
