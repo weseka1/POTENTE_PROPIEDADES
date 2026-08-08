@@ -35,7 +35,7 @@ export default function Sidebar({
 }) {
   const { kpis, conversacionesNoLeidas } = useData();
   const { activo } = useProfiles();
-  const { signOut } = usePanelAuth();
+  const { signOut, esDireccion } = usePanelAuth();
   const navigate = useNavigate();
   const cerrarSesion = async () => { await signOut(); navigate("/ingresar"); };
   const nav = [
@@ -52,7 +52,9 @@ export default function Sidebar({
     { to: "/panel/tasaciones", key: "tasaciones", label: "Tasaciones", icon: Calculator },
     { to: "/panel/arrendamientos", key: "arrendamientos", label: "Alquileres", icon: FileSignature },
     { to: "/panel/reportes", key: "reportes", label: "Reportes", icon: BarChart3 },
-  ].filter((i) => canAccess(activo, i.key));
+    // El menú se arma con lo que el TOKEN permite, no con lo que diga el
+  // navegador: si no, una oficina se agrega "asistente" a mano y le aparece.
+].filter((i) => canAccess(activo, i.key, esDireccion));
   // En desktop colapsado, el texto se oculta (lg:hidden) pero en el drawer mobile siempre se ve.
   const hideOnCollapse = collapsed ? "lg:hidden" : "";
 

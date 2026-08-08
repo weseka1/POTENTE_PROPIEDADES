@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePanelAuth } from "./auth";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { cn } from "./ui/cn";
 import Sidebar from "./components/Sidebar";
@@ -11,12 +12,19 @@ import { ToastProvider } from "./components/Toast";
 // Si el perfil activo no puede ver la sección actual, lo manda a la primera permitida.
 function PermGuard() {
   const { activo } = useProfiles();
+  // 🔒 El permiso lo decide el TOKEN, no el perfil guardado en el navegador:
+  // `activo.admin` sale de localStorage y lo puede editar cualquiera con las
+  // herramientas del navegador. Ver canAccess() en profiles.tsx.
+  const { esDireccion } = usePanelAuth();
   const { pathname } = useLocation();
   const seg = pathname.replace(/^\/panel\/?/, "");
   const key = seg === "" ? "inicio" : seg.split("/")[0];
-  if (canAccess(activo, key)) return null;
+  if (canAccess(activo, key, esDireccion)) return null;
   const order = ["leads", "crm", "agenda", "cargar", "tasaciones", "reportes"];
-  const landing = activo?.admin ? "/panel" : "/panel/" + (order.find((k) => canAccess(activo, k)) || "leads");
+  const puedeInicio = canAccess(activo, "inicio", esDireccion);
+  const landing = puedeInicio
+    ? "/panel"
+    : "/panel/" + (order.find((k) => canAccess(activo, k, esDireccion)) || "leads");
   return <Navigate to={landing} replace />;
 }
 

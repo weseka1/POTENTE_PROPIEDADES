@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useMemo, type ReactNode } from "react";
 import { usePanelAuth } from "./auth";
 import { supabase } from "@/lib/supabase";
 
@@ -57,11 +57,34 @@ export const SECCIONES = [
 ] as const;
 export const EXTRA_SECCIONES = SECCIONES.filter((s) => !s.basic);
 
-/** ¿El perfil puede ver esta sección? Admin = todo. Básicas = todos. Extra = solo si está habilitada. */
-export function canAccess(p: Perfil | undefined, key: string): boolean {
+/**
+ * ¿Se puede ver esta sección?
+ *
+ * 🔒 `esDireccion` sale del TOKEN (app_metadata.rol), que solo se escribe desde el
+ * servidor. Es la autoridad. `p.admin` y `p.permisos` viven en localStorage, o sea
+ * que los puede editar cualquiera con las herramientas del navegador — sirven para
+ * organizar al equipo, NO para decidir un permiso.
+ *
+ * Por eso, cuando hay sesión con base:
+ *   · dirección → todo
+ *   · oficina    → las básicas + lo que la dirección le habilitó, y NUNCA una
+ *                  sección no-básica por decir `admin: true` en el navegador.
+ * En la demo sin base (`esDireccion === null`) se cae al comportamiento viejo.
+ */
+export function canAccess(p: Perfil | undefined, key: string, esDireccion?: boolean | null): boolean {
   if (!p) return false;
-  if (p.admin) return true;
+
   const s = SECCIONES.find((x) => x.key === key);
+
+  // Con sesión real, el token decide.
+  if (esDireccion === true) return true;
+  if (esDireccion === false) {
+    if (s?.basic) return true;
+    return (p.permisos || []).includes(key);
+  }
+
+  // Demo sin base: manda el perfil elegido a mano.
+  if (p.admin) return true;
   if (s?.basic) return true;
   return (p.permisos || []).includes(key);
 }
@@ -148,9 +171,51 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
   // elegía libremente: entrabas como Chauvín y podías ponerte "Mateo · Dirección".
   // Los datos igual estaban protegidos por la base, pero la pantalla mentía.
   // En la demo sin base no hay usuario, así que se sigue eligiendo a mano.
+  // 🔴 BUG QUE ESTO ARREGLA (8-ago, lo encontró Juani entrando como Chauvín):
+  // antes era `perfiles.find(p => p.oficina === oficinaUsuario)`, o sea que el
+  // candado dependía de que un perfil guardado en el NAVEGADOR tuviera la oficina
+  // puesta. Si no coincidía ninguno, `perfilFijo` quedaba en false y la oficina
+  // podía elegir cualquier perfil, incluido "Mateo · Dirección".
+  //
+  // Romper esa coincidencia era facilísimo: la propia pantalla ofrece "Agregar
+  // perfil" y "Eliminar", y un perfil creado a mano lleva un id al azar
+  // (`p3f9a1`), así que la migración que asigna la oficina por id (`p.id ===
+  // "chauvin"`) no lo alcanzaba. Renombrar o recrear un perfil abría el candado.
+  //
+  // Reproducido en producción: con los perfiles recreados, Chauvín se puso el
+  // perfil de Mateo y le aparecieron las 13 secciones, incluida "Asistente IA".
+  // Los DATOS seguían protegidos por el RLS (veía sus 28 propiedades, no las 103),
+  // pero la pantalla le daba el sombrero de CEO. Para un cliente es inaceptable.
+  //
+  // Ahora manda el TOKEN: si dice que sos de una oficina, el perfil lo fija el
+  // token, haya o no un perfil guardado que coincida. El navegador solo aporta lo
+  // cosmético (nombre, foto, color).
   const { oficina: oficinaUsuario } = usePanelAuth();
-  const perfilDelUsuario = oficinaUsuario ? perfiles.find((p) => p.oficina === oficinaUsuario) : undefined;
-  const perfilFijo = Boolean(perfilDelUsuario);
+
+  const perfilDelUsuario = useMemo(() => {
+    if (!oficinaUsuario) return undefined;
+    const base = DEFAULTS.find((p) => p.oficina === oficinaUsuario)!;
+    const guardado = perfiles.find((p) => p.oficina === oficinaUsuario);
+
+    // ⚠️ Del navegador se toma SOLO LO COSMÉTICO (nombre, foto, color). El rol,
+    // el `admin` y los `permisos` salen siempre de los valores por defecto del
+    // código, nunca de localStorage — que lo edita cualquiera con las
+    // herramientas del navegador. Sin esto quedaba un resquicio: poner a mano
+    // `{ oficina: "chauvin", permisos: ["asistente"] }` y la oficina se ganaba la
+    // sección de la dirección.
+    return {
+      ...base,
+      id: guardado?.id ?? `sesion-${oficinaUsuario}`,
+      nombre: guardado?.nombre ?? base.nombre,
+      foto: guardado?.foto ?? base.foto,
+      color: guardado?.color ?? base.color,
+    };
+  }, [oficinaUsuario, perfiles]);
+
+  // Una oficina NUNCA elige perfil. La dirección sí (para mirar cómo lo ve cada
+  // oficina), y eso es a propósito. Ojo: cuelga de `oficinaUsuario`, NO de haber
+  // encontrado un perfil — ahí estaba el agujero.
+  const perfilFijo = Boolean(oficinaUsuario);
 
   useEffect(() => { try { localStorage.setItem(LS_PERFILES, JSON.stringify(perfiles)); } catch { /* noop */ } }, [perfiles]);
   useEffect(() => { try { if (activoId) localStorage.setItem(LS_ACTIVO, activoId); } catch { /* noop */ } }, [activoId]);
