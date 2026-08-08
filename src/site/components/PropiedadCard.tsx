@@ -139,7 +139,7 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
           <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-graph backdrop-blur">
             {opLabel[p.operacion]}
           </span>
-          {p.estado !== "disponible" && (
+          {p.estado !== "activa" && (
             <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${estadoStyle[p.estado]}`}>
               {estadoLabel[p.estado]}
             </span>

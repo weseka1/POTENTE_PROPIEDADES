@@ -195,15 +195,15 @@ export default function CampoDrawer({
                   </button>
                   {/* Acceso rápido pedido por Mateo: marcar RESERVADO sin abrir el select */}
                   <button
-                    onClick={() => onUpdate(prop.id, { estado: prop.estado === "reservado" ? "disponible" : "reservado" })}
+                    onClick={() => onUpdate(prop.id, { estado: prop.estado === "reservada" ? "activa" : "reservada" })}
                     className={cn(
                       "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition",
-                      prop.estado === "reservado"
+                      prop.estado === "reservada"
                         ? "border-amber-400/60 bg-amber-100 text-amber-800"
                         : "border-graph/10 bg-graph/[0.04] text-graph-400 hover:text-graph"
                     )}
                   >
-                    ⏳ {prop.estado === "reservado" ? "Reservado" : "Marcar reservado"}
+                    ⏳ {prop.estado === "reservada" ? "Reservado" : "Marcar reservado"}
                   </button>
                 </div>
               </div>

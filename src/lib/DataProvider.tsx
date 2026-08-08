@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { supabase } from "./supabase";
 import type { Propiedad } from "@/data/propiedadTypes";
+import { ESTADOS_CERRADOS } from "@/data/propiedadTypes";
 import type { Lead, Cliente, Operacion_, Visita, Tasacion, Arrendamiento, UnidadTemporada, ReservaTemporada } from "@/data/types";
 import { propiedades as seedPropiedades } from "@/data/propiedades";
 import { leads as seedLeads } from "@/data/leads";
@@ -30,7 +31,13 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // SUBIR esta versión. El 13-jul se reemplazó el catálogo entero por el real y esta
 // versión quedó igual → los navegadores que ya habían visitado la demo siguieron
 // mostrando los datos viejos del localStorage por una semana (le pasó a Juani).
-const SEED_VERSION = "2026-08-06-db-propia-tipos-reales";
+// ⚠️ SUBIR ESTO cada vez que cambie la FORMA de los datos, no solo su contenido.
+// 8-ago: el vocabulario de estados pasó de disponible/reservado/vendido a
+// activa/reservada/vendida/alquilada/suspendida. Todo navegador que ya había
+// abierto la app tiene propiedades guardadas con el vocabulario viejo, y
+// `estadoCampo["disponible"]` ahora es undefined → pantalla blanca. Subir la
+// versión invalida ese caché y se rehidrata del seed nuevo.
+const SEED_VERSION = "2026-08-08-ficha-completa-5-estados";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 /** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */
@@ -76,6 +83,41 @@ export function resetDemoData() {
   } catch { /* noop */ }
 }
 
+/**
+ * Lo que devuelve una escritura a la base.
+ *
+ * Antes cada llamada terminaba en `.then(() => {}, () => {})`, que descarta el
+ * error sin dejar rastro. Eso escondió un bug real: entre el 6 y el 7-ago el
+ * formulario de la web usaba `upsert`, la base lo rechazaba por permisos, y el
+ * visitante igual veía "¡Consulta enviada!". Nadie se enteró hasta auditarlo.
+ *
+ * Loguear no alcanza: la consola la mira un programador, no Mateo. Por eso las
+ * escrituras de propiedades devuelven esto y quien llama muestra el fallo EN
+ * PANTALLA. El caso que viene a evitar: el formulario guarda una columna que la
+ * base todavía no tiene, PostgREST rechaza el update entero con 400, y el panel
+ * igual muestra "Cambios guardados ✓". Mateo edita, ve el tilde, y no se guardó.
+ */
+export type Resultado = { ok: boolean; error?: string; codigo?: string };
+
+/** En modo demo (sin base) no hay nada que verificar: siempre salió bien. */
+const SIN_BASE: Resultado = { ok: true };
+
+/** Corre una operación contra la base, avisa por consola si falla y devuelve el resultado. */
+async function aviso(que: string, op: PromiseLike<{ error: unknown }>): Promise<Resultado> {
+  try {
+    const r = await op;
+    const e = r?.error as { message?: string; code?: string } | null;
+    if (e) {
+      console.error(`Base de datos · ${que}:`, e);
+      return { ok: false, error: e.message ?? String(e), codigo: e.code };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error(`Base de datos · ${que} (sin conexión):`, e);
+    return { ok: false, error: e instanceof Error ? e.message : "Sin conexión con la base" };
+  }
+}
+
 interface DataCtx {
   loading: boolean;
   online: boolean; // true si la DB respondió
@@ -88,9 +130,11 @@ interface DataCtx {
   arrendamientos: Arrendamiento[];
   getProp: (id: string) => Propiedad | undefined;
   // mutaciones
-  addPropiedad: (p: Propiedad) => Promise<void>;
-  updatePropiedad: (id: string, patch: Partial<Propiedad>) => Promise<void>;
-  deletePropiedad: (id: string) => Promise<void>;
+  // Devuelven si la base aceptó. Quien las llama TIENE que mirarlo antes de
+  // decirle al usuario que se guardó (cicatriz del 7-ago: ver `aviso` abajo).
+  addPropiedad: (p: Propiedad) => Promise<Resultado>;
+  updatePropiedad: (id: string, patch: Partial<Propiedad>) => Promise<Resultado>;
+  deletePropiedad: (id: string) => Promise<Resultado>;
   addLead: (l: Lead) => Promise<void>;
   updateLead: (id: string, patch: Partial<Lead>) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
@@ -137,9 +181,10 @@ const Ctx = createContext<DataCtx>(null as any);
 
 function computeKpis(propiedades: Propiedad[], leads: Lead[], operaciones: Operacion_[], clientes: Cliente[]) {
   return {
-    camposActivos: propiedades.filter((c) => c.estado === "disponible").length,
+    camposActivos: propiedades.filter((c) => c.estado === "activa").length,
     camposTotal: propiedades.length,
-    valorCarteraUSD: propiedades.filter((c) => c.estado !== "vendido" && c.precioUSD).reduce((a, c) => a + (c.precioUSD || 0), 0),
+    // Una vendida, una alquilada y una suspendida NO son cartera vendible.
+    valorCarteraUSD: propiedades.filter((c) => !ESTADOS_CERRADOS.includes(c.estado) && c.precioUSD).reduce((a, c) => a + (c.precioUSD || 0), 0),
     leadsNuevos: leads.filter((l) => l.estado === "nueva").length,
     leadsTotal: leads.length,
     enNegociacion: leads.filter((l) => l.estado === "negociacion").length,
@@ -179,7 +224,7 @@ export function DataScope({ oficina, children }: { oficina?: "chauvin" | "puntam
       { key: "reserva", label: "Reserva" }, { key: "boleto", label: "Boleto" }, { key: "escritura", label: "Escritura" },
     ];
     const aptitud: Record<string, number> = {};
-    propiedades.filter((c) => c.estado !== "vendido").forEach((c) => {
+    propiedades.filter((c) => !ESTADOS_CERRADOS.includes(c.estado)).forEach((c) => {
       const k = c.categoria === "campo" ? c.aptitud || "campo" : c.categoria;
       aptitud[k] = (aptitud[k] || 0) + (c.precioUSD || 0);
     });
@@ -304,38 +349,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
 
-/**
- * Corre una operación contra la base y AVISA si falla.
- *
- * Antes cada llamada terminaba en `.then(() => {}, () => {})`, que descarta el
- * error sin dejar rastro. Eso escondió un bug real: entre el 6 y el 7-ago el
- * formulario de la web usaba `upsert`, la base lo rechazaba por permisos, y el
- * visitante igual veía "¡Consulta enviada!". Nadie se enteró hasta auditarlo.
- * Que un error de base sea invisible es peor que el error.
- */
-async function aviso<T extends { error: unknown }>(que: string, op: PromiseLike<T>) {
-  try {
-    const r = await op;
-    if (r?.error) console.error(`Base de datos · ${que}:`, r.error);
-    return r;
-  } catch (e) {
-    console.error(`Base de datos · ${que} (sin conexión):`, e);
-    return undefined;
-  }
-}
-
   // ===== mutaciones (actualizan estado local SIEMPRE + DB si hay conexión) =====
-  const addPropiedad = async (p: Propiedad) => {
+  // Las de propiedades DEVUELVEN el resultado: el panel necesita saber si la base
+  // aceptó para no mostrar un tilde verde sobre un guardado que no ocurrió.
+  const addPropiedad = async (p: Propiedad): Promise<Resultado> => {
     setPropiedades((prev) => [p, ...prev]);
-    if (supabase) await aviso("upsert en potente_propiedades", supabase.from("potente_propiedades").upsert(p));
+    if (!supabase) return SIN_BASE;
+    return aviso("upsert en potente_propiedades", supabase.from("potente_propiedades").upsert(p));
   };
-  const updatePropiedad = async (id: string, patch: Partial<Propiedad>) => {
+  const updatePropiedad = async (id: string, patch: Partial<Propiedad>): Promise<Resultado> => {
     setPropiedades((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_propiedades", supabase.from("potente_propiedades").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    return aviso("update en potente_propiedades", supabase.from("potente_propiedades").update(patch).eq("id", id));
   };
-  const deletePropiedad = async (id: string) => {
+  const deletePropiedad = async (id: string): Promise<Resultado> => {
     setPropiedades((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await aviso("delete en potente_propiedades", supabase.from("potente_propiedades").delete().eq("id", id));
+    if (!supabase) return SIN_BASE;
+    return aviso("delete en potente_propiedades", supabase.from("potente_propiedades").delete().eq("id", id));
   };
   const addLead = async (l: Lead) => {
     setLeads((prev) => [l, ...prev]);
@@ -496,7 +526,7 @@ async function aviso<T extends { error: unknown }>(que: string, op: PromiseLike<
 
   const carteraPorAptitud = useMemo(() => {
     const map: Record<string, number> = {};
-    propiedades.filter((c) => c.estado !== "vendido").forEach((c) => {
+    propiedades.filter((c) => !ESTADOS_CERRADOS.includes(c.estado)).forEach((c) => {
       const k = c.categoria === "campo" ? c.aptitud || "campo" : c.categoria;
       map[k] = (map[k] || 0) + (c.precioUSD || 0);
     });

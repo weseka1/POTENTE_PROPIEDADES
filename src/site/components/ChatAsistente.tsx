@@ -59,7 +59,7 @@ export default function ChatAsistente() {
 
   const catalogo = (): CampoLite[] =>
     propiedades
-      .filter((p) => p.estado === "disponible")
+      .filter((p) => p.estado === "activa")   // solo se recomienda lo que se ofrece
       .map((p) => ({
         id: p.id,
         titulo: p.titulo,

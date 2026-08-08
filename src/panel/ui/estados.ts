@@ -23,12 +23,41 @@ export const toneDot: Record<Tone, string> = {
   wheat: "bg-amber-500",
 };
 
-// ---- Campos ----
-export const estadoCampo: Record<string, { label: string; tone: Tone }> = {
-  disponible: { label: "Disponible", tone: "green" },
-  reservado: { label: "Reservado", tone: "amber" },
-  vendido: { label: "Vendido", tone: "red" },
+// ---- Propiedades ----
+// Los cinco estados que nombró Mateo en el audio del 7-ago: "si están activas,
+// si están reservadas, si están vendidas, si están alquiladas, o si está
+// suspendida". El enum de la base tiene exactamente estos valores, en este orden
+// (que es el del ciclo comercial).
+export const ESTADOS_PROPIEDAD = [
+  "activa",
+  "reservada",
+  "vendida",
+  "alquilada",
+  "suspendida",
+] as const;
+export type EstadoPropiedad = (typeof ESTADOS_PROPIEDAD)[number];
+
+// ⚠️ El Record va COMPLETO y tipado por EstadoPropiedad, no `Record<string, …>`.
+// Con `string` el compilador no exige los cinco, y un estado sin entrada acá
+// devuelve undefined → `e.tone` explota → pantalla blanca en la Cartera. Ya casi
+// pasó al cambiar el vocabulario: la base empezó a devolver "activa" mientras el
+// mapa todavía decía "disponible".
+export const estadoCampo: Record<EstadoPropiedad, { label: string; tone: Tone }> = {
+  activa: { label: "Activa", tone: "green" },
+  reservada: { label: "Reservada", tone: "amber" },
+  vendida: { label: "Vendida", tone: "red" },
+  alquilada: { label: "Alquilada", tone: "blue" },
+  suspendida: { label: "Suspendida", tone: "neutral" },
 };
+
+/** El estado de una propiedad, tolerante: si viene algo desconocido (un dato
+ *  viejo en localStorage, una fila cargada a mano), muestra el valor crudo en
+ *  gris en vez de tirar la pantalla abajo. */
+export const verEstado = (e: string | undefined | null) =>
+  estadoCampo[e as EstadoPropiedad] ?? { label: e || "—", tone: "neutral" as Tone };
+
+/** Estados en los que la propiedad ya NO se ofrece. */
+export const ESTADOS_CERRADOS: EstadoPropiedad[] = ["vendida", "alquilada", "suspendida"];
 
 // ---- Leads ----
 export const estadoLead: Record<string, { label: string; tone: Tone }> = {

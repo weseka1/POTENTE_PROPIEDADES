@@ -4,7 +4,7 @@
 export type TipoCampo = "campo" | "chacra" | "estancia";
 export type Operacion = "venta" | "arrendamiento";
 export type Aptitud = "agrícola" | "ganadera" | "mixta";
-export type EstadoCampo = "disponible" | "reservado" | "vendido";
+export type EstadoCampo = "activa" | "reservada" | "vendida";
 
 export interface Campo {
   id: string;

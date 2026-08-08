@@ -117,7 +117,7 @@ export default function PropiedadDetalle() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">{opLabel[p.operacion]}</span>
             <span className="rounded-full border border-graph/20 px-3 py-1 text-xs font-medium capitalize text-graph-500">{p.categoria}</span>
-            {p.estado !== "disponible" && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoBadge[p.estado]}`}>{estadoLabel[p.estado]}</span>}
+            {p.estado !== "activa" && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoBadge[p.estado]}`}>{estadoLabel[p.estado]}</span>}
             {p.esNuevo && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold uppercase text-white">Nuevo</span>}
             {p.esOportunidad && <span className="rounded-full bg-clay px-3 py-1 text-xs font-bold uppercase text-white">Oportunidad</span>}
           </div>

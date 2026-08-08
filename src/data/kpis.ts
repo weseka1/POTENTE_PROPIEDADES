@@ -2,13 +2,14 @@ import { campos } from "./campos";
 import { leads } from "./leads";
 import { operaciones } from "./operaciones";
 import { clientes } from "./clientes";
+import { ESTADOS_CERRADOS } from "./propiedadTypes";
 
 // ===== KPIs derivados (se recalculan solos cuando cambia la data) =====
 export const kpis = {
-  camposActivos: campos.filter((c) => c.estado === "disponible").length,
+  camposActivos: campos.filter((c) => c.estado === "activa").length,
   camposTotal: campos.length,
   valorCarteraUSD: campos
-    .filter((c) => c.estado !== "vendido" && c.precioUSD)
+    .filter((c) => !ESTADOS_CERRADOS.includes(c.estado) && c.precioUSD)
     .reduce((a, c) => a + (c.precioUSD || 0), 0),
   hectareasTotales: campos.reduce((a, c) => a + c.hectareas, 0),
   leadsNuevos: leads.filter((l) => l.estado === "nueva").length,
@@ -67,7 +68,7 @@ export const embudo = (() => {
 export const carteraPorAptitud = (() => {
   const map: Record<string, number> = {};
   campos
-    .filter((c) => c.estado !== "vendido")
+    .filter((c) => !ESTADOS_CERRADOS.includes(c.estado))
     .forEach((c) => (map[c.aptitud] = (map[c.aptitud] || 0) + (c.precioUSD || 0)));
   return Object.entries(map).map(([k, v]) => ({ name: k, value: v }));
 })();

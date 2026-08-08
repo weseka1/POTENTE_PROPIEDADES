@@ -265,13 +265,26 @@ export default function CargarPropiedad() {
       oficina: f.oficina || undefined,
       ficha,
     };
-    if (editando) {
-      await updatePropiedad(p.id, p);
-      push("Cambios guardados ✓ — ya se ven en la web", "success");
-    } else {
-      await addPropiedad(p);
-      push("Propiedad publicada ✓ — ya está en la web", "success");
+    // ⚠️ Se ESPERA y se MIRA el resultado antes de decir que se guardó.
+    // Antes esto era `await updatePropiedad(...)` seguido del toast verde sin
+    // más: si la base rechazaba el guardado (una columna que todavía no existe,
+    // un permiso, la red caída), Mateo veía "Cambios guardados ✓", volvía a la
+    // cartera, y no se había guardado nada. Un fallo silencioso en el formulario
+    // de carga es perder el trabajo de cargar una propiedad entera.
+    const r = editando ? await updatePropiedad(p.id, p) : await addPropiedad(p);
+
+    if (!r.ok) {
+      push(
+        `No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}. No cierres esta pantalla.`,
+        "error",
+      );
+      return; // se queda en el formulario, con todo lo cargado a la vista
     }
+
+    push(
+      editando ? "Cambios guardados ✓ — ya se ven en la web" : "Propiedad publicada ✓ — ya está en la web",
+      "success",
+    );
     setGuardado(true);
     setTimeout(() => navigate("/panel/cartera"), 1400);
   };

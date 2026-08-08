@@ -25,6 +25,46 @@ export type Categoria =
 
 export type OperacionProp = "venta" | "alquiler" | "arrendamiento";
 
+/* ── Vocabularios cerrados ────────────────────────────────────────────────────
+   Son enums de Postgres, no texto libre: la base rechaza un valor inventado, así
+   que el desplegable del panel y lo que acepta la base no se pueden
+   desincronizar. Cada lista de acá tiene su `create type` en 005_ficha_completa.sql
+   — si se toca una, se toca la otra. */
+
+/** Los 5 estados que nombró Mateo (audio 7-ago). El orden es el del ciclo comercial. */
+export type EstadoPropiedad = "activa" | "reservada" | "vendida" | "alquilada" | "suspendida";
+
+/** Cómo se llama cada estado para el visitante. Vive acá y no en el panel porque
+ *  lo usan los dos lados, y así el nombre que ve el cliente es uno solo. */
+export const ESTADO_LABEL: Record<EstadoPropiedad, string> = {
+  activa: "Disponible",       // al comprador se le dice "disponible", no "activa"
+  reservada: "Reservada",
+  vendida: "Vendida",
+  alquilada: "Alquilada",
+  suspendida: "No disponible",
+};
+
+/** Estados en los que la propiedad ya NO se ofrece: no cuentan como cartera
+ *  vendible y no se le recomiendan a nadie. */
+export const ESTADOS_CERRADOS: readonly EstadoPropiedad[] = ["vendida", "alquilada", "suspendida"];
+
+/** ¿Se está ofreciendo hoy? Es el chequeo que reemplaza al viejo `=== "disponible"`. */
+export const seOfrece = (e: EstadoPropiedad | undefined) => e === "activa" || e === "reservada";
+
+/** Cómo está ubicada la unidad dentro del edificio o del lote. */
+export type Disposicion = "frente" | "contrafrente" | "interno" | "lateral";
+
+/** Los 8 puntos cardinales. */
+export type Orientacion = "N" | "S" | "E" | "O" | "NE" | "NO" | "SE" | "SO";
+
+export type TipoCochera = "cubierta" | "descubierta";
+
+/** Cómo se LLEGA al lote. "mejorado" = tierra consolidada / ripio. */
+export type TipoAcceso = "asfalto" | "tierra" | "mejorado";
+
+/** Cómo se SUBE al departamento. */
+export type AccesoEdificio = "escalera" | "ascensor";
+
 // ===== Ficha completa (réplica digital de la ficha de papel de Potente Propiedades) =====
 // Se guarda como JSONB en potente_propiedades.ficha. Todo opcional: el form llena
 // el subconjunto según sea campo o urbano.
@@ -92,21 +132,60 @@ export interface Propiedad {
   direccion?: string;
   fotos: string[];
   descripcion: string;
-  estado: "disponible" | "reservado" | "vendido";
-  publicado?: boolean; // false/undefined = borrador (ficha interna, no sale en la web); true = publicada
+  // Los 5 estados que nombró Mateo (audio 7-ago). El enum de la base tiene
+  // exactamente estos. "suspendida" = el dueño la levantó un tiempo: la ficha
+  // está completa, simplemente no se ofrece.
+  estado: EstadoPropiedad;
+  // Interruptor TÉCNICO, distinto de `estado`: ¿la carga está terminada?
+  // false/undefined = borrador (no sale en la web) · true = publicada.
+  // Las dos cosas sacan la propiedad de la web, pero reactivar una suspendida es
+  // un clic y no hay que volver a cargar nada.
+  publicado?: boolean;
   destacado: boolean;
   esNuevo?: boolean;
   esOportunidad?: boolean;
   // rural
   hectareas?: number;
   aptitud?: "agrícola" | "ganadera" | "mixta";
-  // urbano
+  // ── urbano ────────────────────────────────────────────────────────────────
   ambientes?: number;
   dormitorios?: number;
   banos?: number;
+  /** CANTIDAD de cocheras. El "¿tiene cochera?" del formulario es `cocheras > 0`:
+   *  no hay booleano aparte, para que no pueda quedar "tiene=sí, cantidad=0". */
   cocheras?: number;
+  tipoCochera?: TipoCochera;
+
+  // ── Superficies (audio 7-ago). Todas opcionales: "si no tengo el dato lo dejo
+  //    en blanco y que ni se muestre". ──────────────────────────────────────
   m2cubiertos?: number;
   m2totales?: number;
+  m2semicubiertos?: number;
+  m2descubiertos?: number;
+
+  // ── Departamentos (audio 7-ago) ───────────────────────────────────────────
+  /** TEXTO, no número: en la realidad es "PB", "10°", "1 bis". */
+  piso?: string;
+  /** La letra o número de la unidad: "B", "3", "A bis". */
+  depto?: string;
+  disposicion?: Disposicion;
+  orientacion?: Orientacion;
+  /** Cómo se sube. NO confundir con `tipoAcceso`, que es cómo se llega al lote. */
+  accesoEdificio?: AccesoEdificio;
+
+  // ── Lotes y terrenos (audio 7-ago) ────────────────────────────────────────
+  metrosFrente?: number;
+  metrosFondo?: number;
+  m2construibles?: number;
+  tipoAcceso?: TipoAcceso;
+
+  // ── Comunes (audio 7-ago) ─────────────────────────────────────────────────
+  /** Años. 0 = a estrenar. */
+  antiguedadAnios?: number;
+  /** Expensas mensuales en PESOS. Se muestran abajo del precio, nunca sumadas. */
+  expensasARS?: number | null;
+  /** Apta para crédito hipotecario. Es un filtro real de compradores. */
+  aptaCredito?: boolean;
   // multi-oficina: quién la vende. Sin oficina = central (Mateo).
   oficina?: "chauvin" | "puntamogotes";
   // común
