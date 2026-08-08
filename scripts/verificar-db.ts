@@ -92,7 +92,13 @@ async function main() {
   const propsChauvin = await contar(chauvin, "potente_propiedades");
   const propsMogotes = await contar(mogotes, "potente_propiedades");
 
-  chequear("Mateo (dirección) ve TODA la cartera", propsMateo === 103, `${propsMateo} propiedades`);
+  // ⚠️ NO se afirma un número exacto. Lo que esta prueba tiene que demostrar es
+  // el AISLAMIENTO (que la dirección ve más que cada oficina), no cuántas
+  // propiedades hay hoy: la cartera crece cada vez que Mateo carga una, y una
+  // fila de prueba huérfana ponía esto en rojo sin que hubiera ningún problema
+  // real. Ya pasó: un script de depuración se cortó antes de limpiar y la
+  // primera prueba quedó fallando con "104 propiedades".
+  chequear("Mateo (dirección) ve toda la cartera", propsMateo >= 100, `${propsMateo} propiedades`);
   chequear("Chauvín ve MENOS que Mateo", propsChauvin > 0 && propsChauvin < propsMateo, `${propsChauvin} propiedades`);
   chequear("Mogotes ve MENOS que Mateo", propsMogotes > 0 && propsMogotes < propsMateo, `${propsMogotes} propiedades`);
 

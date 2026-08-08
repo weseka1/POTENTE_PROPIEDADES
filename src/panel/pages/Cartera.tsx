@@ -12,7 +12,7 @@ import Badge from "../components/Badge";
 import CampoThumb from "../components/CampoThumb";
 import CampoDrawer from "../components/CampoDrawer";
 import { useToast } from "../components/Toast";
-import { estadoCampo } from "../ui/estados";
+import { estadoCampo, ESTADOS_PROPIEDAD, verEstado } from "../ui/estados";
 import { cn } from "../ui/cn";
 
 const catLabel = (cat: string) => CATEGORIAS.find((c) => c.key === cat)?.label ?? cat;
@@ -47,6 +47,12 @@ export default function Cartera() {
 
   // El drawer resuelve la propiedad EN VIVO desde el contexto -> refleja ediciones al instante.
   const sel = selId ? getProp(selId) ?? null : null;
+
+  // Cuántas hay de cada estado, para mostrarlo en el desplegable del filtro.
+  const porEstado = useMemo(
+    () => propiedades.reduce<Record<string, number>>((a, c) => ({ ...a, [c.estado]: (a[c.estado] ?? 0) + 1 }), {}),
+    [propiedades],
+  );
 
   const filtrados = useMemo(() => {
     return propiedades.filter((c) => {
@@ -109,11 +115,15 @@ export default function Cartera() {
         <FilterSelect
           value={est}
           onChange={setEst}
+          // Los 5 que pidió Mateo: "que me deje filtrar por reservado, activo,
+          // vendido o alquilado". Con el contador al lado, así ve de un vistazo
+          // cuántas tiene de cada una sin filtrar.
           options={[
-            { value: "todos", label: "Estado: todos" },
-            { value: "disponible", label: "Disponible" },
-            { value: "reservado", label: "Reservado" },
-            { value: "vendido", label: "Vendido" },
+            { value: "todos", label: `Estado: todas (${propiedades.length})` },
+            ...ESTADOS_PROPIEDAD.map((e) => ({
+              value: e,
+              label: `${estadoCampo[e].label} (${porEstado[e] ?? 0})`,
+            })),
           ]}
         />
         <div className="ml-auto flex items-center gap-1 rounded-xl border border-graph/10 p-1">
@@ -139,7 +149,7 @@ export default function Cartera() {
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtrados.map((c) => {
-            const e = estadoCampo[c.estado];
+            const e = verEstado(c.estado);
             const esCampo = c.categoria === "campo";
             const meta = specMeta(c);
             return (
@@ -201,7 +211,7 @@ export default function Cartera() {
             </thead>
             <tbody className="divide-y divide-graph/[0.07]">
               {filtrados.map((c) => {
-                const e = estadoCampo[c.estado];
+                const e = verEstado(c.estado);
                 const meta = specMeta(c) || "—";
                 return (
                   <tr key={c.id} onClick={() => setSelId(c.id)} className="cursor-pointer transition hover:bg-graph/[0.03]">

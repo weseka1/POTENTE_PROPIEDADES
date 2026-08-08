@@ -12,7 +12,7 @@ import { fmtUSD, fmtARS } from "@/lib/format";
 import WhatsAppCTA from "./components/WhatsAppCTA";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
-import { CATEGORIAS } from "@/data/propiedadTypes";
+import { CATEGORIAS, ESTADOS_CERRADOS } from "@/data/propiedadTypes";
 
 export default function Catalogo() {
   useLenis();
@@ -177,6 +177,12 @@ export default function Catalogo() {
       const blob = blobs.get(p.id) || "";
       const precio = precioDe(p);
       return (
+        // Lo que ya no se ofrece NO va en el catálogo. Antes una propiedad vendida
+        // seguía apareciendo con su precio grande y el botón "Consultar por
+        // WhatsApp": confunde al comprador, quema consultas y le hace parecer a
+        // Potente que tiene stock que no tiene. La ficha sigue accesible por su
+        // link (sirve de prueba social y no rompe lo que ya se compartió).
+        !ESTADOS_CERRADOS.includes(p.estado) &&
         (!f.cat || p.categoria === f.cat) &&
         (!f.operacion || p.operacion === f.operacion) &&
         (!f.zona || p.zona === f.zona) &&
@@ -190,8 +196,12 @@ export default function Catalogo() {
       );
     });
     if (f.orden === "destacados") r = [...r].sort((a, b) => Number(b.destacado) - Number(a.destacado));
-    if (f.orden === "precio_asc") r = [...r].sort((a, b) => (a.precioUSD || 9e15) - (b.precioUSD || 9e15));
-    if (f.orden === "precio_desc") r = [...r].sort((a, b) => (b.precioUSD || 0) - (a.precioUSD || 0));
+    // ⚠️ Se ordena por `precioDe`, que respeta la moneda de la operación elegida.
+    // Antes ordenaba solo por `precioUSD`, así que con el filtro en "alquiler"
+    // —donde los precios están en pesos y precioUSD es null— el orden no hacía
+    // absolutamente nada: el visitante tocaba "Menor precio" y la lista quedaba igual.
+    if (f.orden === "precio_asc") r = [...r].sort((a, b) => (precioDe(a) ?? 9e15) - (precioDe(b) ?? 9e15));
+    if (f.orden === "precio_desc") r = [...r].sort((a, b) => (precioDe(b) ?? 0) - (precioDe(a) ?? 0));
     return r;
   }, [f, propiedades, blobs]);
 

@@ -11,7 +11,9 @@ import GaleriaPropiedad from "./components/GaleriaPropiedad";
 import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
-import { fmtPrecio, fmtHa, fmtNum } from "@/lib/format";
+import { fmtPrecio, fmtARS } from "@/lib/format";
+import { datosPublicos } from "@/data/esquemaPropiedad";
+import { ESTADO_LABEL, type EstadoPropiedad } from "@/data/propiedadTypes";
 import { useFavorites } from "./context/FavoritesContext";
 import { esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 
@@ -19,8 +21,16 @@ import { waDigits, OFICINAS } from "@/config/marca";
 
 const WA = waDigits();
 const opLabel: Record<string, string> = { venta: "Venta", alquiler: "Alquiler", arrendamiento: "Arrendamiento" };
-const estadoBadge: Record<string, string> = { reservado: "bg-amber-100 text-amber-800", vendido: "bg-graph/10 text-graph-600" };
-const estadoLabel: Record<string, string> = { reservado: "Reservado", vendido: "Vendido" };
+// El color de cada estado. El NOMBRE sale de ESTADO_LABEL (propiedadTypes), que
+// es la misma fuente que usa la tarjeta del catálogo: al comprador se le dice
+// "Disponible", no "Activa".
+const estadoBadge: Record<EstadoPropiedad, string> = {
+  activa: "bg-brand/10 text-brand-700",
+  reservada: "bg-amber-100 text-amber-800",
+  vendida: "bg-graph/10 text-graph-600",
+  alquilada: "bg-sky-100 text-sky-800",
+  suspendida: "bg-graph/10 text-graph-500",
+};
 const NO_IMG = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
 
 export default function PropiedadDetalle() {
@@ -74,18 +84,17 @@ export default function PropiedadDetalle() {
   // Cada consulta va al WhatsApp de la oficina que vende la propiedad (sin oficina → central).
   const waProp = waDigits(p.oficina);
 
-  const datos: { icon: any; l: string; v: string }[] = [];
-  if (p.categoria === "campo") {
-    if (p.hectareas) datos.push({ icon: Maximize, l: "Superficie", v: fmtHa(p.hectareas) });
-    if (p.aptitud) datos.push({ icon: Sprout, l: "Aptitud", v: p.aptitud });
-  } else {
-    if (p.ambientes) datos.push({ icon: HomeIcon, l: "Ambientes", v: `${p.ambientes}` });
-    if (p.dormitorios) datos.push({ icon: BedDouble, l: "Dormitorios", v: `${p.dormitorios}` });
-    if (p.banos) datos.push({ icon: Bath, l: "Baños", v: `${p.banos}` });
-    if (p.cocheras) datos.push({ icon: Car, l: "Cocheras", v: `${p.cocheras}` });
-    if (p.m2cubiertos) datos.push({ icon: Ruler, l: "M² cubiertos", v: `${fmtNum(p.m2cubiertos)} m²` });
-    if (p.m2totales) datos.push({ icon: Maximize, l: "M² totales", v: `${fmtNum(p.m2totales)} m²` });
-  }
+  // Los datos salen del esquema (src/data/esquemaPropiedad.ts), que decide qué
+  // pide cada tipo de propiedad y qué cuenta como "vacío". Pedido textual de
+  // Mateo: "si no tengo el dato lo dejo en blanco y que ni se muestre".
+  // Antes esto era un `if` por campo; con quince campos nuevos serían quince
+  // lugares donde olvidarse de uno.
+  const datos: { icon: any; l: string; v: string }[] = datosPublicos(p).map(({ campo, valor }) => ({
+    icon: campo.icono,
+    l: campo.label,
+    v: valor,
+  }));
+  if (p.categoria === "campo" && p.aptitud) datos.push({ icon: Sprout, l: "Aptitud", v: p.aptitud });
   datos.push({ icon: Tag, l: "Operación", v: opLabel[p.operacion] });
   datos.push({ icon: MapPin, l: "Ubicación", v: p.direccion || `${p.zona}, ${p.provincia}` });
 
@@ -117,7 +126,7 @@ export default function PropiedadDetalle() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">{opLabel[p.operacion]}</span>
             <span className="rounded-full border border-graph/20 px-3 py-1 text-xs font-medium capitalize text-graph-500">{p.categoria}</span>
-            {p.estado !== "activa" && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoBadge[p.estado]}`}>{estadoLabel[p.estado]}</span>}
+            {p.estado !== "activa" && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoBadge[p.estado]}`}>{ESTADO_LABEL[p.estado]}</span>}
             {p.esNuevo && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold uppercase text-white">Nuevo</span>}
             {p.esOportunidad && <span className="rounded-full bg-clay px-3 py-1 text-xs font-bold uppercase text-white">Oportunidad</span>}
           </div>
@@ -127,7 +136,14 @@ export default function PropiedadDetalle() {
             <MapPin size={18} className="text-brand" /> {p.direccion && p.direccion.toLowerCase() !== p.zona.toLowerCase() ? `${p.direccion} · ` : ""}{p.zona}, {p.provincia}
           </p>
 
-          <div className="mt-8 grid gap-px overflow-hidden rounded-2xl bg-graph/10 sm:grid-cols-2 lg:grid-cols-3">
+          {/* La grilla de datos. El `data-datos` lo usa e2e/ficha-sin-vacios.mjs
+              para mirar SOLO esta sección: la palabra "baños" aparece igual más
+              abajo, en las propiedades similares, y sin esto la prueba de "los
+              campos vacíos no se muestran" daba un falso positivo. */}
+          <div
+            data-datos="propiedad"
+            className="mt-8 grid gap-px overflow-hidden rounded-2xl bg-graph/10 sm:grid-cols-2 lg:grid-cols-3"
+          >
             {datos.map((d, i) => (
               <div key={i} className="bg-paper-100 p-5">
                 <span className="flex items-center gap-2 text-xs uppercase tracking-widest2 text-graph-400">
@@ -190,6 +206,16 @@ export default function PropiedadDetalle() {
             <p className="mt-2 font-display text-4xl font-semibold text-brand">{fmtPrecio(p)}</p>
             {p.operacion === "alquiler" && (p.precioARS || p.precioUSD) && (
               <p className="mt-1 text-sm text-graph-400">por mes</p>
+            )}
+            {/* Las expensas, pegadas al precio. Pedido textual de Mateo: "un lugar
+                para poner el valor de las expensas, y que se muestre junto al
+                precio o abajo del precio".
+                SIEMPRE en pesos y NUNCA sumadas al precio: mezclar monedas sería
+                mentir, y el sistema no tiene cotización del dólar. */}
+            {Boolean(p.expensasARS) && (
+              <p className="mt-1.5 text-sm font-medium text-graph-500">
+                + {fmtARS(p.expensasARS as number)} de expensas
+              </p>
             )}
 
             <div className="mt-6 space-y-3">

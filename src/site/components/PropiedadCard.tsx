@@ -2,13 +2,19 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
-import { fmtPrecio, fmtHa } from "@/lib/format";
+import { fmtPrecio, fmtHa, fmtARS } from "@/lib/format";
 import { useFavorites } from "../context/FavoritesContext";
+import { ESTADO_LABEL, type EstadoPropiedad } from "@/data/propiedadTypes";
 
-const estadoStyle: Record<string, string> = {
-  disponible: "bg-brand-50 text-brand",
-  reservado: "bg-amber-50 text-amber-700",
-  vendido: "bg-graph/5 text-graph-500",
+// Los 5 estados. Record COMPLETO tipado: si mañana entra un sexto, no compila
+// hasta que alguien le dé color (con Record<string,…> quedaba undefined y la
+// chapita salía sin estilo).
+const estadoStyle: Record<EstadoPropiedad, string> = {
+  activa: "bg-brand-50 text-brand",
+  reservada: "bg-amber-50 text-amber-700",
+  vendida: "bg-graph/5 text-graph-500",
+  alquilada: "bg-sky-50 text-sky-700",
+  suspendida: "bg-graph/5 text-graph-400",
 };
 
 const opLabel: Record<string, string> = {
@@ -17,7 +23,6 @@ const opLabel: Record<string, string> = {
   arrendamiento: "Arrendamiento",
 };
 
-const estadoLabel: Record<string, string> = { reservado: "Reservado", vendido: "Vendido" };
 
 // Placeholder gris si una propiedad (de la DB real) no tiene foto → nunca rompe la card ni muestra el ícono de imagen rota.
 const NO_IMG = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
@@ -141,7 +146,7 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
           </span>
           {p.estado !== "activa" && (
             <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${estadoStyle[p.estado]}`}>
-              {estadoLabel[p.estado]}
+              {ESTADO_LABEL[p.estado]}
             </span>
           )}
           {p.esNuevo && (
@@ -188,6 +193,13 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
             <p className="font-display text-xl font-semibold text-brand">
               {fmtPrecio(p)}
             </p>
+            {/* Las expensas, abajo del precio y en formato corto: en una tarjeta
+                no hay lugar para "+ $85.000 de expensas". Nunca sumadas al precio. */}
+            {Boolean(p.expensasARS) && (
+              <p className="mt-0.5 text-xs font-medium text-graph-400">
+                + {fmtARS(p.expensasARS as number, { short: true })} exp.
+              </p>
+            )}
           </div>
           <span className="flex items-center gap-1 text-sm font-medium text-graph-500 transition group-hover:text-brand">
             Ver <ArrowUpRight size={16} />

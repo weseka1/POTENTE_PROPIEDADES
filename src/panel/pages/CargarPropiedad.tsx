@@ -719,8 +719,10 @@ function camposParaGuardar(f: Record<string, any>): Record<string, unknown> {
   for (const c of Object.values(CAMPOS)) {
     const id = String(c.id);
     if (!usa.has(id)) {
-      // `aptaCredito` es NOT NULL en la base (default false): va false, no null.
-      salida[id] = c.tipo === "siNo" ? false : null;
+      // Un campo que esta categoría no usa se limpia. Todos los campos de la
+      // ficha admiten NULL, así que "sin dato" se guarda igual en los quince
+      // (ver 007: `aptaCredito` era la excepción y se corrigió).
+      salida[id] = null;
       continue;
     }
     const v = f[id];

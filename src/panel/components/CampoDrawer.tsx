@@ -9,7 +9,7 @@ import Badge from "./Badge";
 import CampoThumb from "./CampoThumb";
 import { Btn } from "./Controls";
 import Select from "@/components/Select";
-import { estadoCampo } from "../ui/estados";
+import { estadoCampo, ESTADOS_PROPIEDAD, verEstado } from "../ui/estados";
 import { cn } from "../ui/cn";
 
 const catLabel = (cat: string) => CATEGORIAS.find((c) => c.key === cat)?.label ?? cat;
@@ -39,7 +39,7 @@ export default function CampoDrawer({
     }
   }, [prop]);
 
-  const e = prop ? estadoCampo[prop.estado] : null;
+  const e = prop ? verEstado(prop.estado) : null;
   const esCampo = prop?.categoria === "campo";
 
   const commitTitulo = () => {
@@ -172,11 +172,9 @@ export default function CampoDrawer({
                   value={prop.estado}
                   onChange={(v) => onUpdate(prop.id, { estado: v as Propiedad["estado"] })}
                   size="sm"
-                  options={[
-                    { value: "disponible", label: "Disponible" },
-                    { value: "reservado", label: "Reservado" },
-                    { value: "vendido", label: "Vendido" },
-                  ]}
+                  // Sale de ESTADOS_PROPIEDAD: una sola lista para el drawer, el
+                  // formulario y el filtro de la cartera.
+                  options={ESTADOS_PROPIEDAD.map((e) => ({ value: e, label: estadoCampo[e].label }))}
                 />
               </label>
               <div className="block">
