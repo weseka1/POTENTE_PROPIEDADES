@@ -10,6 +10,8 @@ import { aDataUrlComprimida, aArchivoWeb } from "@/lib/imagenes";
 import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 import { OFICINAS, getOficina } from "@/config/marca";
 import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
+import { camposDe, camposDelGrupo, CAMPOS, type CampoProp } from "@/data/esquemaPropiedad";
+import { ESTADOS_PROPIEDAD, estadoCampo } from "../ui/estados";
 
 const categorias: { v: Categoria; l: string }[] = [
   { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "chalet", l: "Chalet" },
@@ -41,36 +43,71 @@ const DISPOSICION = [
 ];
 const ORIENTACION = ["N", "S", "E", "O", "NE", "NO", "SE", "SO"].map((v) => ({ v, l: v }));
 const ACCESO = [{ v: "escalera", l: "Escalera" }, { v: "ascensor", l: "Ascensor" }];
+// ⚠️ Acá NO van cosas que ya son un campo propio. Salieron tres:
+//   · "Expensas"  → ahora es un monto en pesos (columna expensasARS). Como chip
+//     solo decía "tiene expensas", y encima el importador del portal las escribía
+//     como texto ("Expensas $65.000") dentro de las características: la migración
+//     005 las pasó a la columna justamente para no tener el dato en dos lados.
+//   · "Cochera"   → ahora es cantidad + tipo (cubierta / descubierta).
+//   · "Ascensores"→ ahora es "acceso al edificio" (escalera / ascensor).
+// Un dato en dos lugares es un dato que se contradice.
 const MEJORAS_URB = [
   "Lavadero", "Quincho", "Pileta", "Aire acondicionado", "Calefacción", "Pisos", "Perforación",
-  "Riego", "Expensas", "Ascensores", "Patio", "Amenities", "Cochera", "Balcón", "Living", "Comedor", "Cocina",
+  "Riego", "Patio", "Amenities", "Balcón", "Living", "Comedor", "Cocina",
 ];
 
+/** Los campos declarados en el esquema arrancan todos vacíos. Se genera de la
+ *  declaración para no tener que acordarse de sumarlos acá también. */
+const CAMPOS_VACIOS = Object.fromEntries(
+  Object.values(CAMPOS).map((c) => [c.id, c.tipo === "siNo" ? false : ""]),
+) as Record<string, string | boolean>;
+
 const FORM_VACIO = {
+  ...CAMPOS_VACIOS,
   categoria: "departamento", operacion: "venta", titulo: "", zona: "", provincia: "Buenos Aires", oficina: "",
-  direccion: "", precioUSD: "", precioARS: "", precioPorHa: "", hectareas: "", aptitud: "agrícola",
-  ambientes: "", dormitorios: "", banos: "", cocheras: "", m2cubiertos: "", m2totales: "",
-  descripcion: "", caracteristicas: "", estado: "disponible", destacado: false, esNuevo: true, esOportunidad: false,
+  direccion: "", precioUSD: "", precioARS: "", precioPorHa: "", aptitud: "agrícola",
+  descripcion: "", caracteristicas: "",
+  estado: "activa" as string,
+  destacado: false, esNuevo: true, esOportunidad: false,
+  // Una propiedad nueva se publica; al editar se conserva lo que ya tenía.
+  publicado: true,
   video: "",
-  // ficha completa (estilo papel)
+  // Coordenadas del mapa (las escribe el selector de ubicación).
+  lat: "" as string, lng: "" as string,
+  // ficha completa (estilo papel) — solo lo INTERNO: propietario, llaves,
+  // observaciones. Lo que se muestra en la web son columnas.
   ficha: { autorizacionVenta: false, cartel: false, aptaCredito: false, llaves: false } as Ficha,
 };
 
 /** Pasa una propiedad guardada al formulario (los números viajan como texto). */
 function aFormulario(p: Propiedad) {
   const t = (v: any) => (v === null || v === undefined ? "" : String(v));
+
+  // Los 15 campos declarados en el esquema se hidratan solos, por su id. Sin
+  // esto habría que acordarse de sumar cada campo nuevo también acá, y el que se
+  // olvida no da error: simplemente al editar aparece vacío y se pierde el dato.
+  const declarados = Object.fromEntries(
+    Object.values(CAMPOS).map((c) => {
+      const v = (p as any)[c.id];
+      return [c.id, c.tipo === "siNo" ? Boolean(v) : t(v)];
+    }),
+  );
+
   return {
     ...FORM_VACIO,
+    ...declarados,
     categoria: p.categoria, operacion: p.operacion, titulo: p.titulo,
     zona: p.zona, provincia: p.provincia, oficina: p.oficina ?? "", direccion: p.direccion ?? "",
     precioUSD: t(p.precioUSD), precioARS: t(p.precioARS), precioPorHa: t(p.precioPorHa),
-    hectareas: t(p.hectareas), aptitud: p.aptitud ?? "agrícola",
-    ambientes: t(p.ambientes), dormitorios: t(p.dormitorios), banos: t(p.banos), cocheras: t(p.cocheras),
-    m2cubiertos: t(p.m2cubiertos), m2totales: t(p.m2totales),
+    aptitud: p.aptitud ?? "agrícola",
     descripcion: p.descripcion ?? "", caracteristicas: (p.caracteristicas ?? []).join(", "),
     estado: p.estado, destacado: Boolean(p.destacado),
     esNuevo: Boolean(p.esNuevo), esOportunidad: Boolean(p.esOportunidad),
+    // ⚠️ Se CONSERVA como estaba. Antes el guardado forzaba `publicado: true`, así
+    // que editarle el título a una propiedad despublicada la volvía a publicar.
+    publicado: p.publicado ?? true,
     video: p.video ?? "",
+    lat: t(p.lat), lng: t(p.lng),
     ficha: { ...FORM_VACIO.ficha, ...(p.ficha ?? {}) } as Ficha,
   };
 }
@@ -244,22 +281,21 @@ export default function CargarPropiedad() {
       direccion: f.direccion || undefined,
       fotos: fotos.length ? fotos : [esCampo ? "/img/campos/u1.jpg" : "/img/props/depto1.jpg"],
       descripcion: f.descripcion,
-      estado: f.estado,
+      estado: f.estado as Propiedad["estado"],
       destacado: f.destacado,
-      // Sin esto la propiedad nace con publicado=false (el valor por defecto de
-      // la columna) y NO aparece en la web: Mateo la cargaba y no la veía nadie.
-      // Todo lo que se carga desde el panel se publica.
-      publicado: true,
+      // Sale del interruptor, ya no forzado a true. Una propiedad nueva arranca
+      // publicada (es lo que se espera al cargarla) y al editar se conserva lo que
+      // tenía: antes, editarle el título a una despublicada la republicaba sola.
+      publicado: Boolean(f.publicado),
       esNuevo: f.esNuevo,
       esOportunidad: f.esOportunidad,
-      hectareas: esCampo ? num(f.hectareas) : undefined,
       aptitud: esCampo ? f.aptitud : undefined,
-      ambientes: !esCampo ? num(f.ambientes) : undefined,
-      dormitorios: !esCampo ? num(f.dormitorios) : undefined,
-      banos: !esCampo ? num(f.banos) : undefined,
-      cocheras: !esCampo ? num(f.cocheras) : undefined,
-      m2cubiertos: !esCampo ? num(f.m2cubiertos) : undefined,
-      m2totales: !esCampo ? num(f.m2totales) : undefined,
+      // Los 15 campos declarados: los que esta categoría usa van con su valor;
+      // los que NO usa van en null a propósito. Si alguien carga un depto (con
+      // piso y expensas), después cambia el tipo a "lote" y guarda, el piso tiene
+      // que desaparecer — si no, queda un dato fantasma que la ficha pública
+      // muestra y nadie entiende de dónde salió.
+      ...camposParaGuardar(f),
       caracteristicas: f.caracteristicas ? f.caracteristicas.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
       video: f.video?.trim() || undefined,
       oficina: f.oficina || undefined,
@@ -352,29 +388,49 @@ export default function CargarPropiedad() {
             </div>
           </section>
 
-          {/* Atributos numéricos según tipo */}
+          {/* ═══ Medidas, ambientes y datos del tipo de propiedad ═══
+              Los campos NO están escritos acá: salen de `camposDe(categoria)` en
+              src/data/esquemaPropiedad.ts. Elegir "Departamento" hace aparecer
+              piso, unidad, disposición y expensas; elegir "Lote" los reemplaza por
+              frente, fondo, superficie construible y tipo de acceso. Una sola
+              declaración, y la ficha pública / la tarjeta / el PDF leen la misma. */}
           <section className="pcard p-5">
-            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-graph">
-              {esCampo ? <Sprout size={16} className="text-brand" /> : <MapPin size={16} className="text-brand" />} Medidas y ambientes
+            <h3 className="mb-1 flex items-center gap-2 font-display text-base font-semibold text-graph">
+              {esCampo ? <Sprout size={16} className="text-brand" /> : <Ruler size={16} className="text-brand" />}
+              Medidas y ambientes
             </h3>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {esCampo ? (
-                <>
-                  <Campo label="Hectáreas"><Inp value={f.hectareas} onChange={(v) => set("hectareas", v)} ph="800" type="number" /></Campo>
-                  <Campo label="Aptitud"><Sel value={f.aptitud} onChange={(v) => set("aptitud", v)} opts={[{ v: "agrícola", l: "Agrícola" }, { v: "ganadera", l: "Ganadera" }, { v: "mixta", l: "Mixta" }]} /></Campo>
-                </>
-              ) : (
-                <>
-                  <Campo label="Ambientes"><Inp value={f.ambientes} onChange={(v) => set("ambientes", v)} ph="3" type="number" /></Campo>
-                  <Campo label="Dormitorios"><Inp value={f.dormitorios} onChange={(v) => set("dormitorios", v)} ph="2" type="number" /></Campo>
-                  <Campo label="Baños"><Inp value={f.banos} onChange={(v) => set("banos", v)} ph="1" type="number" /></Campo>
-                  <Campo label="Cocheras"><Inp value={f.cocheras} onChange={(v) => set("cocheras", v)} ph="1" type="number" /></Campo>
-                  <Campo label="M² cubiertos"><Inp value={f.m2cubiertos} onChange={(v) => set("m2cubiertos", v)} ph="120" type="number" /></Campo>
-                  <Campo label="M² totales"><Inp value={f.m2totales} onChange={(v) => set("m2totales", v)} ph="300" type="number" /></Campo>
-                  <Campo label="Metros de frente"><Inp value={f.ficha.metrosFrente ?? ""} onChange={(v) => setFicha("metrosFrente", v === "" ? undefined : Number(v))} ph="10" type="number" /></Campo>
-                  <Campo label="Metros de fondo"><Inp value={f.ficha.metrosFondo ?? ""} onChange={(v) => setFicha("metrosFondo", v === "" ? undefined : Number(v))} ph="35" type="number" /></Campo>
-                </>
-              )}
+            <p className="mb-4 text-[12px] text-graph-400">
+              Llená solo lo que tengas. <strong className="font-semibold text-graph-500">Lo que dejes vacío no se
+              muestra</strong> en la web.
+            </p>
+
+            {esCampo && (
+              <div className="mb-5 grid gap-4 sm:grid-cols-3">
+                <Campo label="Hectáreas"><Inp value={f.hectareas} onChange={(v) => set("hectareas", v)} ph="800" type="number" /></Campo>
+                <Campo label="Aptitud"><Sel value={f.aptitud} onChange={(v) => set("aptitud", v)} opts={[{ v: "agrícola", l: "Agrícola" }, { v: "ganadera", l: "Ganadera" }, { v: "mixta", l: "Mixta" }]} /></Campo>
+              </div>
+            )}
+
+            <div className="space-y-5">
+              {GRUPOS.map(({ grupo, titulo }) => {
+                const campos = camposDelGrupo(f.categoria as Categoria, grupo);
+                if (!campos.length) return null;
+                return (
+                  <div key={grupo}>
+                    {titulo && <SubLabel>{titulo}</SubLabel>}
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {campos.map((c) => (
+                        <CampoDinamico
+                          key={String(c.id)}
+                          campo={c}
+                          valor={(f as any)[c.id]}
+                          onChange={(v) => set(c.id as string, v)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
@@ -401,25 +457,15 @@ export default function CargarPropiedad() {
           {/* ===== FICHA URBANA ===== */}
           {!esCampo && (
             <section className="pcard p-5">
-              <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-graph"><Ruler size={16} className="text-brand" /> Ficha de la propiedad</h3>
+              <h3 className="mb-1 flex items-center gap-2 font-display text-base font-semibold text-graph"><ClipboardCheck size={16} className="text-brand" /> Servicios y comodidades</h3>
+              <p className="mb-4 text-[12px] text-graph-400">
+                Lo que se destaca en el aviso. Piso, disposición, orientación y superficies ya los cargaste
+                arriba, en <strong className="font-semibold text-graph-500">Medidas y ambientes</strong>.
+              </p>
               <div className="space-y-5">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <Campo label="Barrio"><Inp value={f.ficha.barrio} onChange={(v) => setFicha("barrio", v)} ph="Centro" /></Campo>
-                  <Campo label="Ciudad"><Inp value={f.ficha.ciudad} onChange={(v) => setFicha("ciudad", v)} ph="Mar del Plata" /></Campo>
-                  <Campo label="Antigüedad"><Inp value={f.ficha.antiguedad} onChange={(v) => setFicha("antiguedad", v)} ph="Ej: 10 años / a estrenar" /></Campo>
-                  <Campo label="Piso N°"><Inp value={f.ficha.piso} onChange={(v) => setFicha("piso", v)} ph="3" /></Campo>
-                  <Campo label="Depto"><Inp value={f.ficha.depto} onChange={(v) => setFicha("depto", v)} ph="B" /></Campo>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Campo label="Estado general"><Inp value={f.ficha.estadoGeneral} onChange={(v) => setFicha("estadoGeneral", v)} ph="Muy bueno" /></Campo>
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div><SubLabel>Disposición</SubLabel><Seg opts={DISPOSICION} value={f.ficha.disposicion} onChange={(v) => setFicha("disposicion", v)} /></div>
-                  <div><SubLabel>Orientación</SubLabel><Seg opts={ORIENTACION} value={f.ficha.orientacion} onChange={(v) => setFicha("orientacion", v)} /></div>
-                  <div><SubLabel>Acceso</SubLabel><Seg opts={ACCESO} value={f.ficha.acceso} onChange={(v) => setFicha("acceso", v)} /></div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <Campo label="Sup. lote (m²)"><Inp value={f.ficha.superficieLote} onChange={(v) => setFicha("superficieLote", num(v))} ph="300" type="number" /></Campo>
-                  <Campo label="Sup. semicubierta (m²)"><Inp value={f.ficha.superficieSemicubierta} onChange={(v) => setFicha("superficieSemicubierta", num(v))} ph="20" type="number" /></Campo>
-                  <Campo label="Dimensiones"><Inp value={f.ficha.dimensiones} onChange={(v) => setFicha("dimensiones", v)} ph="10 x 30" /></Campo>
+                  <Campo label="Dimensiones (texto libre)"><Inp value={f.ficha.dimensiones} onChange={(v) => setFicha("dimensiones", v)} ph="10 x 30" /></Campo>
                 </div>
                 <div><SubLabel>Servicios</SubLabel><Chips opts={SERVICIOS} value={f.ficha.servicios} onToggle={(v) => toggleFicha("servicios", v)} /></div>
                 <div><SubLabel>Comodidades</SubLabel><Chips opts={MEJORAS_URB} value={f.ficha.mejorasUrbanas} onToggle={(v) => toggleFicha("mejorasUrbanas", v)} /></div>
@@ -600,8 +646,53 @@ export default function CargarPropiedad() {
               <Toggle label="Marcar como NUEVO" v={f.esNuevo} on={() => set("esNuevo", !f.esNuevo)} />
               <Toggle label="Marcar como OPORTUNIDAD" v={f.esOportunidad} on={() => set("esOportunidad", !f.esOportunidad)} />
             </div>
+
+            {/* ═══ El estado comercial ═══
+                Pedido de Mateo (audio 7-ago): "poder editar el estado, si están
+                activas, reservadas, vendidas, alquiladas, o suspendida". Antes
+                esto solo se podía desde el drawer de la cartera, así que el
+                formulario "que edita todo" en realidad no editaba el estado. */}
+            <div className="mt-5">
+              <SubLabel>Estado</SubLabel>
+              <Seg
+                opts={ESTADOS_PROPIEDAD.map((e) => ({ v: e, l: estadoCampo[e].label }))}
+                value={f.estado}
+                onChange={(v) => set("estado", v || "activa")}
+              />
+              {f.estado === "suspendida" && (
+                <p className="mt-2 text-[12px] text-amber-700">
+                  Suspendida: <strong className="font-semibold">no se muestra en la web</strong>, pero queda
+                  completa acá. Para volver a ofrecerla, ponela en Activa.
+                </p>
+              )}
+            </div>
+
+            {/* ═══ Publicar / bajar de la web ═══
+                Esto NO existía: el guardado forzaba `publicado: true` y no había
+                ningún control, así que una propiedad cargada no se podía bajar de
+                la web nunca. Es lo que Mateo pedía sin saber que estaba a medio
+                construir (la columna ya existía y la vista pública ya la
+                respetaba). */}
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-graph/10 bg-graph/[0.03] p-3">
+              <input
+                type="checkbox"
+                checked={Boolean(f.publicado)}
+                onChange={() => set("publicado", !f.publicado)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#0C4DA2]"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-graph">Publicada en la web</span>
+                <span className="mt-0.5 block text-[12px] text-graph-400">
+                  {f.publicado
+                    ? "Se ve en potentepropiedades.com.ar y en el buscador del sitio."
+                    : "Queda guardada solo acá, en la cartera. No la ve nadie de afuera."}
+                </span>
+              </span>
+            </label>
+
             <div className="mt-4 rounded-xl border border-brand/20 bg-brand/[0.06] p-3 text-xs text-graph-500">
-              <Sparkles size={13} className="mb-1 inline text-brand" /> Al publicar, la propiedad queda visible en la web y en el buscador del sitio al instante.
+              <Sparkles size={13} className="mb-1 inline text-brand" /> Los cambios se ven en la web al instante,
+              sin volver a publicar.
             </div>
             <button type="submit" className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-semibold text-white transition hover:bg-brand-600">
               <UploadCloud size={16} /> Publicar propiedad
@@ -614,6 +705,117 @@ export default function CargarPropiedad() {
 }
 
 // ----- piezas de formulario -----
+/**
+ * Los 15 campos declarados, listos para guardar.
+ *
+ * Los que la categoría elegida NO usa se mandan en `null`, no se omiten: omitir
+ * una clave en un `update` parcial deja el valor viejo en la base. Si un depto
+ * con piso y expensas se cambia a "lote", el piso tiene que irse de verdad.
+ */
+function camposParaGuardar(f: Record<string, any>): Record<string, unknown> {
+  const usa = new Set(camposDe(f.categoria as Categoria).map((c) => String(c.id)));
+  const salida: Record<string, unknown> = {};
+
+  for (const c of Object.values(CAMPOS)) {
+    const id = String(c.id);
+    if (!usa.has(id)) {
+      // `aptaCredito` es NOT NULL en la base (default false): va false, no null.
+      salida[id] = c.tipo === "siNo" ? false : null;
+      continue;
+    }
+    const v = f[id];
+    if (c.tipo === "siNo") salida[id] = Boolean(v);
+    else if (v === "" || v === null || v === undefined) salida[id] = null;
+    else if (c.tipo === "texto") salida[id] = String(v).trim() || null;
+    else {
+      const n = Number(v);
+      salida[id] = Number.isFinite(n) ? n : null;
+    }
+  }
+  return salida;
+}
+
+/* ── Los bloques del formulario, en orden ──────────────────────────────────────
+   Los campos de cada bloque salen de `camposDe(categoria)`: si la categoría no
+   usa ninguno de un bloque, el bloque no se dibuja. */
+const GRUPOS: { grupo: CampoProp["grupo"]; titulo?: string }[] = [
+  { grupo: "ambientes", titulo: "Ambientes" },
+  { grupo: "medidas", titulo: "Superficies" },
+  { grupo: "unidad", titulo: "Datos de la unidad" },
+  { grupo: "lote", titulo: "Datos del lote" },
+  { grupo: "extra" },
+];
+
+/**
+ * Un campo del formulario dibujado a partir de su declaración.
+ *
+ * Todo lo que sabe de cada campo (etiqueta, unidad, opciones, placeholder) viene
+ * de `esquemaPropiedad.ts`. Así el formulario no tiene que enterarse de que
+ * existe "superficie construible": la declara el esquema y esto la dibuja.
+ */
+function CampoDinamico({
+  campo,
+  valor,
+  onChange,
+}: {
+  campo: CampoProp;
+  valor: unknown;
+  onChange: (v: string | boolean) => void;
+}) {
+  const Icono = campo.icono;
+
+  // Sí/No: un interruptor, no un desplegable de dos opciones.
+  if (campo.tipo === "siNo") {
+    return (
+      <div className="sm:col-span-full">
+        <Toggle label={campo.label} v={Boolean(valor)} on={() => onChange(!valor)} />
+      </div>
+    );
+  }
+
+  // Lista cerrada: botones, que en el celular se tocan mejor que un <select>.
+  if (campo.tipo === "opcion") {
+    const anchoCompleto = (campo.opciones?.length ?? 0) > 4;
+    return (
+      <div className={anchoCompleto ? "sm:col-span-full" : "sm:col-span-1"}>
+        <SubLabel>{campo.label}</SubLabel>
+        <Seg
+          opts={campo.opciones as { v: string; l: string }[]}
+          value={typeof valor === "string" ? valor : ""}
+          onChange={onChange}
+        />
+      </div>
+    );
+  }
+
+  // Número o texto. La unidad va DENTRO del campo, a la derecha: así se lee
+  // "85 m²" de un vistazo y la etiqueta no tiene que repetir la unidad.
+  return (
+    <label className="block">
+      <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-widest2 text-graph-400">
+        <Icono size={12} className="text-brand/70" /> {campo.label}
+      </span>
+      <div className="relative">
+        <input
+          type={campo.tipo === "texto" ? "text" : "number"}
+          inputMode={campo.tipo === "entero" ? "numeric" : campo.tipo === "numero" ? "decimal" : "text"}
+          step={campo.tipo === "numero" ? "any" : undefined}
+          min={campo.tipo !== "texto" ? 0 : undefined}
+          value={valor === null || valor === undefined ? "" : String(valor)}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={campo.ph}
+          className={`h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60 ${campo.unidad ? "pr-10" : ""}`}
+        />
+        {campo.unidad && (
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-graph-400">
+            {campo.unidad}
+          </span>
+        )}
+      </div>
+    </label>
+  );
+}
+
 function Campo({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return (
     <label className={`block ${full ? "sm:col-span-full" : ""}`}>

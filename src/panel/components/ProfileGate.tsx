@@ -4,6 +4,7 @@ import {
   useProfiles, Avatar, fileToAvatar, EXTRA_SECCIONES, type Perfil,
   perfilPideePin, verificarPin, definirPin,
 } from "../profiles";
+import { usePanelAuth } from "../auth";
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -15,9 +16,14 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 export default function ProfileGate() {
   const { perfiles, activo, gateOpen, pick, add, update, remove } = useProfiles();
+  const { esDireccion } = usePanelAuth();
   const [manage, setManage] = useState(false);
   // Perfil que está pidiendo PIN para entrar (null = nadie).
   const [pidiendoPin, setPidiendoPin] = useState<Perfil | null>(null);
+
+  // Manda la CUENTA. `esDireccion` es null solo en la demo sin base: ahí se cae
+  // al perfil elegido, como fue siempre.
+  const puedeAdministrar = esDireccion ?? Boolean(activo.admin);
 
   if (!gateOpen) return null;
 
@@ -54,8 +60,14 @@ export default function ProfileGate() {
         </button>
       </div>
 
-      {/* permisos (solo el admin gestiona) */}
-      {manage && activo.admin && (
+      {/* Permisos y PIN: los administra la DIRECCIÓN.
+          ⚠️ `puedeAdministrar` mira primero la CUENTA (app_metadata.rol, que es lo
+          que también usa el RLS de la base) y solo cae al perfil del navegador en
+          la demo sin base. Antes miraba únicamente `activo.admin`, y eso escondía
+          esta sección si Mateo alguna vez tocaba el perfil "Oficina Mogotes":
+          seguía siendo la dirección en la base, pero el panel dejaba de ofrecerle
+          los PIN y no había forma obvia de recuperarlos. */}
+      {manage && puedeAdministrar && (
         <div className="mt-9 w-full max-w-2xl rounded-2xl border border-graph/10 bg-paper-100 p-5 text-left shadow-soft">
           <p className="flex items-center gap-2 font-display text-base font-semibold text-graph"><ShieldCheck size={17} className="text-brand" /> Permisos del equipo</p>
           <p className="mt-0.5 text-xs text-graph-400">Todos ven Clientes, Cargar propiedad, Consultas, Visitas, Tasaciones y Reportes. Sumales secciones o hacelos administradores.</p>

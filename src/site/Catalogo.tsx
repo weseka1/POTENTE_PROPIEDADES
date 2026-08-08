@@ -30,6 +30,24 @@ export default function Catalogo() {
     ...CATEGORIAS.map((c) => ({ key: c.key, label: c.plural, n: cuenta(c.key) })).filter((t) => t.n > 0),
   ];
   const [params, setParams] = useSearchParams();
+  // En el celular los filtros viven en una hoja: pegados arriba tapaban media
+  // pantalla (la barra medía 435 px en un iPhone).
+  const [hojaFiltros, setHojaFiltros] = useState(false);
+
+  // Con la hoja abierta se congela el scroll de la página: si no, el dedo arrastra
+  // la lista de atrás y la hoja a la vez, y se siente roto. Se cierra con Escape.
+  useEffect(() => {
+    if (!hojaFiltros) return;
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setHojaFiltros(false); };
+    window.addEventListener("keydown", esc);
+    return () => {
+      document.body.style.overflow = antes;
+      window.removeEventListener("keydown", esc);
+    };
+  }, [hojaFiltros]);
+
   const [f, setF] = useState({
     cat: params.get("cat") || "",
     operacion: params.get("operacion") || "",
@@ -260,27 +278,55 @@ export default function Catalogo() {
         </div>
       </header>
 
-      {/* Tabs de categoría — panel glass sobre gris (Mateo 5-ago: "muy blanca") */}
-      <div className="sticky top-[64px] z-30 border-y border-graph/10 bg-gradient-to-b from-paper-200/95 to-paper-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl">
+      {/* ═══ Barra de categorías y filtros ═══════════════════════════════════════
+          ⚠️ EN EL CELULAR ESTA BARRA NO PUEDE CRECER. Las tres filas (categorías,
+          filtros y chips) apiladas medían 435 px en un iPhone: pegadas arriba
+          tapaban el 59 % de la pantalla y las tarjetas pasaban por abajo sin
+          verse. Lo reportó Juani: "me bajan los filtros y se me queda la mitad de
+          página sin ver".
+          Solución: en el celular queda SOLO la fila de categorías + un botón que
+          abre los filtros en una hoja. De escritorio para arriba, todo como estaba.
+
+          El `top` va por breakpoint porque el nav mide distinto: 81 px en el
+          celular y 64 en escritorio. Antes era 64 fijo, así que en el celular la
+          barra se metía 17 px por debajo del nav. */}
+      <div className="sticky top-[72px] z-30 border-y border-graph/10 bg-gradient-to-b from-paper-200/95 to-paper-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl lg:top-[64px]">
         <div className="container-x flex flex-col gap-3 py-3.5">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setCat(t.key)}
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                  f.cat === t.key
-                    ? "bg-brand text-white shadow-[0_6px_16px_-6px_rgba(12,77,162,0.55)]"
-                    : "bg-white/75 text-graph-500 ring-1 ring-graph/10 hover:bg-white hover:text-graph"
-                }`}
-              >
-                {t.label} <span className="opacity-60">({t.n})</span>
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {tabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setCat(t.key)}
+                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
+                    f.cat === t.key
+                      ? "bg-brand text-white shadow-[0_6px_16px_-6px_rgba(12,77,162,0.55)]"
+                      : "bg-white/75 text-graph-500 ring-1 ring-graph/10 hover:bg-white hover:text-graph"
+                  }`}
+                >
+                  {t.label} <span className="opacity-60">({t.n})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Solo celular: abre los filtros en una hoja. Con el contador de los
+                que están puestos, para que se vea sin abrirla. */}
+            <button
+              onClick={() => setHojaFiltros(true)}
+              className="relative shrink-0 inline-flex h-10 items-center gap-1.5 rounded-full bg-white/85 px-4 text-sm font-semibold text-graph ring-1 ring-graph/15 lg:hidden"
+            >
+              <SlidersHorizontal size={15} /> Filtros
+              {chips.length > 0 && (
+                <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">
+                  {chips.length}
+                </span>
+              )}
+            </button>
           </div>
+
           {/* Mateo 5-ago: "la mayor cantidad de filtros posible" — que el cliente
               escupa lo que quiere y lo encuentre enseguida. */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="hidden flex-wrap items-center gap-3 lg:flex">
             <span className="flex items-center gap-2 text-xs font-medium text-graph-400">
               <SlidersHorizontal size={14} /> Filtros
             </span>
@@ -321,9 +367,11 @@ export default function Catalogo() {
             </div>
           </div>
 
-          {/* Características de un toque: pileta, cochera, parrilla… (las más comunes de la cartera). */}
+          {/* Características de un toque: pileta, cochera, parrilla… (las más comunes de la cartera).
+              En el celular viven adentro de la hoja de filtros: acá arriba sumaban
+              otra fila a una barra que ya tapaba media pantalla. */}
           {caractsTop.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden flex-wrap items-center gap-2 lg:flex">
               {caractsTop.map((c) => {
                 const activa = f.caract.includes(c.term);
                 return (
@@ -362,6 +410,116 @@ export default function Catalogo() {
           )}
         </div>
       </div>
+
+      {/* ═══ Hoja de filtros — SOLO CELULAR ═══════════════════════════════════
+          Sube desde abajo y ocupa como mucho el 88 % de la pantalla, con el
+          contenido scrolleando adentro y los botones fijos al pie (en la zona del
+          pulgar). Mientras está abierta se bloquea el scroll de la página, así el
+          dedo no arrastra las dos cosas a la vez. */}
+      {hojaFiltros && (
+        <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label="Filtros">
+          <button
+            aria-label="Cerrar filtros"
+            onClick={() => setHojaFiltros(false)}
+            className="absolute inset-0 bg-navy/45 backdrop-blur-sm"
+          />
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-3xl bg-paper-100 shadow-[0_-20px_60px_-20px_rgba(2,35,82,0.45)]">
+            {/* Manija: le dice al dedo que esto se puede cerrar. */}
+            <div className="shrink-0 px-5 pb-1 pt-3">
+              <div className="mx-auto h-1.5 w-11 rounded-full bg-graph/20" />
+            </div>
+            <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-2">
+              <h2 className="font-display text-lg font-semibold text-graph">Filtros</h2>
+              <button
+                onClick={() => setHojaFiltros(false)}
+                aria-label="Cerrar"
+                className="grid h-9 w-9 place-items-center rounded-full text-graph-400 transition hover:bg-graph/5 hover:text-graph"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-4">
+              <div className="grid grid-cols-2 gap-3">
+                <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={["venta", "alquiler", "arrendamiento"]} ph="Operación" />
+                <FSelect value={f.zona} onChange={(v) => set("zona", v)} options={zonas} ph="Zona" />
+                <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
+                <FSelect value={f.dorm} onChange={(v) => set("dorm", v)} options={[{ v: "1", l: "1 dormitorio" }, { v: "2", l: "2 dormitorios" }, { v: "3", l: "3 dormitorios" }, { v: "4+", l: "4 o más" }]} ph="Dormitorios" />
+                <FSelect value={f.banos} onChange={(v) => set("banos", v)} options={[{ v: "1", l: "1 baño" }, { v: "2", l: "2 baños" }, { v: "3+", l: "3 o más" }]} ph="Baños" />
+                <FSelect
+                  value={f.orden}
+                  onChange={(v) => set("orden", v)}
+                  options={[
+                    { v: "destacados", l: "Destacados" },
+                    { v: "precio_desc", l: "Mayor precio" },
+                    { v: "precio_asc", l: "Menor precio" },
+                  ]}
+                  ph="Ordenar"
+                  noEmpty
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest2 text-graph-400">Precio</p>
+                <RangoPrecio
+                  min={Number(f.min) || 0}
+                  max={Number(f.max) || 0}
+                  tope={topePrecio}
+                  paso={pasoPrecio}
+                  moneda={moneda}
+                  nota={moneda === "ARS" ? "por mes" : f.operacion ? "" : "en venta"}
+                  onChange={(lo, hi) =>
+                    setF((p) => ({ ...p, min: lo <= 0 ? "" : String(lo), max: hi >= topePrecio ? "" : String(hi) }))
+                  }
+                />
+              </div>
+
+              {caractsTop.length > 0 && (
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest2 text-graph-400">Con…</p>
+                  <div className="flex flex-wrap gap-2">
+                    {caractsTop.map((c) => {
+                      const activa = f.caract.includes(c.term);
+                      return (
+                        <button
+                          key={c.term}
+                          onClick={() => toggleCaract(c.term)}
+                          className={`rounded-full px-3.5 py-2 text-sm font-medium ring-1 transition ${
+                            activa ? "bg-brand text-white ring-brand" : "bg-white/75 text-graph-500 ring-graph/10"
+                          }`}
+                        >
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pie fijo: los botones quedan siempre al alcance del pulgar. */}
+            <div
+              className="shrink-0 flex gap-3 border-t border-graph/10 bg-paper-100 px-5 pt-3"
+              style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+            >
+              {hayFiltros && (
+                <button
+                  onClick={limpiar}
+                  className="h-12 flex-1 rounded-xl border border-graph/15 text-sm font-semibold text-graph-500 transition active:bg-graph/5"
+                >
+                  Limpiar
+                </button>
+              )}
+              <button
+                onClick={() => setHojaFiltros(false)}
+                className="h-12 flex-[2] rounded-xl bg-brand text-sm font-semibold text-white transition active:bg-brand-600"
+              >
+                Ver {resultados.length} {resultados.length === 1 ? "propiedad" : "propiedades"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fondo gris suave: las tarjetas blancas ganan relieve (nada de blanco sobre blanco). */}
       <section className="bg-paper-200/60 py-12">

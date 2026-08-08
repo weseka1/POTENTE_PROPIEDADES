@@ -21,6 +21,8 @@ type AuthCtx = {
    *  Sale de app_metadata, que solo se escribe desde el servidor: el usuario no
    *  puede cambiarla desde el navegador. */
   oficina: OficinaUsuario;
+  /** true = la cuenta es la direccion (app_metadata.rol). null = modo demo sin base. */
+  esDireccion: boolean | null;
   signIn: (email: string, pass: string) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
 };
@@ -56,6 +58,18 @@ export function PanelAuthProvider({ children }: { children: ReactNode }) {
   // sigue eligiendo el perfil a mano, como en la demo de siempre.
   const oficina: OficinaUsuario = session?.user?.app_metadata?.oficina ?? null;
 
+  // ¿El que entró es la DIRECCIÓN? Sale de `app_metadata.rol`, que solo se escribe
+  // desde el backend: el usuario no se lo puede poner. Es la misma marca que usa
+  // el RLS de la base (migración 004), así que la pantalla y los permisos reales
+  // dicen lo mismo.
+  //
+  // Antes esto se deducía del perfil elegido en el navegador (`perfil.admin`), y
+  // eso traía un problema real: si Mateo alguna vez tocaba el perfil "Oficina
+  // Mogotes", el panel dejaba de mostrarle la administración de perfiles y los
+  // PIN —aunque su CUENTA siguiera siendo la dirección— y no había forma obvia de
+  // volver. En modo demo (sin base) no hay token: manda el perfil, como siempre.
+  const esDireccion = supabase ? session?.user?.app_metadata?.rol === "direccion" : null;
+
   const signIn = async (em: string, pass: string) => {
     const e = em.trim().toLowerCase();
     if (supabase) {
@@ -81,5 +95,5 @@ export function PanelAuthProvider({ children }: { children: ReactNode }) {
     if (supabase) { try { await supabase.auth.signOut(); } catch { /* noop */ } }
   };
 
-  return <Ctx.Provider value={{ authed, loading, email, oficina, signIn, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ authed, loading, email, oficina, esDireccion, signIn, signOut }}>{children}</Ctx.Provider>;
 }
