@@ -56,6 +56,21 @@ async function entrar(quien: keyof typeof CUENTAS) {
   return sb;
 }
 
+/**
+ * Borra TODO lo que dejó la verificación.
+ *
+ * ⚠️ Se llama desde un `finally`, no al final del camino feliz. Varias pruebas
+ * crean filas, y la primera prueba de todas afirma que la cartera tiene 103
+ * propiedades: si una prueba del medio corta el script, la fila de prueba queda
+ * y esa primera prueba se pone roja PARA SIEMPRE, en cada corrida futura.
+ */
+async function limpiar(sb: any) {
+  await sb.from("potente_leads").delete().like("id", "LEAD-VERIF-%");
+  await sb.from("potente_propiedades").delete().like("id", "PROP-VERIF-%");
+  await sb.from("potente_propiedades").delete().like("id", "VERIF-%");
+  await sb.from("potente_reservas_temporada").delete().like("id", "RSV-VERIF-%");
+}
+
 const contar = async (sb: any, tabla: string, filtro?: [string, string]) => {
   let q = sb.from(tabla).select("*", { count: "exact", head: true });
   if (filtro) q = q.eq(filtro[0], filtro[1]);
@@ -223,24 +238,46 @@ async function main() {
   // Registro público: si está abierto, cualquiera se crea una cuenta con la clave
   // que viaja en la web. Hoy el mail sin confirmar lo frena, pero eso es un
   // interruptor. Que esté cerrado es el candado de verdad.
-  // La sonda va con una contraseña de UNA letra a propósito: Supabase revisa si
-  // el registro está permitido ANTES de mirar la contraseña, así que la respuesta
-  // dice en qué estado está sin llegar a crear ninguna cuenta.
-  //   registro cerrado → error_code "signup_disabled"
-  //   registro abierto → error_code "weak_password" (o sea: te habría dejado)
-  const registro = await fetch(`${URL}/auth/v1/signup`, {
-    method: "POST",
-    headers: { apikey: KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "sonda.verificacion@potenteprop.com.ar", password: "a" }),
-  });
-  const cuerpoReg: any = await registro.json().catch(() => ({}));
-  const codigo = String(cuerpoReg?.error_code ?? "");
+  // ── Que un desconocido no se pueda crear una cuenta ─────────────────────────
+  // Lo que importa no es el interruptor de Supabase (que es configuración de
+  // cuenta y no se puede tocar por SQL): es que el alta NO ENTRE. Lo cierra el
+  // trigger `potente_solo_el_equipo` de la migración 006, que rechaza cualquier
+  // dominio que no esté en potente_dominios_permitidos.
+  const intentarAlta = async (email: string) => {
+    const r = await fetch(`${URL}/auth/v1/signup`, {
+      method: "POST",
+      headers: { apikey: KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: `Verif-${Date.now()}-Ax9!` }),
+    });
+    const b: any = await r.json().catch(() => ({}));
+    // Entró si devolvió un usuario con id. Cualquier otra cosa = rechazado.
+    return { entro: r.ok && Boolean(b?.id), status: r.status, codigo: String(b?.error_code ?? "") };
+  };
+
+  const desdeGmail = await intentarAlta(`sonda.verificacion.${Date.now()}@gmail.com`);
   chequear(
-    "El registro público está CERRADO",
-    /signup_disabled|not_allowed/i.test(codigo),
-    codigo === "weak_password"
-      ? "🔴 ABIERTO — Supabase → Authentication → Sign In / Providers → apagar 'Allow new users to sign up'"
-      : codigo || `HTTP ${registro.status}`
+    "Un desconocido NO puede crearse una cuenta",
+    !desdeGmail.entro,
+    desdeGmail.entro ? "🔴 SE CREÓ LA CUENTA" : `rechazado (HTTP ${desdeGmail.status})`,
+  );
+
+  const desdeOtro = await intentarAlta(`sonda.verificacion.${Date.now()}@dominio-cualquiera.net`);
+  chequear(
+    "Tampoco con otro dominio inventado",
+    !desdeOtro.entro,
+    desdeOtro.entro ? "🔴 SE CREÓ LA CUENTA" : `rechazado (HTTP ${desdeOtro.status})`,
+  );
+
+  // Y que el candado no se haya pasado de rosca: el equipo TIENE que poder darse
+  // de alta, o el día que entre alguien nuevo a la inmobiliaria no se puede.
+  // Se consulta la lista blanca en vez de crear una cuenta de prueba: este script
+  // entra como usuario normal y no podría borrarla después.
+  const permitido = async (d: string) =>
+    (await mateo.rpc("potente_dominio_permitido", { p_dominio: d })).data === true;
+  chequear(
+    "Pero el equipo SÍ puede (el candado no se pasó de rosca)",
+    (await permitido("potenteprop.com.ar")) && !(await permitido("gmail.com")),
+    "potenteprop.com.ar habilitado · gmail.com no",
   );
 
   console.log("\n═══ 3 · INTEGRIDAD DE LOS DATOS ═══\n");
@@ -288,6 +325,102 @@ async function main() {
   });
   chequear("Rechaza una unidad que apunta a una propiedad inexistente", Boolean(errFK));
 
+  console.log("\n═══ 3b · LA FICHA COMPLETA (audios de Mateo, 7-ago) ═══\n");
+
+  // ── El vocabulario de estados ───────────────────────────────────────────────
+  const { data: estados } = await mateo.rpc("potente_estados_propiedad");
+  chequear(
+    "Los estados son EXACTAMENTE los 5 que nombró Mateo",
+    JSON.stringify(estados) === JSON.stringify(["activa", "reservada", "vendida", "alquilada", "suspendida"]),
+    (estados ?? []).join(" · "),
+  );
+
+  const conEstado = async (estado: string) => {
+    const id = `PROP-VERIF-${estado}-${Date.now()}`;
+    const { error } = await mateo.from("potente_propiedades").insert({
+      id, categoria: "casa", titulo: "Verificación", operacion: "venta",
+      zona: "Verificación", provincia: "Mar del Plata", estado,
+    });
+    return { id, error };
+  };
+
+  const alquilada = await conEstado("alquilada");
+  chequear("Acepta el estado 'alquilada'", !alquilada.error, alquilada.error?.message ?? "");
+
+  const viejo = await conEstado("disponible");
+  chequear("RECHAZA el vocabulario viejo ('disponible')", Boolean(viejo.error), "el enum se cambió de verdad");
+
+  const inventado = await conEstado("mudada");
+  chequear("Rechaza un estado inventado", Boolean(inventado.error));
+
+  // ── 🔒 Una SUSPENDIDA no la ve el visitante. Ni en la vista, ni pidiendo la
+  //    tabla directo (con security_invoker el anon conserva el SELECT sobre la
+  //    tabla base, así que filtrar solo en la vista no alcanzaba).
+  const idSusp = `PROP-VERIF-SUSP-${Date.now()}`;
+  await mateo.from("potente_propiedades").insert({
+    id: idSusp, categoria: "casa", titulo: "Suspendida de prueba", operacion: "venta",
+    zona: "Verificación", provincia: "Mar del Plata", estado: "suspendida", publicado: true,
+  });
+  const enVista = await anon.from("potente_propiedades_web").select("id").eq("id", idSusp);
+  const enTabla = await anon.from("potente_propiedades").select("id").eq("id", idSusp);
+  chequear("Una suspendida NO sale en la vista pública", (enVista.data?.length ?? 0) === 0);
+  chequear(
+    "Ni pidiendo la tabla directo con la clave pública",
+    (enTabla.data?.length ?? 0) === 0,
+    (enTabla.data?.length ?? 0) === 0 ? "bloqueado por la política" : "🔴 SE FILTRÓ",
+  );
+
+  // ── Los 15 campos nuevos: ¿los acepta la base y los expone la vista? ────────
+  const idCampos = `PROP-VERIF-CAMPOS-${Date.now()}`;
+  const nuevos = {
+    m2semicubiertos: 12.5, m2descubiertos: 30, m2construibles: 240,
+    metrosFrente: 10, metrosFondo: 30, tipoAcceso: "asfalto",
+    piso: "PB", depto: "B", disposicion: "contrafrente", orientacion: "SO",
+    accesoEdificio: "ascensor", tipoCochera: "cubierta",
+    antiguedadAnios: 15, expensasARS: 85000, aptaCredito: true,
+  };
+  const { error: errNuevos } = await mateo.from("potente_propiedades").insert({
+    id: idCampos, categoria: "departamento", titulo: "Verificación de campos",
+    operacion: "venta", zona: "Verificación", provincia: "Mar del Plata",
+    publicado: true, ...nuevos,
+  });
+  chequear("La base acepta los 15 campos nuevos", !errNuevos, errNuevos?.message ?? "");
+
+  // Este es el modo de falla que ya nos pasó con `ficha`: el dato está guardado y
+  // la web queda muda porque la vista no lo expone.
+  const { data: filaVista } = await anon
+    .from("potente_propiedades_web").select("*").eq("id", idCampos).maybeSingle();
+  const faltan = Object.keys(nuevos).filter((k) => !(k in (filaVista ?? {})));
+  chequear(
+    "La vista pública EXPONE los 15 campos nuevos",
+    Boolean(filaVista) && faltan.length === 0,
+    faltan.length ? `🔴 faltan: ${faltan.join(", ")}` : "los 15",
+  );
+  chequear(
+    "…y los devuelve con el valor que se guardó",
+    filaVista?.expensasARS === 85000 && filaVista?.piso === "PB" && filaVista?.tipoCochera === "cubierta",
+    `expensas ${filaVista?.expensasARS} · piso ${filaVista?.piso}`,
+  );
+  chequear("La vista sigue SIN exponer la ficha interna", !("ficha" in (filaVista ?? { ficha: 1 })));
+
+  // ── El relleno de la migración ──────────────────────────────────────────────
+  const cont = async (tabla: string, filtro: (q: any) => any) => {
+    const { count } = await filtro(mateo.from(tabla).select("*", { count: "exact", head: true }));
+    return count ?? 0;
+  };
+  const conExpensas = await cont("potente_propiedades", (q: any) => q.not("expensasARS", "is", null));
+  chequear("Las expensas que estaban como texto pasaron a la columna", conExpensas >= 21, `${conExpensas} propiedades`);
+
+  const conCredito = await cont("potente_propiedades", (q: any) => q.eq("aptaCredito", true));
+  chequear("Apta crédito migrado", conCredito >= 67, `${conCredito} propiedades`);
+
+  // Ningún duplicado quedó sin migrar: si la columna está vacía y la ficha tiene
+  // el dato, la migración se salteó una fila.
+  const { data: sinMigrar } = await mateo
+    .from("potente_propiedades").select("id, ficha").is("dormitorios", null);
+  const huerfanos = (sinMigrar ?? []).filter((p: any) => p.ficha?.dormitorios != null).length;
+  chequear("Ningún duplicado de la ficha quedó sin migrar", huerfanos === 0, `${huerfanos} sin migrar`);
+
   console.log("\n═══ 4 · AUDITORÍA ═══\n");
 
   // Cambiar algo y ver si quedó registrado quién lo hizo.
@@ -309,9 +442,6 @@ async function main() {
     );
   }
 
-  // Limpieza de lo que dejó la verificación.
-  await mateo.from("potente_leads").delete().like("id", "LEAD-VERIF-%");
-
   console.log(`\n${"═".repeat(50)}`);
   console.log(`  ${ok} pruebas OK · ${fallos.length} fallaron`);
   if (fallos.length) {
@@ -321,10 +451,25 @@ async function main() {
   console.log(`${"═".repeat(50)}\n`);
 
   await Promise.all([mateo.auth.signOut(), chauvin.auth.signOut(), mogotes.auth.signOut()]);
-  process.exit(fallos.length ? 1 : 0);
+  return fallos.length ? 1 : 0;
 }
 
-main().catch((e) => {
+// La limpieza va en un finally: si una prueba corta el script a mitad de camino,
+// las filas de prueba tienen que irse igual. Si no, la próxima corrida arranca
+// con una cartera de 104 propiedades y la primera prueba falla para siempre.
+let salida = 1;
+try {
+  salida = await main();
+} catch (e) {
   console.error("\n❌ La verificación se cortó:", e instanceof Error ? e.message : e);
-  process.exit(1);
-});
+} finally {
+  try {
+    const sb = createClient(URL, KEY, { auth: { persistSession: false } });
+    await sb.auth.signInWithPassword(cuenta("mateo"));
+    await limpiar(sb);
+    await sb.auth.signOut();
+  } catch {
+    console.error("⚠️ No pude limpiar las filas de prueba. Revisar PROP-VERIF-% y LEAD-VERIF-%.");
+  }
+}
+process.exit(salida);
