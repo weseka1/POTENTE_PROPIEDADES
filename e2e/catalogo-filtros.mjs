@@ -130,16 +130,44 @@ for (const eq of ESCRITORIOS) {
 
   console.log(`\n── ${eq.nombre} (${eq.w}×${eq.h}) ──`);
 
-  // Arriba de todo los filtros TIENEN que estar a la vista: en escritorio no hay
-  // botón que los abra, así que si se esconden acá no hay forma de filtrar.
+  // Arriba de todo los filtros TIENEN que estar a la vista, sin abrir nada.
   const arriba = await evaluar(`
     window.scrollTo(0, 0); await new Promise(r => setTimeout(r, 400));
-    const b = document.querySelector(".sticky")?.getBoundingClientRect();
-    const t = (document.querySelector(".sticky")?.innerText || "").toLowerCase();
-    return { alto: Math.round(b ? b.height : 0),
-             tiene: ["precio","dormitorio","ambiente","baño"].filter(x => t.includes(x)) };
+    const t = (document.body.innerText || "").toLowerCase();
+    return { tiene: ["precio","dormitorio","ambiente","baño"].filter(x => t.includes(x)) };
   `);
   chequear(`${eq.nombre}: arriba se ven los filtros`, (arriba.tiene?.length ?? 0) >= 3, (arriba.tiene ?? []).join(", "));
+
+  /* 🔴 LA PRUEBA QUE IMPORTA, la que hubiera evitado todo esto.
+     El bug real nunca fue estético: al colapsar con `hidden` (o sea
+     `display:none`) se sacaban 201 px DEL FLUJO, el documento se acortaba de
+     golpe y las tarjetas ya visibles pegaban un salto hacia arriba. Eso es el
+     "choca" que reportó Mateo.
+     Se mide directo: se fija una tarjeta, se scrollea de a poco, y en cada paso
+     se compara su posición REAL en el documento (top del viewport + scroll) con
+     la que tenía al empezar. Si el layout no se mueve, es constante. */
+  const salto = await evaluar(`
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 500));
+    const tarjeta = document.querySelectorAll('a[href^="/propiedad/"]')[6];
+    if (!tarjeta) return { error: "no hay tarjetas" };
+    const dondeEsta = () => Math.round(tarjeta.getBoundingClientRect().top + window.scrollY);
+    const base = dondeEsta();
+    let peor = 0, dondePeor = 0;
+    for (let y = 0; y <= 700; y += 25) {
+      window.scrollTo(0, y);
+      await new Promise(r => setTimeout(r, 90));
+      const d = Math.abs(dondeEsta() - base);
+      if (d > peor) { peor = d; dondePeor = y; }
+    }
+    return { peor, dondePeor, base };
+  `);
+  // 2 px de tolerancia por el redondeo de subpíxeles. El bug daba 201.
+  chequear(
+    `${eq.nombre}: 🔴 la propiedad NO se mueve al scrollear`,
+    (salto.peor ?? 999) <= 2,
+    salto.error ?? `se corrió ${salto.peor}px (con el bug: 201) en scroll=${salto.dondePeor}`,
+  );
 
   const abajo = await evaluar(`
     window.scrollTo(0, 1200);
@@ -169,20 +197,75 @@ for (const eq of ESCRITORIOS) {
   // chips de "Buscando:", que son la información que SÍ querés ver al scrollear.
   chequear(`${eq.nombre}: al bajar la barra se encoge`, abajo.alturaBarra <= 110, `${abajo.alturaBarra}px (era 259)`);
   chequear(`${eq.nombre}: tapa menos de 1/4 de la pantalla`, abajo.pctTapado <= 25, `${abajo.pctTapado}% (era ${eq.h === 768 ? "82" : eq.h === 900 ? "70" : "59"}%)`);
-  // La que de verdad describe la queja: "ver las propiedades placenteramente".
-  chequear(`${eq.nombre}: se ve una fila de propiedades cómoda`, abajo.utiles >= 3, `${abajo.utiles} tarjetas al 70 %`);
+  /* La que de verdad describe la queja: "ver las propiedades placenteramente".
+     ⚠️ Se BARRE el scroll en vez de medir en un punto fijo. Cuántas tarjetas
+     quedan bien encuadradas depende de dónde caiga el scroll, no del layout: a
+     1366 medir clavado en 1200 daba 0 porque las filas caían justo cortadas,
+     con 627 px de hueco libre y tarjetas de 487. Eso no es un bug, es un
+     encuadre. Lo que importa es que EXISTA una posición cómoda. */
+  const barrido = await evaluar(`
+    let mejor = 0, dondeMejor = 0;
+    for (let y = 400; y <= 1600; y += 60) {
+      window.scrollTo(0, y);
+      await new Promise(r => setTimeout(r, 70));
+      const barra = document.querySelector(".sticky");
+      const b = barra && barra.getBoundingClientRect();
+      const nav = document.querySelector("header, nav");
+      const n = nav && nav.getBoundingClientRect();
+      const techo = Math.max(0, b ? b.bottom : 0, n ? n.bottom : 0);
+      const cs = [...document.querySelectorAll('a[href^="/propiedad/"]')].map(c => c.getBoundingClientRect());
+      const u = cs.filter(r => Math.min(r.bottom, innerHeight) - Math.max(r.top, techo) >= r.height * 0.7).length;
+      if (u > mejor) { mejor = u; dondeMejor = y; }
+    }
+    return { mejor, dondeMejor };
+  `);
+  chequear(
+    `${eq.nombre}: hay scroll donde se ve una fila entera cómoda`,
+    barrido.mejor >= 3,
+    `${barrido.mejor} tarjetas al 70 % (scroll ${barrido.dondeMejor})`,
+  );
   // Y que en el hueco que queda ENTRE una tarjeta entera, aunque el scroll la corte.
   chequear(`${eq.nombre}: una tarjeta entra en el hueco libre`, abajo.hueco >= abajo.altoTarjeta, `hueco ${abajo.hueco}px vs tarjeta ${abajo.altoTarjeta}px`);
   chequear(`${eq.nombre}: sin scroll horizontal`, !abajo.scrollHorizontal);
 
-  // Y que vuelva sola al subir: si se queda encogida, no podés cambiar un filtro.
+  // Y que vuelva sola al subir. La disolución es función pura del scroll, así que
+  // subir tiene que devolver el bloque a opacidad 1 sin estado ni histéresis.
   const volviendo = await evaluar(`
+    window.scrollTo(0, 800);
+    await new Promise(r => setTimeout(r, 500));
+    const bloque = document.querySelector("[data-bloque=filtros]");
+    const idoOpacidad = bloque ? Number(getComputedStyle(bloque).opacity) : -1;
     window.scrollTo(0, 0);
     await new Promise(r => setTimeout(r, 700));
-    const t = (document.querySelector(".sticky")?.innerText || "").toLowerCase();
-    return { tiene: ["precio","dormitorio","ambiente"].filter(x => t.includes(x)) };
+    const vueltoOpacidad = bloque ? Number(getComputedStyle(bloque).opacity) : -1;
+    const t = (document.body.innerText || "").toLowerCase();
+    return { idoOpacidad, vueltoOpacidad, visible: getComputedStyle(bloque).visibility,
+             tiene: ["precio","dormitorio","ambiente"].filter(x => t.includes(x)) };
   `);
-  chequear(`${eq.nombre}: al volver arriba los filtros reaparecen`, (volviendo.tiene?.length ?? 0) >= 3, (volviendo.tiene ?? []).join(", "));
+  chequear(`${eq.nombre}: al bajar el bloque se desvanece`, volviendo.idoOpacidad === 0, `opacidad ${volviendo.idoOpacidad}`);
+  chequear(`${eq.nombre}: al volver arriba reaparece entero`, volviendo.vueltoOpacidad === 1 && volviendo.visible !== "hidden", `opacidad ${volviendo.vueltoOpacidad} · ${volviendo.visible}`);
+  chequear(`${eq.nombre}: y los filtros vuelven a estar`, (volviendo.tiene?.length ?? 0) >= 3, (volviendo.tiene ?? []).join(", "));
+
+  // El botón "Filtros" tiene que estar SIEMPRE, también en escritorio: es la
+  // única puerta a los filtros una vez que el bloque se fue. Sin esto, scrolleás
+  // y te quedás sin forma de filtrar (fue exactamente el bug de la v1).
+  const puerta = await evaluar(`
+    window.scrollTo(0, 900);
+    await new Promise(r => setTimeout(r, 500));
+    const b = [...document.querySelectorAll("button")].find(x => (x.textContent||"").trim().indexOf("Filtros") === 0);
+    if (!b) return { hay: false };
+    const r = b.getBoundingClientRect();
+    const encima = document.elementFromPoint(Math.round(r.x + r.width/2), Math.round(r.y + r.height/2));
+    b.click(); await new Promise(r2 => setTimeout(r2, 500));
+    const d = document.querySelector('[role="dialog"]');
+    const dr = d && d.getBoundingClientRect();
+    return { hay: true, alcanzable: encima ? b.contains(encima) || encima === b : false,
+             abrio: !!d, cabe: dr ? dr.height <= innerHeight : false,
+             tiene: ((d && d.innerText) || "").toLowerCase().indexOf("dormitorio") >= 0 };
+  `);
+  chequear(`${eq.nombre}: con el bloque ido queda el botón "Filtros"`, puerta.hay && puerta.alcanzable);
+  chequear(`${eq.nombre}: y abre el panel completo`, puerta.abrio && puerta.tiene);
+  chequear(`${eq.nombre}: el panel entra en la pantalla`, puerta.cabe);
 }
 
 console.log(`\n==== ${ok} PASS / ${fallos.length} FAIL ====`);

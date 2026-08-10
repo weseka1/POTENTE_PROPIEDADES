@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
 import { useLenis } from "./lib/useLenis";
+import { useDisolverAlBajar } from "./lib/useDisolverAlBajar";
 import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
 import { fmtUSD, fmtARS } from "@/lib/format";
@@ -34,31 +35,13 @@ export default function Catalogo() {
   // pantalla (la barra medía 435 px en un iPhone).
   const [hojaFiltros, setHojaFiltros] = useState(false);
 
-  /* ── La barra se ENCOGE al bajar ───────────────────────────────────────────
-     🔴 Segundo reporte de Juani, ahora en escritorio: "cuando bajo me baja todo
-     el filtro de precio, eso no puede bajar, tosquea la página".
-     Medido: la barra entera son 259 px y con el nav tapaba 323 px — el 36 % de un
-     notebook y el 42 % de una laptop de 1366. Y CORTABA 3 tarjetas en cualquier
-     posición: a 1366×768 no se veía ni una propiedad entera.
-     Ahora, apenas se baja, quedan pegadas arriba solo las categorías; los filtros
-     y los chips se van con el scroll y vuelven al subir. Es lo que hace todo
-     catálogo que se usa en serio. */
-  const [bajando, setBajando] = useState(false);
-  useEffect(() => {
-    // Umbral con histéresis: se encoge a los 220 px y se despliega recién abajo
-    // de 120. Sin esa banda, quedar justo en el borde hace que la barra parpadee
-    // entre los dos estados con cada pixel de scroll.
-    let ultimo = -1;
-    const alScrollear = () => {
-      const y = window.scrollY;
-      if (y === ultimo) return;
-      ultimo = y;
-      setBajando((estaba) => (estaba ? y > 120 : y > 220));
-    };
-    alScrollear();
-    window.addEventListener("scroll", alScrollear, { passive: true });
-    return () => window.removeEventListener("scroll", alScrollear);
-  }, []);
+  /* ── El control del catálogo, en dos capas ─────────────────────────────────
+     El riel queda pegado arriba y su alto no cambia nunca; el bloque de filtros
+     se va con la página y se disuelve por debajo. Todo el por qué está en el
+     comentario del JSX y en `useDisolverAlBajar`. */
+  const riel = useRef<HTMLDivElement>(null);
+  const bloque = useRef<HTMLDivElement>(null);
+  useDisolverAlBajar(bloque, riel);
 
   // Con la hoja abierta se congela el scroll de la página: si no, el dedo arrastra
   // la lista de atrás y la hoja a la vez, y se siente roto. Se cierra con Escape.
@@ -232,7 +215,6 @@ export default function Catalogo() {
   }, [f, propiedades, blobs]);
 
   useReveal();
-  useEffect(() => {}, [resultados.length]);
 
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
   const toggleCaract = (c: string) =>
@@ -314,163 +296,242 @@ export default function Catalogo() {
         </div>
       </header>
 
-      {/* ═══ Barra de categorías y filtros ═══════════════════════════════════════
-          ⚠️ EN EL CELULAR ESTA BARRA NO PUEDE CRECER. Las tres filas (categorías,
-          filtros y chips) apiladas medían 435 px en un iPhone: pegadas arriba
-          tapaban el 59 % de la pantalla y las tarjetas pasaban por abajo sin
-          verse. Lo reportó Juani: "me bajan los filtros y se me queda la mitad de
-          página sin ver".
-          Solución: en el celular queda SOLO la fila de categorías + un botón que
-          abre los filtros en una hoja. De escritorio para arriba, todo como estaba.
+      {/* ═══ Control del catálogo — DOS CAPAS, y es a propósito ═══════════════════
+          · RIEL (sticky): una sola fila que SIEMPRE está, con las categorías, el
+            botón de filtros, el orden y el contador. Su caja NUNCA cambia de
+            tamaño mientras se scrollea. Por eso no hay salto.
+          · BLOQUE (NO sticky): los filtros grandes. No acompañan a las
+            propiedades: se van con la página y se disuelven entrando por debajo
+            del riel (`useDisolverAlBajar`).
 
-          El `top` va por breakpoint porque el nav mide distinto: 81 px en el
-          celular y 64 en escritorio. Antes era 64 fijo, así que en el celular la
-          barra se metía 17 px por debajo del nav. */}
-      {/* El degradé va casi opaco a propósito. Con el borde de abajo en /80 se
-          leía el precio de la tarjeta que pasaba por atrás y parecía que los
-          filtros chocaban con las propiedades — se lo ve en el video que mandó
-          Mateo el 10-ago. El liquid glass lo da el `backdrop-blur`, no la
-          transparencia, así que subirlo no cambia el look. */}
-      <div className="sticky top-[72px] z-30 border-y border-graph/10 bg-gradient-to-b from-paper-200/95 to-paper-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl lg:top-[64px]">
-        <div className={`container-x flex flex-col ${bajando ? "gap-1.5 py-2" : "gap-3 py-3.5"}`}>
-          <div className="flex items-center gap-2">
-            <div className="flex flex-1 gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {tabs.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setCat(t.key)}
-                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                    f.cat === t.key
-                      ? "bg-brand text-white shadow-[0_6px_16px_-6px_rgba(12,77,162,0.55)]"
-                      : "bg-white/75 text-graph-500 ring-1 ring-graph/10 hover:bg-white hover:text-graph"
-                  }`}
-                >
-                  {t.label} <span className="opacity-60">({t.n})</span>
-                </button>
-              ))}
+          🔴 QUÉ HABÍA ANTES Y POR QUÉ ESTABA MAL.
+          Las filas 2 y 3 pasaban a `hidden` al cruzar 220 px de scroll. `hidden`
+          es `display:none`: saca 201 px DEL FLUJO, el documento se acorta de golpe
+          y todo lo de abajo pega un salto instantáneo de 201 px hacia arriba, con
+          las tarjetas ya en pantalla. Ese era el "choca" del video que mandó Mateo
+          el 10-ago — un salto de layout, no un fade que faltaba. Animar la altura
+          no lo arregla: reparte el mismo salto en 300 ms y se siente peor, como si
+          la lista se deslizara para arriba peleando contra tu scroll.
+          Y de paso, con la barra colapsada, en escritorio NO quedaba ninguna forma
+          de tocar un filtro: las filas estaban `hidden` y el botón "Filtros" era
+          `lg:hidden`. Ahora el botón está en todas las medidas y abre el panel
+          completo sin perder la posición del scroll.
+
+          ⚠️ El `top` va por breakpoint porque el nav mide distinto: 72 px en el
+          celular y 64 en escritorio.
+
+          🔴 Y OJO CON ESTO, que ya me morí una vez: el riel y el bloque son
+          HERMANOS SUELTOS, sin ningún `div` que los envuelva. Un elemento
+          `sticky` solo se pega DENTRO de su contenedor: envueltos en un `div`
+          propio (que mide riel + bloque, unos 260 px), pasado ese punto el riel
+          se despega y se va con la página — y ahí perdés las categorías y el
+          botón de filtros, que es el mismo bug funcional por otra puerta. Sin
+          envoltorio, el contenedor del riel es la página entera y se queda
+          pegado siempre. */}
+        {/* ── RIEL ──
+            LIQUID GLASS, y por qué cada número:
+            el bug de que se leyera el precio de la tarjeta a través de la barra NO
+            era falta de opacidad. Era que `.reveal` tenía `will-change`
+            permanente, así que cada tarjeta vivía en su propia capa de composición
+            y quedaba FUERA del alcance del `backdrop-filter`: el blur no la veía.
+            Está arreglado en `index.css`. Subir el fondo a /95, como hice primero,
+            era cambiar el vidrio por una pared.
+            · /72 + `saturate-150` es la receta de Apple: la SATURACIÓN es lo que
+              hace que parezca vidrio y no vidrio empañado.
+            · `supports-[backdrop-filter]` deja /94 opaco donde no hay blur
+              (Firefox con el flag apagado), si no quedaría transparente.
+            · `isolate transform-gpu` mete el riel en el mismo camino de
+              composición que lo que tiene que difuminar.
+            · La sombra proyectada aparece SOLO cuando el bloque ya se fue
+              (`data-flotando`): sin scroll el riel es parte de la página; con el
+              bloque ido, flota. Es el único cambio binario visible, y por eso el
+              hook le pone histéresis. */}
+        <div
+          ref={riel}
+          data-riel="filtros"
+          data-flotando="false"
+          className="sticky top-[72px] z-30 isolate transform-gpu bg-paper-200/[0.94] shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] backdrop-blur-[20px] backdrop-saturate-150 transition-shadow duration-300 ease-out supports-[backdrop-filter]:bg-paper-200/[0.72] data-[flotando=true]:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_0_0_rgba(13,21,33,0.10),0_18px_32px_-24px_rgba(2,35,82,0.55)] lg:top-[64px]"
+        >
+          <div className="container-x flex flex-col gap-2 py-2.5">
+            <div className="flex items-center gap-2">
+              <div className="flex flex-1 gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {tabs.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setCat(t.key)}
+                    className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
+                      f.cat === t.key
+                        ? "bg-brand text-white shadow-[0_6px_16px_-6px_rgba(12,77,162,0.55)]"
+                        : "bg-white/75 text-graph-500 ring-1 ring-graph/10 hover:bg-white hover:text-graph"
+                    }`}
+                  >
+                    {t.label} <span className="opacity-60">({t.n})</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* En TODAS las medidas: es la única puerta a los filtros una vez que
+                  el bloque se fue, y no te hace perder la posición del scroll. */}
+              <button
+                onClick={() => setHojaFiltros(true)}
+                aria-expanded={hojaFiltros}
+                className="relative inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white/85 px-4 text-sm font-semibold text-graph ring-1 ring-graph/15 transition hover:bg-white hover:ring-brand/40"
+              >
+                <SlidersHorizontal size={15} /> Filtros
+                {chips.length > 0 && (
+                  <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">
+                    {chips.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Ordenar por precio es exactamente lo que uno quiere hacer estando
+                  en la propiedad número catorce. Antes moría con el colapso. */}
+              <div className="hidden shrink-0 lg:block">
+                <FSelect
+                  value={f.orden}
+                  onChange={(v) => set("orden", v)}
+                  options={[
+                    { v: "destacados", l: "Destacados" },
+                    { v: "precio_desc", l: "Mayor precio" },
+                    { v: "precio_asc", l: "Menor precio" },
+                  ]}
+                  ph="Ordenar"
+                  noEmpty
+                />
+              </div>
+
+              {/* El contador: es el feedback de los filtros. Saco uno y el número
+                  reacciona. `tabular-nums` para que al pasar de 9 a 10 la palabra
+                  "propiedades" no baile de costado, y el `key` remonta el nodo para
+                  que se note el cambio. */}
+              <p
+                key={resultados.length}
+                className="hidden shrink-0 animate-[fadeIn_.32s_cubic-bezier(0.16,1,0.3,1)] tabular-nums text-sm text-graph-500 sm:block"
+              >
+                <span className="font-semibold text-brand-700">{resultados.length}</span>{" "}
+                {resultados.length === 1 ? "propiedad" : "propiedades"}
+              </p>
             </div>
 
-            {/* Solo celular: abre los filtros en una hoja. Con el contador de los
-                que están puestos, para que se vea sin abrirla. */}
-            <button
-              onClick={() => setHojaFiltros(true)}
-              className="relative shrink-0 inline-flex h-10 items-center gap-1.5 rounded-full bg-white/85 px-4 text-sm font-semibold text-graph ring-1 ring-graph/15 lg:hidden"
-            >
-              <SlidersHorizontal size={15} /> Filtros
-              {chips.length > 0 && (
-                <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">
-                  {chips.length}
-                </span>
-              )}
-            </button>
+            {/* "Buscando:" se queda en el riel: es una línea, dice por qué salen
+                esos resultados y cada chip se saca de a uno sin abrir nada.
+                ⚠️ `flex-nowrap` + scroll horizontal a propósito: así el riel tiene
+                un alto DETERMINISTA (nunca envuelve), y de eso depende que la
+                disolución arranque siempre en el mismo punto. */}
+            {chips.length > 0 && (
+              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <span className="shrink-0 text-xs text-graph-400">Buscando:</span>
+                {chips.map((c) => (
+                  <button
+                    key={c.k}
+                    onClick={() => quitarChip(c.k)}
+                    className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand/25 bg-brand/[0.07] py-1 pl-3 pr-2 text-xs font-medium text-brand-700 transition hover:border-brand/50 hover:bg-brand/[0.12]"
+                    title="Quitar este filtro"
+                  >
+                    {c.label}
+                    <X size={13} className="text-brand/50 transition group-hover:text-brand" />
+                  </button>
+                ))}
+                <button
+                  onClick={limpiar}
+                  className="ml-1 shrink-0 whitespace-nowrap text-xs text-graph-400 underline decoration-graph/20 underline-offset-2 transition hover:text-brand hover:decoration-brand/40"
+                >
+                  Limpiar todo
+                </button>
+              </div>
+            )}
           </div>
+        </div>
 
-          {/* Mateo 5-ago: "la mayor cantidad de filtros posible" — que el cliente
-              escupa lo que quiere y lo encuentre enseguida.
-              Al bajar se esconde: la barra pegada arriba no puede tapar media
-              pantalla. Vuelve sola al subir. */}
-          <div className={`${bajando ? "hidden" : "hidden lg:flex"} flex-wrap items-center gap-3`}>
-            <span className="flex items-center gap-2 text-xs font-medium text-graph-400">
-              <SlidersHorizontal size={14} /> Filtros
-            </span>
-            <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={["venta", "alquiler", "arrendamiento"]} ph="Operación" />
-            <FSelect value={f.zona} onChange={(v) => set("zona", v)} options={zonas} ph="Zona" />
-            <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
-            <FSelect value={f.dorm} onChange={(v) => set("dorm", v)} options={[{ v: "1", l: "1 dormitorio" }, { v: "2", l: "2 dormitorios" }, { v: "3", l: "3 dormitorios" }, { v: "4+", l: "4 o más" }]} ph="Dormitorios" />
-            <FSelect value={f.banos} onChange={(v) => set("banos", v)} options={[{ v: "1", l: "1 baño" }, { v: "2", l: "2 baños" }, { v: "3+", l: "3 o más" }]} ph="Baños" />
-            <RangoPrecio
-              min={Number(f.min) || 0}
-              max={Number(f.max) || 0}
-              tope={topePrecio}
-              paso={pasoPrecio}
-              moneda={moneda}
-              // Sin operación elegida el precio se lee en dólares (las ventas): decirlo.
-              nota={moneda === "ARS" ? "por mes" : f.operacion ? "" : "en venta"}
-              onChange={(lo, hi) =>
-                setF((p) => ({ ...p, min: lo <= 0 ? "" : String(lo), max: hi >= topePrecio ? "" : String(hi) }))
-              }
-            />
-            <div className="ml-auto flex items-center gap-3">
+        {/* ── BLOQUE ──
+            NO es sticky, y no lleva NINGUNA clase condicionada al scroll: de eso
+            depende que el alto del documento no se mueva nunca. Mismo fondo que el
+            riel, así en reposo se leen como una sola barra.
+            Mateo, 5-ago: "la mayor cantidad de filtros posible". En el celular
+            estos filtros viven en la hoja (`lg:block`): acá arriba sumaban otra
+            fila a una barra que ya tapaba media pantalla. */}
+        <div
+          ref={bloque}
+          data-bloque="filtros"
+          className="relative z-10 hidden border-b border-graph/10 bg-paper-200/[0.94] supports-[backdrop-filter]:bg-paper-200/[0.72] lg:block"
+        >
+          <div className="container-x flex flex-col gap-3 pb-4 pt-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex items-center gap-2 text-xs font-medium text-graph-400">
+                <SlidersHorizontal size={14} /> Filtros
+              </span>
+              <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={["venta", "alquiler", "arrendamiento"]} ph="Operación" />
+              <FSelect value={f.zona} onChange={(v) => set("zona", v)} options={zonas} ph="Zona" />
+              <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
+              <FSelect value={f.dorm} onChange={(v) => set("dorm", v)} options={[{ v: "1", l: "1 dormitorio" }, { v: "2", l: "2 dormitorios" }, { v: "3", l: "3 dormitorios" }, { v: "4+", l: "4 o más" }]} ph="Dormitorios" />
+              <FSelect value={f.banos} onChange={(v) => set("banos", v)} options={[{ v: "1", l: "1 baño" }, { v: "2", l: "2 baños" }, { v: "3+", l: "3 o más" }]} ph="Baños" />
+              <RangoPrecio
+                min={Number(f.min) || 0}
+                max={Number(f.max) || 0}
+                tope={topePrecio}
+                paso={pasoPrecio}
+                moneda={moneda}
+                // Sin operación elegida el precio se lee en dólares (las ventas): decirlo.
+                nota={moneda === "ARS" ? "por mes" : f.operacion ? "" : "en venta"}
+                onChange={(lo, hi) =>
+                  setF((p) => ({ ...p, min: lo <= 0 ? "" : String(lo), max: hi >= topePrecio ? "" : String(hi) }))
+                }
+              />
               {hayFiltros && (
-                <button onClick={limpiar} className="flex items-center gap-1 text-xs text-graph-500 hover:text-brand">
+                <button onClick={limpiar} className="ml-auto flex items-center gap-1 text-xs text-graph-500 hover:text-brand">
                   <X size={14} /> Limpiar
                 </button>
               )}
-              <FSelect
-                value={f.orden}
-                onChange={(v) => set("orden", v)}
-                options={[
-                  { v: "destacados", l: "Destacados" },
-                  { v: "precio_desc", l: "Mayor precio" },
-                  { v: "precio_asc", l: "Menor precio" },
-                ]}
-                ph="Ordenar"
-                noEmpty
-              />
             </div>
+
+            {/* Características de un toque: pileta, cochera, parrilla… */}
+            {caractsTop.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {caractsTop.map((c) => {
+                  const activa = f.caract.includes(c.term);
+                  return (
+                    <button
+                      key={c.term}
+                      onClick={() => toggleCaract(c.term)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1 transition ${
+                        activa
+                          ? "bg-brand text-white ring-brand"
+                          : "bg-white/75 text-graph-500 ring-graph/10 hover:bg-white hover:text-brand hover:ring-brand/40"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          {/* Características de un toque: pileta, cochera, parrilla… (las más comunes de la cartera).
-              En el celular viven adentro de la hoja de filtros: acá arriba sumaban
-              otra fila a una barra que ya tapaba media pantalla. */}
-          {caractsTop.length > 0 && (
-            <div className={`${bajando ? "hidden" : "hidden lg:flex"} flex-wrap items-center gap-2`}>
-              {caractsTop.map((c) => {
-                const activa = f.caract.includes(c.term);
-                return (
-                  <button
-                    key={c.term}
-                    onClick={() => toggleCaract(c.term)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1 transition ${
-                      activa
-                        ? "bg-brand text-white ring-brand"
-                        : "bg-white/75 text-graph-500 ring-graph/10 hover:bg-white hover:text-brand hover:ring-brand/40"
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Lo que se está aplicando: el visitante ve por qué salen esos resultados. */}
-          {chips.length > 0 && (
-            // Esta fila SÍ se queda: es una sola línea y le dice al visitante por
-            // qué salen esos resultados. Al bajar solo se compacta.
-            <div className={`flex flex-wrap items-center gap-2 ${bajando ? "pb-1" : "pb-3"}`}>
-              <span className="text-xs text-graph-400">Buscando:</span>
-              {chips.map((c) => (
-                <button
-                  key={c.k}
-                  onClick={() => quitarChip(c.k)}
-                  className="group inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/[0.07] py-1 pl-3 pr-2 text-xs font-medium capitalize text-brand-700 transition hover:border-brand/50 hover:bg-brand/[0.12]"
-                  title="Quitar este filtro"
-                >
-                  {c.label}
-                  <X size={13} className="text-brand/50 transition group-hover:text-brand" />
-                </button>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* ═══ Hoja de filtros — SOLO CELULAR ═══════════════════════════════════
-          Sube desde abajo y ocupa como mucho el 88 % de la pantalla, con el
-          contenido scrolleando adentro y los botones fijos al pie (en la zona del
-          pulgar). Mientras está abierta se bloquea el scroll de la página, así el
-          dedo no arrastra las dos cosas a la vez. */}
+      {/* ═══ Panel de filtros ═════════════════════════════════════════════════
+          En el celular sube desde abajo como hoja; en escritorio es una tarjeta
+          centrada. En los dos casos el alto se limita en vh y el contenido
+          scrollea adentro, con los botones fijos al pie (en el celular, en la zona
+          del pulgar). Mientras está abierto se bloquea el scroll de la página, así
+          el dedo no arrastra las dos cosas a la vez.
+
+          En escritorio es LA PUERTA a los filtros una vez que el bloque se fue con
+          el scroll, así que no puede ser `lg:hidden` como era hasta el 10-ago. */}
       {hojaFiltros && (
-        <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label="Filtros">
+        <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Filtros">
           <button
             aria-label="Cerrar filtros"
             onClick={() => setHojaFiltros(false)}
-            className="absolute inset-0 bg-navy/45 backdrop-blur-sm"
+            className="absolute inset-0 bg-navy/45 backdrop-blur-sm motion-safe:animate-[fadeIn_.18s_ease-out]"
           />
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-3xl bg-paper-100 shadow-[0_-20px_60px_-20px_rgba(2,35,82,0.45)]">
-            {/* Manija: le dice al dedo que esto se puede cerrar. */}
-            <div className="shrink-0 px-5 pb-1 pt-3">
+          {/* Hoja desde abajo en el celular; tarjeta centrada en escritorio. En los
+              dos casos el alto se limita en vh y el contenido scrollea adentro: a
+              1366×768 el alto es el recurso escaso. */}
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-3xl bg-paper-100 shadow-[0_-20px_60px_-20px_rgba(2,35,82,0.45)] lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:max-h-[86vh] lg:w-[min(56rem,92vw)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-3xl lg:shadow-[0_40px_90px_-30px_rgba(2,35,82,0.5)] lg:motion-safe:animate-[fadeIn_.18s_ease-out]">
+            {/* Manija: le dice al dedo que esto se puede cerrar. En escritorio no
+                va — ahí se cierra con el fondo, la X o Escape. */}
+            <div className="shrink-0 px-5 pb-1 pt-3 lg:hidden">
               <div className="mx-auto h-1.5 w-11 rounded-full bg-graph/20" />
             </div>
             <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-2">
@@ -485,7 +546,7 @@ export default function Catalogo() {
             </div>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={["venta", "alquiler", "arrendamiento"]} ph="Operación" />
                 <FSelect value={f.zona} onChange={(v) => set("zona", v)} options={zonas} ph="Zona" />
                 <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
@@ -569,7 +630,11 @@ export default function Catalogo() {
       {/* Fondo gris suave: las tarjetas blancas ganan relieve (nada de blanco sobre blanco). */}
       <section className="bg-paper-200/60 py-12">
         <div className="container-x">
-          <p className="mb-6 text-sm text-graph-500">
+          {/* Solo celular. De sm para arriba el contador vive en el riel, donde
+              queda a la vista mientras se scrollea; tenerlo en los dos lados era
+              el mismo número repetido. En el celular el riel no tiene lugar (las
+              categorías ya scrollean de costado), así que va acá. */}
+          <p className="mb-6 text-sm tabular-nums text-graph-500 sm:hidden">
             {resultados.length} {resultados.length === 1 ? "propiedad" : "propiedades"}
           </p>
           {resultados.length === 0 ? (

@@ -167,6 +167,26 @@ html.lenis body {
   transform: translateY(28px);
   transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/*
+ * 🔴 El `will-change` SOLO mientras falta aparecer, nunca para siempre.
+ *
+ * Estaba puesto en `.reveal` a secas, o sea permanente en las 20+ tarjetas del
+ * catálogo. Eso promueve cada tarjeta a su propia capa de composición de por
+ * vida, y una capa promovida queda FUERA del alcance del `backdrop-filter` de la
+ * barra de filtros: el blur no la ve. Resultado, el 10-ago: se leía el precio de
+ * la tarjeta a través de la barra (está en el video que mandó Mateo).
+ *
+ * Yo lo había "arreglado" subiendo la opacidad del fondo de la barra a /95, que
+ * es tapar el vidrio con una pared: se pierde el liquid glass que pidió el
+ * cliente y el problema de composición sigue ahí para el próximo que ponga un
+ * blur. Esto lo arregla en la causa.
+ *
+ * `will-change` es una promesa costosa, no una optimización gratis: se pone
+ * antes de animar y se saca al terminar. Acá se saca solo, porque la clase
+ * `.is-in` que agrega GSAP al aparecer deja de cumplir el `:not()`.
+ */
+.reveal:not(.is-in) {
   will-change: opacity, transform;
 }
 .reveal.is-in {
