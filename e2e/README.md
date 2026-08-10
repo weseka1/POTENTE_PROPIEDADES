@@ -45,7 +45,7 @@ sin las variables de Supabase** (o migrarse, ver abajo).
 | `sweep-final.mjs` | Las 22 rutas del panel y del sitio: que rendericen y **no tiren un solo error de consola** | sesión real | 22 |
 | `deforma.mjs` | Que ninguna ruta estire la página en pantallas angostas (320 y 390 px) | público | 40 |
 | `galeria.mjs` | Las flechas y las miniaturas de la galería **con mouse de verdad** (`Input.dispatchMouseEvent`), en escritorio y celular. Existe porque `setPointerCapture` mataba las flechas y con `.click()` daba verde igual | público | 16 |
-| `catalogo-filtros.mjs` | Que la barra de filtros no se coma la pantalla al bajar: 3 celulares + 3 escritorios. Mide alto de la barra, % tapado y tarjetas usables. Antes era `catalogo-mobile` y por eso el mismo bug en escritorio pasó dos días | público | 54 |
+| `catalogo-filtros.mjs` | Que la barra de filtros no se coma la pantalla al bajar: 3 celulares + 3 escritorios. La aserción que importa: **una tarjeta NO se mueve durante el scroll** (el bug del 10-ago era un salto de layout de 201 px). También: el bloque se desvanece y reaparece, y el botón "Filtros" queda siempre como puerta. Antes era `catalogo-mobile` y por eso el mismo bug en escritorio pasó dos días | público | 72 |
 | `campos-por-tipo.mjs` | Que el formulario pida los campos de cada categoría (piso y expensas en depto, frente/fondo y superficie construible en lote) y que no queden los del tipo anterior | sesión real | 39 |
 | `ficha-sin-vacios.mjs` | Que la ficha pública **no muestre campos sin dato** —el pedido textual de Mateo— y que las expensas salgan junto al precio | público | 41 |
 | `privacidad-perfiles.mjs` | Que una oficina no pueda ponerse el sombrero de la Dirección, ni recreando perfiles con ids al azar ni editando `localStorage` a mano | sesión real | 19 |
@@ -66,7 +66,16 @@ Además, fuera de `e2e/` hay dos verificaciones que corren **contra la base real
 ```bash
 npm run verificar-db    # 52 · aislamiento por oficina, permisos, integridad, auditoría
 npm run verificar-pin   # 10 · el PIN de cada perfil
+npm run verificar-sol   # 27 · el motor de asoleamiento, contra FÍSICA (altura del
+                        #      sol al mediodía = 90 − |lat| ∓ 23,44; azimut 0 = norte
+                        #      en el hemisferio sur). Existe porque suncalc cambió de
+                        #      convención entre versiones: un update silencioso daría
+                        #      números plausibles y equivocados.
 ```
+
+Y dos operativos que no verifican pero conviene conocer: `npm run respaldo`
+(baja toda la base a JSON — obligatorio antes de cualquier migración; el plan
+free no tiene backups) y `npm run cerrar-puerta` (los interruptores de Supabase).
 
 ⚠️ **`verificar-db` corre contra la cartera VIVA de Mateo, no contra un seed.**
 Por eso ninguna prueba afirma cantidades ("103 propiedades", "21 con expensas"):
