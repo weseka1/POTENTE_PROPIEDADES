@@ -24,6 +24,12 @@
   to = "/.netlify/functions/chat"
   status = 200
 
+# El buscador de direcciones del panel (georef-ar + Nominatim, con sesión).
+[[redirects]]
+  from = "/api/geocodificar"
+  to = "/.netlify/functions/geocodificar"
+  status = 200
+
 # SPA fallback (además de public/_redirects, por si el deploy no lo toma).
 [[redirects]]
   from = "/*"

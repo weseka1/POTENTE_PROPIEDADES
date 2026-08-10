@@ -81,6 +81,23 @@ export interface Ficha {
   planos?: string[]; // planos del campo / de la propiedad (URLs subidas)
   fecha?: string; // fecha de la ficha / autorización
   precioUSD?: number | null; // vacío/null = A consultar
+  /**
+   * De dónde salió el pin del mapa. Vive en `ficha` A PROPÓSITO: cero SQL, y la
+   * vista pública descarta `ficha` — "este pin lo corrigió una persona" es
+   * información interna que el visitante no necesita.
+   *
+   * La regla que protege: si `origen === "manual"`, ningún geocodificador
+   * vuelve a pisar `lat`/`lng` NUNCA, salvo que se toque explícitamente
+   * "Volver a buscar automática". Mateo corrigió el pin porque Google/georef se
+   * equivocaban — pisárselo en la próxima edición sería repetir el error que
+   * vino a arreglar.
+   */
+  ubicacion?: {
+    origen: "auto" | "manual";
+    /** Quién la encontró cuando fue automática (georef / nominatim). */
+    fuente?: string;
+    fecha?: string;
+  };
 
   // ── Ficha CAMPO ──
   tipoCampo?: "agrícola" | "ganadero" | "mixto" | "monte";

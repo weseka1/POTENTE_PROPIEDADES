@@ -9,9 +9,10 @@ import { supabase } from "@/lib/supabase";
 import { aDataUrlComprimida, aArchivoWeb } from "@/lib/imagenes";
 import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 import { OFICINAS, getOficina } from "@/config/marca";
-import type { Propiedad, Categoria, Ficha } from "@/data/propiedadTypes";
+import type { Propiedad, Categoria, Ficha, Orientacion } from "@/data/propiedadTypes";
 import { camposDe, camposDelGrupo, CAMPOS, type CampoProp } from "@/data/esquemaPropiedad";
 import { ESTADOS_PROPIEDAD, estadoCampo } from "../ui/estados";
+import MapaUbicacion from "../components/MapaUbicacion";
 
 const categorias: { v: Categoria; l: string }[] = [
   { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "chalet", l: "Chalet" },
@@ -296,6 +297,13 @@ export default function CargarPropiedad() {
       // que desaparecer — si no, queda un dato fantasma que la ficha pública
       // muestra y nadie entiende de dónde salió.
       ...camposParaGuardar(f),
+      // ⚠️ Las coordenadas van EXPLÍCITAS. Hasta el 10-ago no estaban en este
+      // objeto y la regla "una edición no pisa el pin" funcionaba de casualidad
+      // (un update parcial no toca lo que no menciona). Ahora que el mapa las
+      // escribe, van a propósito — y quitar la ubicación también se guarda
+      // (null), que antes era imposible.
+      lat: num(f.lat) ?? null,
+      lng: num(f.lng) ?? null,
       caracteristicas: f.caracteristicas ? f.caracteristicas.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
       video: f.video?.trim() || undefined,
       oficina: f.oficina || undefined,
@@ -392,6 +400,46 @@ export default function CargarPropiedad() {
               <Toggle label="Cartel" v={f.ficha.cartel} on={() => setFicha("cartel", !f.ficha.cartel)} />
               <Toggle label="Llaves" v={f.ficha.llaves} on={() => setFicha("llaves", !f.ficha.llaves)} />
             </div>
+          </section>
+
+          {/* ═══ El mapa: dónde está y hacia dónde da el frente ═══
+              Pedido de Mateo (7-ago): la búsqueda automática con corrección
+              manual porque "en Google las calles no están actualizadas o tienen
+              otro nombre". Y la brújula carga la orientación MIRANDO la calle,
+              que es lo que evita el clásico NE-confundido-con-N — con ese dato
+              la ficha pública muestra cuándo recibe sol la propiedad. */}
+          <section className="card p-5 md:p-6">
+            <h2 className="font-display text-lg text-graph">Ubicación en el mapa</h2>
+            <p className="mb-4 mt-1 text-xs text-graph-400">
+              Se busca sola al escribir la dirección. Si el pin no cae justo, se corrige a mano y queda fijado.
+            </p>
+            <MapaUbicacion
+              lat={f.lat}
+              lng={f.lng}
+              origen={f.ficha.ubicacion?.origen}
+              orientacion={f.orientacion as Orientacion | ""}
+              direccion={f.direccion}
+              zona={f.zona}
+              onUbicar={(u) =>
+                setF((p: any) => ({
+                  ...p,
+                  lat: String(u.lat),
+                  lng: String(u.lng),
+                  ficha: {
+                    ...p.ficha,
+                    ubicacion: { origen: u.origen, fuente: u.fuente, fecha: new Date().toISOString().slice(0, 10) },
+                  },
+                }))
+              }
+              onQuitar={() =>
+                setF((p: any) => {
+                  const ficha = { ...p.ficha };
+                  delete ficha.ubicacion;
+                  return { ...p, lat: "", lng: "", ficha };
+                })
+              }
+              onOrientacion={(o) => set("orientacion", o)}
+            />
           </section>
 
           {/* ═══ Medidas, ambientes y datos del tipo de propiedad ═══

@@ -9,6 +9,7 @@ import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
 import GaleriaPropiedad from "./components/GaleriaPropiedad";
 import MapaPropiedad from "./components/MapaPropiedad";
+import OrientacionYSol from "./components/OrientacionYSol";
 import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
@@ -194,6 +195,13 @@ export default function PropiedadDetalle() {
               zona={p.zona}
               titulo={p.titulo}
             />
+          )}
+
+          {/* Cuándo recibe sol. Aparece solo si la inmobiliaria cargó hacia dónde
+              da el frente (la brújula del panel) y hay coordenadas: sin esos dos
+              datos no se muestra nada antes que mostrar algo inventado. */}
+          {p.lat && p.lng && p.orientacion && (
+            <OrientacionYSol lat={p.lat} lng={p.lng} orientacion={p.orientacion} />
           )}
         </div>
 

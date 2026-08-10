@@ -3,6 +3,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { atenderAsistente, chatGenerico } from "../netlify/functions/_core";
+import { geocodificar } from "../netlify/functions/_geocodificar";
 import { pasaElCupo, ipDe, tieneSesionDePanel, CABECERAS_SEGURIDAD } from "../netlify/functions/_seguridad";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -70,6 +71,22 @@ app.post("/api/chat", async (req, res) => {
   }
   const { status, data } = await chatGenerico(req.body);
   res.status(status).json(data);
+});
+
+// ── Buscar una dirección en el mapa (para el panel) ──────────────────────────
+// 🔒 Exige sesión: lo usa el que carga propiedades, no el visitante. Sin el
+// candado seríamos un proxy gratis a Nominatim para cualquiera, y su política
+// (1 pedido/segundo) la pagaríamos nosotros con la IP de Render bloqueada.
+app.post("/api/geocodificar", async (req, res) => {
+  if (!(await tieneSesionDePanel(req.headers.authorization))) {
+    return res.status(401).json({ error: "Hace falta entrar al panel." });
+  }
+  const cupo = pasaElCupo(ipDe(req.headers), "chat");
+  if (!cupo.ok) {
+    res.setHeader("Retry-After", String(cupo.esperarS));
+    return res.status(429).json({ error: "Muchas búsquedas seguidas. Esperá un momento." });
+  }
+  res.json(await geocodificar(req.body ?? {}));
 });
 
 // Estáticos con cache larga para assets versionados por Vite.
