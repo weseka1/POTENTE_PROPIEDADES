@@ -20,6 +20,13 @@ import { cuenta, exigirBase, SUPABASE_URL as URL, SUPABASE_KEY as KEY } from "./
 
 exigirBase();
 
+// Los acentos, para comparar texto sin depender de las tildes.
+//
+// ⚠️ El rango va como STRING con escapes, no como caracteres literales adentro
+// de un /regex/. Escrito literal funciona… hasta que alguien reencodea el
+// archivo: ahí deja de matchear y no tira ningún error. Es la misma forma que
+// usa src/site/lib/parseBusqueda.ts.
+const DIACRITICOS = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
 
 // Las claves del objeto son las que espera signInWithPassword: email y password.
 const CUENTAS = {
@@ -98,7 +105,10 @@ async function main() {
   // fila de prueba huérfana ponía esto en rojo sin que hubiera ningún problema
   // real. Ya pasó: un script de depuración se cortó antes de limpiar y la
   // primera prueba quedó fallando con "104 propiedades".
-  chequear("Mateo (dirección) ve toda la cartera", propsMateo >= 100, `${propsMateo} propiedades`);
+  // Sin número fijo: la cartera baja cuando Mateo borra y sube cuando carga. Lo
+  // que importa es que la dirección vea algo y vea MÁS que cualquier oficina —
+  // eso es el aislamiento, que es lo que esta prueba cuida de verdad.
+  chequear("Mateo (dirección) ve toda la cartera", propsMateo > 0, `${propsMateo} propiedades`);
   chequear("Chauvín ve MENOS que Mateo", propsChauvin > 0 && propsChauvin < propsMateo, `${propsChauvin} propiedades`);
   chequear("Mogotes ve MENOS que Mateo", propsMogotes > 0 && propsMogotes < propsMateo, `${propsMogotes} propiedades`);
 
@@ -410,15 +420,42 @@ async function main() {
   chequear("La vista sigue SIN exponer la ficha interna", !("ficha" in (filaVista ?? { ficha: 1 })));
 
   // ── El relleno de la migración ──────────────────────────────────────────────
-  const cont = async (tabla: string, filtro: (q: any) => any) => {
-    const { count } = await filtro(mateo.from(tabla).select("*", { count: "exact", head: true }));
-    return count ?? 0;
+  //
+  // ⚠️ ACÁ NO SE CUENTAN FILAS, SE VERIFICA LA INVARIANTE. Estas dos pruebas
+  // decían "hay 21 o más con expensas" y "hay 67 o más aptas crédito". Eran
+  // ciertas el día de la migración y se pusieron rojas solas el 10-ago, cuando
+  // Mateo borró tres propiedades y editó veinte: la base dejó de ser un seed y
+  // pasó a ser la cartera viva de una inmobiliaria. Un contador de volumen
+  // contra datos de un cliente que trabaja da rojo para siempre, y un rojo que
+  // no es un bug enseña a ignorar los rojos.
+  //
+  // Lo que la migración prometió no es una cantidad: es que NO QUEDE el dato
+  // como texto suelto teniendo la columna vacía. Eso es cierto con 97
+  // propiedades, con 300 y con las que cargue Mateo mañana.
+  const textoSuelto = async (aguja: string, columnaVacia: (q: any) => any) => {
+    const { data } = await columnaVacia(
+      mateo.from("potente_propiedades").select("id, caracteristicas"),
+    );
+    return (data ?? []).filter((p: any) =>
+      (p.caracteristicas ?? []).some((c: string) =>
+        c.normalize("NFD").replace(DIACRITICOS, "").toLowerCase().includes(aguja),
+      ),
+    );
   };
-  const conExpensas = await cont("potente_propiedades", (q: any) => q.not("expensasARS", "is", null));
-  chequear("Las expensas que estaban como texto pasaron a la columna", conExpensas >= 21, `${conExpensas} propiedades`);
 
-  const conCredito = await cont("potente_propiedades", (q: any) => q.eq("aptaCredito", true));
-  chequear("Apta crédito migrado", conCredito >= 67, `${conCredito} propiedades`);
+  const expensasHuerfanas = await textoSuelto("expensas", (q: any) => q.is("expensasARS", null));
+  chequear(
+    "Ninguna propiedad tiene las expensas como texto y la columna vacía",
+    expensasHuerfanas.length === 0,
+    expensasHuerfanas.length ? expensasHuerfanas.map((p: any) => p.id).join(", ") : "todas migradas",
+  );
+
+  const creditoHuerfano = await textoSuelto("apto credito", (q: any) => q.not("aptaCredito", "is", true));
+  chequear(
+    "Ninguna dice \"apto crédito\" en el texto con el campo apagado",
+    creditoHuerfano.length === 0,
+    creditoHuerfano.length ? creditoHuerfano.map((p: any) => p.id).join(", ") : "todas migradas",
+  );
 
   // Ningún duplicado quedó sin migrar: si la columna está vacía y la ficha tiene
   // el dato, la migración se salteó una fila.

@@ -8,6 +8,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
 import GaleriaPropiedad from "./components/GaleriaPropiedad";
+import MapaPropiedad from "./components/MapaPropiedad";
 import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
@@ -186,17 +187,13 @@ export default function PropiedadDetalle() {
           )}
 
           {p.lat && p.lng && (
-            <div className="mt-10">
-              <h2 className="font-display text-2xl text-graph">Ubicación</h2>
-              <div className="mt-5 overflow-hidden rounded-2xl ring-1 ring-graph/10">
-                <iframe
-                  title="mapa"
-                  className="h-[320px] w-full"
-                  loading="lazy"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${p.lng - 0.012}%2C${p.lat - 0.009}%2C${p.lng + 0.012}%2C${p.lat + 0.009}&layer=mapnik&marker=${p.lat}%2C${p.lng}`}
-                />
-              </div>
-            </div>
+            <MapaPropiedad
+              lat={p.lat}
+              lng={p.lng}
+              direccion={p.direccion}
+              zona={p.zona}
+              titulo={p.titulo}
+            />
           )}
         </div>
 

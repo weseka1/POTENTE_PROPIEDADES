@@ -34,6 +34,32 @@ export default function Catalogo() {
   // pantalla (la barra medía 435 px en un iPhone).
   const [hojaFiltros, setHojaFiltros] = useState(false);
 
+  /* ── La barra se ENCOGE al bajar ───────────────────────────────────────────
+     🔴 Segundo reporte de Juani, ahora en escritorio: "cuando bajo me baja todo
+     el filtro de precio, eso no puede bajar, tosquea la página".
+     Medido: la barra entera son 259 px y con el nav tapaba 323 px — el 36 % de un
+     notebook y el 42 % de una laptop de 1366. Y CORTABA 3 tarjetas en cualquier
+     posición: a 1366×768 no se veía ni una propiedad entera.
+     Ahora, apenas se baja, quedan pegadas arriba solo las categorías; los filtros
+     y los chips se van con el scroll y vuelven al subir. Es lo que hace todo
+     catálogo que se usa en serio. */
+  const [bajando, setBajando] = useState(false);
+  useEffect(() => {
+    // Umbral con histéresis: se encoge a los 220 px y se despliega recién abajo
+    // de 120. Sin esa banda, quedar justo en el borde hace que la barra parpadee
+    // entre los dos estados con cada pixel de scroll.
+    let ultimo = -1;
+    const alScrollear = () => {
+      const y = window.scrollY;
+      if (y === ultimo) return;
+      ultimo = y;
+      setBajando((estaba) => (estaba ? y > 120 : y > 220));
+    };
+    alScrollear();
+    window.addEventListener("scroll", alScrollear, { passive: true });
+    return () => window.removeEventListener("scroll", alScrollear);
+  }, []);
+
   // Con la hoja abierta se congela el scroll de la página: si no, el dedo arrastra
   // la lista de atrás y la hoja a la vez, y se siente roto. Se cierra con Escape.
   useEffect(() => {
@@ -300,8 +326,13 @@ export default function Catalogo() {
           El `top` va por breakpoint porque el nav mide distinto: 81 px en el
           celular y 64 en escritorio. Antes era 64 fijo, así que en el celular la
           barra se metía 17 px por debajo del nav. */}
-      <div className="sticky top-[72px] z-30 border-y border-graph/10 bg-gradient-to-b from-paper-200/95 to-paper-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl lg:top-[64px]">
-        <div className="container-x flex flex-col gap-3 py-3.5">
+      {/* El degradé va casi opaco a propósito. Con el borde de abajo en /80 se
+          leía el precio de la tarjeta que pasaba por atrás y parecía que los
+          filtros chocaban con las propiedades — se lo ve en el video que mandó
+          Mateo el 10-ago. El liquid glass lo da el `backdrop-blur`, no la
+          transparencia, así que subirlo no cambia el look. */}
+      <div className="sticky top-[72px] z-30 border-y border-graph/10 bg-gradient-to-b from-paper-200/95 to-paper-200/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl lg:top-[64px]">
+        <div className={`container-x flex flex-col ${bajando ? "gap-1.5 py-2" : "gap-3 py-3.5"}`}>
           <div className="flex items-center gap-2">
             <div className="flex flex-1 gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {tabs.map((t) => (
@@ -335,8 +366,10 @@ export default function Catalogo() {
           </div>
 
           {/* Mateo 5-ago: "la mayor cantidad de filtros posible" — que el cliente
-              escupa lo que quiere y lo encuentre enseguida. */}
-          <div className="hidden flex-wrap items-center gap-3 lg:flex">
+              escupa lo que quiere y lo encuentre enseguida.
+              Al bajar se esconde: la barra pegada arriba no puede tapar media
+              pantalla. Vuelve sola al subir. */}
+          <div className={`${bajando ? "hidden" : "hidden lg:flex"} flex-wrap items-center gap-3`}>
             <span className="flex items-center gap-2 text-xs font-medium text-graph-400">
               <SlidersHorizontal size={14} /> Filtros
             </span>
@@ -381,7 +414,7 @@ export default function Catalogo() {
               En el celular viven adentro de la hoja de filtros: acá arriba sumaban
               otra fila a una barra que ya tapaba media pantalla. */}
           {caractsTop.length > 0 && (
-            <div className="hidden flex-wrap items-center gap-2 lg:flex">
+            <div className={`${bajando ? "hidden" : "hidden lg:flex"} flex-wrap items-center gap-2`}>
               {caractsTop.map((c) => {
                 const activa = f.caract.includes(c.term);
                 return (
@@ -403,7 +436,9 @@ export default function Catalogo() {
 
           {/* Lo que se está aplicando: el visitante ve por qué salen esos resultados. */}
           {chips.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 pb-3">
+            // Esta fila SÍ se queda: es una sola línea y le dice al visitante por
+            // qué salen esos resultados. Al bajar solo se compacta.
+            <div className={`flex flex-wrap items-center gap-2 ${bajando ? "pb-1" : "pb-3"}`}>
               <span className="text-xs text-graph-400">Buscando:</span>
               {chips.map((c) => (
                 <button

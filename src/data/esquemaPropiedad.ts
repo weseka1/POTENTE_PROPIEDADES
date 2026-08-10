@@ -58,6 +58,24 @@ export interface CampoProp {
   ceroEsDato?: boolean;
   /** Cómo se lee el valor. Si no está, se usa el número + la unidad. */
   formato?: (v: number | string | boolean) => string;
+  /**
+   * 🔴 El campo aplica a TODAS las categorías: no describe al tipo de propiedad
+   * sino a la operación. Se declara acá, una sola vez, y `camposDe()` lo suma a
+   * las seis familias solo.
+   *
+   * Por qué existe esta marca: `camposParaGuardar()` (en el formulario) pone en
+   * NULL todo campo que la categoría no usa — tiene que hacerlo, porque si una
+   * ficha pasa de "departamento" a "lote" el piso y las expensas se tienen que
+   * ir de verdad. El costo es que un campo transversal que alguien se olvide de
+   * poner en una familia SE BORRA cada vez que se guarda una propiedad de esa
+   * familia. Y no avisa.
+   *
+   * Nos pasó con `aptaCredito`, que estaba solo en `unidad` y `vivienda`: Mateo
+   * editó veinte propiedades el 10-ago y cinco lotes perdieron el dato. Lo
+   * agarró `verificar-db`. Con esta marca no puede repetirse por olvido: el
+   * campo transversal se reparte solo.
+   */
+  transversal?: true;
 }
 
 const DISPOSICION = [
@@ -138,7 +156,10 @@ export const CAMPOS = {
     // Las expensas NO van en la grilla de datos: se renderizan aparte, como
     // segunda línea abajo del precio (pedido textual de Mateo).
   },
-  aptaCredito: { id: "aptaCredito", label: "Apta para crédito", grupo: "extra", tipo: "siNo", icono: Landmark, publico: true },
+  // Transversal: cualquier cosa que se venda puede ser apta crédito. Un lote, un
+  // galpón y un departamento por igual — "lote apto crédito" es un término real
+  // del rubro y así venían etiquetados los datos que importamos del portal.
+  aptaCredito: { id: "aptaCredito", label: "Apta para crédito", grupo: "extra", tipo: "siNo", icono: Landmark, publico: true, transversal: true },
 
   // ── Rurales (ya existían; se declaran acá para que el campo también salga de
   //    una sola fuente) ─────────────────────────────────────────────────────
@@ -171,17 +192,21 @@ type Familia = keyof typeof FAMILIAS;
 /** ⚠️ Record COMPLETO, no Partial: si mañana entra una categoría 20 y nadie la
  *  clasifica, esto NO COMPILA. El compilador hace de checklist. */
 const CAMPOS_DE: Record<Familia, readonly IdCampo[]> = {
+// ⚠️ Acá van SOLO los campos que dependen del tipo de propiedad. Los
+// transversales (los marcados con `transversal: true` en CAMPOS) no se listan:
+// `camposDe()` los suma a todas las familias solo, para que no se puedan olvidar
+// en una. Ver el comentario de `transversal` arriba — cuesta datos del cliente.
   unidad: [
     "ambientes", "dormitorios", "banos", "cocheras", "tipoCochera",
     "m2cubiertos", "m2semicubiertos", "m2descubiertos", "m2totales",
     "piso", "depto", "disposicion", "orientacion", "accesoEdificio",
-    "antiguedadAnios", "expensasARS", "aptaCredito",
+    "antiguedadAnios", "expensasARS",
   ],
   vivienda: [
     "ambientes", "dormitorios", "banos", "cocheras", "tipoCochera",
     "m2cubiertos", "m2semicubiertos", "m2descubiertos", "m2totales",
     "metrosFrente", "metrosFondo", "orientacion", "disposicion",
-    "antiguedadAnios", "aptaCredito",
+    "antiguedadAnios",
   ],
   comercial: [
     "ambientes", "banos", "cocheras", "tipoCochera",
@@ -216,11 +241,22 @@ const familiaDe = (cat: Categoria): Familia => {
 // formulario. Son 19 categorías, así que el mapa se llena una vez y listo.
 const cache = new Map<Categoria, CampoProp[]>();
 
+/** Los campos transversales: van en todas las categorías, sin excepción. */
+const TRANSVERSALES = Object.values(CAMPOS)
+  .filter((c) => (c as CampoProp).transversal)
+  .map((c) => String(c.id) as IdCampo);
+
 /** Los campos que pide (y muestra) esta categoría, en orden de formulario. */
 export function camposDe(cat: Categoria): CampoProp[] {
   const guardado = cache.get(cat);
   if (guardado) return guardado;
-  const ids = [...CAMPOS_DE[familiaDe(cat)], ...(EXTRA_POR_CATEGORIA[cat] ?? [])];
+  const ids = [
+    ...CAMPOS_DE[familiaDe(cat)],
+    ...(EXTRA_POR_CATEGORIA[cat] ?? []),
+    // Los transversales al final: son condiciones de la operación, no del tipo,
+    // así que quedan después de las características propias de la propiedad.
+    ...TRANSVERSALES,
+  ];
   const lista = [...new Set(ids)].map((id) => CAMPOS[id] as CampoProp);
   cache.set(cat, lista);
   return lista;

@@ -111,6 +111,21 @@ function Riel({
 
   const alApoyar = (e: React.PointerEvent) => {
     if (imagenes.length < 2) return;
+
+    // 🔴 Si el toque NACE en un control, no se arranca el gesto.
+    //
+    // Las flechas, el corazón y el botón de pantalla completa viven adentro de
+    // este marco. Al hacer `setPointerCapture` en el marco, el navegador
+    // re-dirige al marco todos los eventos de puntero siguientes Y el `click`
+    // que viene después — así que el botón NUNCA recibía su click y las flechas
+    // quedaban muertas con un mouse de verdad.
+    //
+    // Lo raro del bug: con `.click()` por código funcionaba igual (un click
+    // sintético no pasa por el mismo camino), así que solo se veía usándolo. Lo
+    // encontró Juani. La prueba nueva usa Input.dispatchMouseEvent para que no
+    // vuelva a pasar desapercibido.
+    if ((e.target as HTMLElement | null)?.closest("button")) return;
+
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     gesto.current = { x0: e.clientX, t0: performance.now(), ultimaX: e.clientX, ultimoT: performance.now(), activo: true, movio: false };
   };

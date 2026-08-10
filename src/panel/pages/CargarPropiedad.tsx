@@ -379,11 +379,17 @@ export default function CargarPropiedad() {
               <Campo label="Precio (U$S) — vacío = “A consultar”"><Inp value={f.precioUSD} onChange={(v) => set("precioUSD", v)} ph="vacío = A consultar" type="number" /></Campo>
               {esCampo && <Campo label="Precio por hectárea (U$S)"><Inp value={f.precioPorHa} onChange={(v) => set("precioPorHa", v)} ph="3500" type="number" /></Campo>}
             </div>
-            {/* Autorización (cabecera de la ficha) */}
+            {/* Autorización — datos internos de la inmobiliaria, no van a la web.
+                ⚠️ Acá NO va "Apta crédito". Estuvo hasta el 10-ago y era un
+                duplicado: escribía en `ficha.aptaCredito` (interno, invisible
+                para el comprador) mientras la COLUMNA `aptaCredito` —la que ve
+                la web y la que filtra el catálogo— la manejaba el bloque de
+                características. Dos controles con el mismo nombre en la misma
+                pantalla, cada uno escribiendo en un lugar distinto. Ahora hay
+                uno solo, el de la columna, y sale del esquema. */}
             <div className="mt-4 grid gap-2 rounded-xl border border-graph/10 bg-graph/[0.02] p-3 sm:grid-cols-2">
               <Toggle label="Autorización de venta" v={f.ficha.autorizacionVenta} on={() => setFicha("autorizacionVenta", !f.ficha.autorizacionVenta)} />
               <Toggle label="Cartel" v={f.ficha.cartel} on={() => setFicha("cartel", !f.ficha.cartel)} />
-              <Toggle label="Apta crédito" v={f.ficha.aptaCredito} on={() => setFicha("aptaCredito", !f.ficha.aptaCredito)} />
               <Toggle label="Llaves" v={f.ficha.llaves} on={() => setFicha("llaves", !f.ficha.llaves)} />
             </div>
           </section>
