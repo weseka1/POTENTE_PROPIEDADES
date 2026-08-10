@@ -4,6 +4,7 @@ import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, 
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
+import { SITIO, SITIO_LEGIBLE } from "@/config/marca";
 import Drawer from "./Drawer";
 import Badge from "./Badge";
 import CampoThumb from "./CampoThumb";
@@ -237,7 +238,7 @@ export default function CampoDrawer({
                 <Globe size={17} className="text-graph-400" />
                 <div className="leading-tight">
                   <p className="text-sm font-semibold text-graph">Destacado en la home</p>
-                  <p className="text-xs text-graph-400">Aparece en los destacados de potenteprop.com.ar</p>
+                  <p className="text-xs text-graph-400">Aparece en los destacados de {SITIO_LEGIBLE}</p>
                 </div>
               </div>
               <button
@@ -273,7 +274,11 @@ export default function CampoDrawer({
                 className="flex-1"
                 onClick={() => {
                   const precio = fmtPrecio(prop);
-                  const msg = encodeURIComponent(`${prop.titulo} — ${precio} · ${prop.zona}\nMás info: potenteprop.com.ar/propiedad/${prop.id}`);
+                  // 🔴 El link va con el SITIO real (marca.ts). Estuvo hardcodeado
+                  // a potenteprop.com.ar —el dominio del mail, no de la web— y
+                  // cada propiedad que Mateo compartía por WhatsApp era un link
+                  // que no abría nada.
+                  const msg = encodeURIComponent(`${prop.titulo} — ${precio} · ${prop.zona}\nMás info: ${SITIO}/propiedad/${prop.id}`);
                   window.open(`https://wa.me/?text=${msg}`, "_blank");
                 }}
               >

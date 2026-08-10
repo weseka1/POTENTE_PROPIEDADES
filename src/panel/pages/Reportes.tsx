@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { FileDown, FileSpreadsheet } from "lucide-react";
+import { SITIO_LEGIBLE } from "@/config/marca";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -122,7 +123,7 @@ export default function Reportes() {
 
       const ph = doc.internal.pageSize.getHeight();
       doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-      doc.text("Generado por el panel de Potente Propiedades · potenteprop.com.ar", 40, ph - 24);
+      doc.text(`Generado por el panel de Potente Propiedades · ${SITIO_LEGIBLE}`, 40, ph - 24);
 
       doc.save(`Potente-Reporte-${hoy.toISOString().slice(0, 10)}.pdf`);
       push("Reporte PDF descargado ✓", "success");

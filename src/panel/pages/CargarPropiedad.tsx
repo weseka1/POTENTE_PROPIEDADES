@@ -8,7 +8,7 @@ import Select from "@/components/Select";
 import { supabase } from "@/lib/supabase";
 import { aDataUrlComprimida, aArchivoWeb } from "@/lib/imagenes";
 import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
-import { OFICINAS, getOficina } from "@/config/marca";
+import { OFICINAS, getOficina, SITIO_LEGIBLE } from "@/config/marca";
 import type { Propiedad, Categoria, Ficha, Orientacion } from "@/data/propiedadTypes";
 import { camposDe, camposDelGrupo, CAMPOS, type CampoProp } from "@/data/esquemaPropiedad";
 import { ESTADOS_PROPIEDAD, estadoCampo } from "../ui/estados";
@@ -738,7 +738,7 @@ export default function CargarPropiedad() {
                 <span className="block text-sm font-semibold text-graph">Publicada en la web</span>
                 <span className="mt-0.5 block text-[12px] text-graph-400">
                   {f.publicado
-                    ? "Se ve en potentepropiedades.com.ar y en el buscador del sitio."
+                    ? `Se ve en ${SITIO_LEGIBLE} y en el buscador del sitio.`
                     : "Queda guardada solo acá, en la cartera. No la ve nadie de afuera."}
                 </span>
               </span>

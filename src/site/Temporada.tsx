@@ -16,9 +16,10 @@ import type { TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { fmtARS } from "@/lib/format";
 
-import { waDigits } from "@/config/marca";
+import { waDigits, SITIO } from "@/config/marca";
 import WhatsAppCTA from "./components/WhatsAppCTA";
-const SITE = "https://potente-propiedades.onrender.com";
+// El dominio sale de marca.ts (una sola fuente, pisable con VITE_SITE_URL).
+const SITE = SITIO;
 const NO_IMG =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
 

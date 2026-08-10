@@ -2,6 +2,7 @@
 // Datos definitivos de Mateo (cierre 3-ago-2026). Todo lo que muestre dirección,
 // teléfono, WhatsApp u horario sale de acá: nada hardcodeado en componentes.
 // Numeración de Mateo: Oficina 1 = Chauvín · Oficina 2 = Punta Mogotes.
+import { DOMINIO_POR_DEFECTO } from "./dominio.js";
 
 export type OficinaId = "chauvin" | "puntamogotes";
 
@@ -78,3 +79,20 @@ export const REDES = {
   instagram: "https://www.instagram.com/potentepropiedades",
   facebook: "https://www.facebook.com/potente.propiedades",
 };
+
+/* ── El sitio ─────────────────────────────────────────────────────────────────
+ * La URL donde vive la web. TODO lo que arme una URL absoluta sale de acá:
+ * canonical y OG (seo.ts), el JSON-LD de temporada, el link de "Compartir por
+ * WhatsApp" del panel y los pies de los tres PDF.
+ *
+ * 🔴 Por qué existe: el 10-ago la auditoría encontró TRES dominios distintos
+ * hardcodeados. El botón de compartir y los PDF imprimían potenteprop.com.ar
+ * (que solo es el dominio del MAIL): cada link que Mateo mandaba por WhatsApp
+ * era un link muerto. El dominio de deploy vive en src/config/dominio.js y se
+ * pisa con la variable VITE_SITE_URL — así mudar de hosting no toca código.
+ */
+export const SITIO: string =
+  (import.meta.env?.VITE_SITE_URL as string | undefined) || DOMINIO_POR_DEFECTO;
+
+/** El dominio para leer en pantalla o imprimir: sin el https:// adelante. */
+export const SITIO_LEGIBLE = SITIO.replace(/^https?:\/\//, "");

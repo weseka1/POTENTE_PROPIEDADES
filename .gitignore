@@ -12,3 +12,6 @@ dist-ssr
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+
+# Artefacto del build del server (npm run build:server) — se genera, no se versiona.
+server/index.mjs

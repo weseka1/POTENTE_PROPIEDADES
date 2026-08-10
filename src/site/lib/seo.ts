@@ -1,10 +1,12 @@
 import { useEffect } from "react";
+import { SITIO } from "@/config/marca";
 
 // ── SEO por ruta (SPA) ─────────────────────────────────────────────────────────
 // Actualiza title, description, canonical y JSON-LD al navegar. El index.html
 // trae la base (RealEstateAgent + OG); esto especializa cada página.
 
-const SITE = "https://potente-propiedades.onrender.com";
+// El dominio sale de marca.ts (una sola fuente, pisable con VITE_SITE_URL).
+const SITE = SITIO;
 
 type SEOProps = {
   titulo: string;

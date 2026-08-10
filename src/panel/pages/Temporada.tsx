@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Building2, Percent, Wallet, BadgeCheck, Users, ArrowRight, Ban, Plus, Trash2, FileDown, FileSpreadsheet, CalendarDays } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
+import { SITIO_LEGIBLE } from "@/config/marca";
 import type { ReservaTemporada, EstadoReserva, TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { precioSugerido, nochesEntre, reservaEnConflicto, TRAMOS } from "@/data/temporada";
@@ -347,7 +348,7 @@ export default function Temporada() {
 
       const ph = doc.internal.pageSize.getHeight();
       doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-      doc.text("Generado por el panel de Potente Propiedades · potenteprop.com.ar", 40, ph - 24);
+      doc.text(`Generado por el panel de Potente Propiedades · ${SITIO_LEGIBLE}`, 40, ph - 24);
 
       doc.save(`Potente-Rendicion-${hoy.toISOString().slice(0, 10)}.pdf`);
       push("Rendición PDF descargada ✓", "success");

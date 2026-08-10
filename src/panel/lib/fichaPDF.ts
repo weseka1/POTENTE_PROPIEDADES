@@ -2,6 +2,7 @@
 // jsPDF nativo (texto vectorial, nítido). Listo para descargar y mandar a un cliente/compañero.
 import { jsPDF } from "jspdf";
 import type { Ficha } from "@/data/propiedadTypes";
+import { SITIO_LEGIBLE } from "@/config/marca";
 import { MEJORAS_CAMPO, SERVICIOS, MEJORAS_URB } from "../components/fichaUI";
 
 export type FichaRowPDF = { id: string; tipo: "campo" | "urbano"; titulo: string; zona: string; datos: Ficha };
@@ -137,7 +138,8 @@ export function descargarFichaPDF(row: FichaRowPDF) {
     doc.setPage(i);
     doc.setDrawColor(...LIGHT); doc.setLineWidth(1); doc.line(M, H - 34, W - M, H - 34);
     doc.setTextColor(...GRAY); doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
-    doc.text("Potente Propiedades  ·  Mar del Plata  ·  potenteprop.com.ar", M, H - 24);
+    // El dominio impreso sale de marca.ts: este PDF se le manda a clientes.
+    doc.text(`Potente Propiedades  ·  Mar del Plata  ·  ${SITIO_LEGIBLE}`, M, H - 24);
     doc.text("Córdoba 3719 (Chauvín) Tel 223 512-9032  ·  Av. de los Trabajadores 2439 (Punta Mogotes) Tel 223 628-2659", M, H - 13);
     doc.text(`${i} / ${pages}`, W - M, H - 24, { align: "right" });
   }
