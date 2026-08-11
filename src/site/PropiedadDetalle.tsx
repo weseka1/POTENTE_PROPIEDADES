@@ -197,10 +197,11 @@ export default function PropiedadDetalle() {
             />
           )}
 
-          {/* Cuándo recibe sol. Aparece solo si la inmobiliaria cargó hacia dónde
-              da el frente (la brújula del panel) y hay coordenadas: sin esos dos
-              datos no se muestra nada antes que mostrar algo inventado. */}
-          {p.lat && p.lng && p.orientacion && (
+          {/* Cuándo recibe sol. Con coordenadas ya muestra la salida/puesta y las
+              horas de luz del lugar (verdad pura); cuando la inmobiliaria carga
+              hacia dónde da el frente (la brújula del panel), la misma sección se
+              completa sola con la franja de sol directo. Nunca se inventa. */}
+          {p.lat && p.lng && (
             <OrientacionYSol lat={p.lat} lng={p.lng} orientacion={p.orientacion} />
           )}
         </div>

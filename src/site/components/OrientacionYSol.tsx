@@ -67,15 +67,30 @@ function TituloFranja({ sol, dia }: { sol: SolDelFrente; dia: DiaDeSol }) {
   return <p className="text-sm font-semibold text-graph">{texto}</p>;
 }
 
+/**
+ * La sección funciona en DOS niveles, a propósito (pedido de Juani, 11-ago:
+ * "tiene que quedar lo del sol" — sin esperar a que la cartera tenga la
+ * orientación cargada):
+ *
+ * · SIN orientación (hoy, la mayoría de la cartera): muestra lo que es 100 %
+ *   verdad solo con las coordenadas — a qué hora sale y se pone el sol AHÍ, y
+ *   cuántas horas de luz hay, en las tres épocas. Ninguna afirmación sobre el
+ *   frente, porque no se sabe.
+ * · CON orientación (la carga la inmobiliaria con la brújula del panel): se
+ *   completa sola con la franja del frente, el chip y el copy por orientación.
+ *
+ * Así el sol está visible en toda la web desde el día uno, y mejora ficha por
+ * ficha a medida que el equipo carga el dato — sin inventar jamás.
+ */
 export default function OrientacionYSol({
   lat, lng, orientacion,
-}: { lat: number; lng: number; orientacion: Orientacion }) {
+}: { lat: number; lng: number; orientacion?: Orientacion }) {
   const [epoca, setEpoca] = useState<(typeof EPOCAS)[number]["k"]>("hoy");
 
   const { dia, sol } = useMemo(() => {
     const fecha = EPOCAS.find((e) => e.k === epoca)!.fecha();
     const dia = diaDeSol(lat, lng, fecha);
-    return { dia, sol: solDelFrente(orientacion, dia) };
+    return { dia, sol: orientacion ? solDelFrente(orientacion, dia) : null };
   }, [lat, lng, orientacion, epoca]);
 
   if (!dia.amanecer || !dia.atardecer) return null;
@@ -116,33 +131,45 @@ export default function OrientacionYSol({
       </div>
 
       <div className="mt-5 rounded-2xl border border-graph/10 bg-paper-100 p-5 shadow-card sm:p-6">
-        {/* El titular del dato */}
+        {/* El titular del dato. Con orientación: el frente y su franja. Sin
+            orientación: las horas de luz del lugar — verdad pura de coordenadas. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200/70">
             <Sun size={13} aria-hidden />
-            Frente al {NOMBRE[orientacion]}
+            {orientacion ? `Frente al ${NOMBRE[orientacion]}` : `${horaDeMinutos(desde)} – ${horaDeMinutos(hasta)}`}
           </span>
-          <TituloFranja sol={sol} dia={dia} />
+          {sol ? (
+            <TituloFranja sol={sol} dia={dia} />
+          ) : (
+            <p className="text-sm font-semibold text-graph">
+              {dia.horasDeLuz.toFixed(1).replace(".", ",")} horas de luz natural
+            </p>
+          )}
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-graph-600">{COPY[orientacion].linea}</p>
+        <p className="mt-2 text-sm leading-relaxed text-graph-600">
+          {orientacion
+            ? COPY[orientacion].linea
+            : `En esta ubicación el sol sale a las ${horaDeMinutos(desde)} y se pone a las ${horaDeMinutos(hasta)}.`}
+        </p>
 
-        {/* La banda del día: del amanecer al atardecer, con los ratos de sol
-            directo sobre el frente pintados. Dos tramos separados —el caso del
-            frente sur en verano— se ven como dos bandas, que es la verdad. */}
+        {/* La banda del día: del amanecer al atardecer. Con orientación se pintan
+            los ratos de sol directo sobre el frente (dos tramos separados —el
+            frente sur en verano— se ven como dos bandas, que es la verdad). Sin
+            orientación se pinta el día entero de luz. */}
         <div className="mt-5">
           <div className="relative h-9 overflow-hidden rounded-lg bg-navy/[0.06]">
-            {sol.tramos.map((t) => (
+            {(sol ? sol.tramos : [{ desde, hasta, horas: dia.horasDeLuz }]).map((t) => (
               <div
                 key={t.desde}
-                className="absolute inset-y-0 bg-gradient-to-b from-amber-300/85 to-amber-400/85"
+                className={`absolute inset-y-0 bg-gradient-to-b ${sol ? "from-amber-300/85 to-amber-400/85" : "from-amber-200/70 to-amber-300/70"}`}
                 style={{ left: `${pct(t.desde)}%`, width: `${Math.max(1.5, pct(t.hasta) - pct(t.desde))}%` }}
-                title={`Sol directo de ${horaDeMinutos(t.desde)} a ${horaDeMinutos(t.hasta)}`}
+                title={sol ? `Sol directo de ${horaDeMinutos(t.desde)} a ${horaDeMinutos(t.hasta)}` : "Horas de luz"}
               />
             ))}
             {/* El mediodía solar, de referencia */}
             <div className="absolute inset-y-0 w-px bg-navy/20" style={{ left: `${pct(mediodia)}%` }} aria-hidden />
             {/* Las horas de los tramos, adentro de la banda cuando entran */}
-            {sol.tramos.map((t) => {
+            {(sol ? sol.tramos : []).map((t) => {
               const w = pct(t.hasta) - pct(t.desde);
               if (w < 14) return null;
               return (
@@ -161,9 +188,11 @@ export default function OrientacionYSol({
               <Sunrise size={12} aria-hidden /> {horaDeMinutos(desde)}
             </span>
             <span>
-              {sol.horas > 0
-                ? `${sol.horas.toFixed(1).replace(".", ",")} h de sol directo sobre el frente`
-                : "El sol no da de frente en esta época"}
+              {sol
+                ? sol.horas > 0
+                  ? `${sol.horas.toFixed(1).replace(".", ",")} h de sol directo sobre el frente`
+                  : "El sol no da de frente en esta época"
+                : "Salida y puesta del sol en esta ubicación"}
             </span>
             <span className="inline-flex items-center gap-1">
               <Sunset size={12} aria-hidden /> {horaDeMinutos(hasta)}
