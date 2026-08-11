@@ -229,13 +229,20 @@ export default function Home() {
             { n: "2", l: "Oficinas en la ciudad" },
             { n: `${propiedades.length}`, l: "Propiedades en cartera" },
           ].map((s, i) => (
+            // El material iPhone de la casa: EL MISMO de las placas de la galería
+            // (radio 1.75rem, anillo de luz, reflejo en el borde superior, curva
+            // de Apple). Nada de rectángulos duros: la tarjeta es una placa de
+            // vidrio apoyada en el navy, y al hover se pinta de azul CON el
+            // reflejo encima — vidrio azul, no cartulina azul.
             <div
               key={i}
               data-delay={`${i * 80}ms`}
-              className="reveal group rounded-2xl bg-paper-100 p-5 text-center shadow-[0_24px_60px_-28px_rgba(2,10,30,0.6)] transition duration-300 hover:-translate-y-1 hover:bg-brand md:p-6 md:text-left"
+              className="reveal group relative overflow-hidden rounded-[1.75rem] bg-white/[0.92] p-5 text-center shadow-[0_24px_60px_-24px_rgba(2,10,30,0.65)] ring-1 ring-white/30 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:bg-brand md:p-6 md:text-left"
             >
-              <p className="font-display text-3xl font-semibold tracking-tight text-brand-950 transition-colors duration-300 group-hover:text-white md:text-4xl">{s.n}</p>
-              <p className="mt-1 text-sm text-graph-500 transition-colors duration-300 group-hover:text-white/80">{s.l}</p>
+              {/* El reflejo de vidrio, igual que en la galería. */}
+              <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[1.75rem] bg-gradient-to-b from-white/45 via-transparent to-transparent opacity-70 transition-opacity duration-500 group-hover:opacity-40" />
+              <p className="relative font-display text-3xl font-semibold tracking-tight text-brand-950 transition-colors duration-500 group-hover:text-white md:text-4xl">{s.n}</p>
+              <p className="relative mt-1 text-sm text-graph-500 transition-colors duration-500 group-hover:text-white/85">{s.l}</p>
             </div>
           ))}
         </div>
@@ -384,24 +391,29 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Los cuatro de siempre, en tira editorial con hairlines. */}
-          <div className="reveal mt-4 grid gap-px overflow-hidden rounded-2xl border border-graph/10 bg-graph/10 md:grid-cols-2 lg:grid-cols-4" data-delay="200ms">
+          {/* Los cuatro servicios, en PLACAS SEPARADAS — el gesto central de la
+              referencia de Juani (11-ago): tarjetas blancas con el disco de
+              ícono grande, y al pasar por encima la placa entera se pinta de
+              azul con el reflejo de vidrio. Antes era una tira pegada con
+              hairlines ("parece Win 98"). Y ahora son LINKS: cada una lleva a
+              donde dice — una tarjeta linda que no va a ningún lado es decorado. */}
+          <div className="reveal mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5" data-delay="200ms">
             {[
-              { icon: HomeIcon, t: "Venta de propiedades", d: "Casas, departamentos, PH, locales y lotes, con cartera propia." },
-              { icon: KeyRound, t: "Alquileres", d: "Anuales y de temporada, contratos claros y garantías verificadas." },
-              { icon: FileSearch, t: "Tasaciones", d: "Valuación profesional con informe escrito, sin cargo." },
-              { icon: TrendingUp, t: "Asesoramiento", d: "Inversión en ladrillo marplatense: renta, reciclados y pozo." },
-            ].map((s) => (
-              <div key={s.t} className="group bg-paper-100 p-6 transition hover:bg-paper-200">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand transition group-hover:bg-brand group-hover:text-white">
-                    <s.icon size={17} />
-                  </span>
-                  <h3 className="font-display text-base font-semibold text-graph">{s.t}</h3>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-graph-500">{s.d}</p>
-              </div>
-            ))}
+              { icon: HomeIcon, t: "Venta de propiedades", d: "Casas, departamentos, PH, locales y lotes, con cartera propia.", to: "/propiedades?operacion=venta" },
+              { icon: KeyRound, t: "Alquileres", d: "Anuales y de temporada, contratos claros y garantías verificadas.", to: "/propiedades?operacion=alquiler" },
+              { icon: FileSearch, t: "Tasaciones", d: "Valuación profesional con informe escrito, sin cargo.", to: "/#tasaciones" },
+              { icon: TrendingUp, t: "Asesoramiento", d: "Inversión en ladrillo marplatense: renta, reciclados y pozo.", to: "/#contacto" },
+            ].map((s) =>
+              s.to.includes("#") ? (
+                <a key={s.t} href={s.to} className="group relative overflow-hidden rounded-[1.75rem] border border-graph/10 bg-paper-100 p-6 shadow-[0_18px_44px_-24px_rgba(2,35,82,0.35)] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:border-transparent hover:bg-brand">
+                  <ServicioPlaca s={s} />
+                </a>
+              ) : (
+                <Link key={s.t} to={s.to} className="group relative overflow-hidden rounded-[1.75rem] border border-graph/10 bg-paper-100 p-6 shadow-[0_18px_44px_-24px_rgba(2,35,82,0.35)] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:border-transparent hover:bg-brand">
+                  <ServicioPlaca s={s} />
+                </Link>
+              ),
+            )}
           </div>
         </div>
       </section>
@@ -507,6 +519,26 @@ export default function Home() {
 
       <Footer />
     </div>
+  );
+}
+
+/* ── La placa de servicio ─────────────────────────────────────────────────────
+   El interior de las cuatro tarjetas de servicios: disco de ícono grande (como
+   la referencia), título y bajada, más el reflejo de vidrio de la casa. Al
+   hover, el padre (.group) se pinta de azul y todo el contenido pasa a blanco. */
+function ServicioPlaca({ s }: { s: { icon: any; t: string; d: string } }) {
+  return (
+    <>
+      <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[1.75rem] bg-gradient-to-b from-white/40 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+      <span className="relative grid h-14 w-14 place-items-center rounded-full bg-brand-50 text-brand transition-colors duration-500 group-hover:bg-white/15 group-hover:text-white">
+        <s.icon size={24} strokeWidth={1.8} />
+      </span>
+      <h3 className="relative mt-4 font-display text-base font-semibold text-graph transition-colors duration-500 group-hover:text-white">{s.t}</h3>
+      <p className="relative mt-2 text-sm leading-relaxed text-graph-500 transition-colors duration-500 group-hover:text-white/85">{s.d}</p>
+      <span className="relative mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand opacity-0 transition-all duration-500 group-hover:translate-x-1 group-hover:text-white group-hover:opacity-100">
+        Ver más <ArrowRight size={15} />
+      </span>
+    </>
   );
 }
 
