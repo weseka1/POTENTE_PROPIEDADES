@@ -30,3 +30,8 @@ services:
         value: https://gqhpgexqbnqqqeynbucu.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
         value: sb_publishable_LQ_JxpWjM__E0uO2s3hcUA_L_hLFJgw
+      # ShadeMap (sombras del mapa): key personal de Mateo, atada a su mail.
+      # NO va en el repo (es público): se carga a mano en Render → Environment.
+      # Sin la variable, el botón "Sombras" no existe y la web queda como antes.
+      - key: VITE_SHADEMAP_API_KEY
+        sync: false

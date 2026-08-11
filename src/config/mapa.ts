@@ -25,6 +25,12 @@ export const MAPA = {
    */
   satelite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
   atribucionSatelite: 'Imágenes © <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>',
+  /**
+   * Mosaicos de ELEVACIÓN (para el simulador de sombras): dataset Terrain Tiles
+   * de AWS Open Data, gratis y sin key. Cada píxel codifica la altura del
+   * terreno; `getElevation` de abajo lo decodifica (fórmula "terrarium").
+   */
+  elevacion: "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
   zoomMax: 19,
   /** Zoom con el que se muestra una propiedad: se ve la cuadra y las de al lado. */
   zoomPropiedad: 16,
@@ -85,3 +91,13 @@ export const linkSatelite = (lat: number, lng: number) =>
  */
 export const embedStreetView = (lat: number, lng: number) =>
   `https://maps.google.com/maps?layer=c&cbll=${coord(lat, lng)}&cbp=11,0,0,0,0&output=svembed&hl=es`;
+
+/**
+ * SOMBRAS (ShadeMap) — la key la consiguió MATEO hablando con la empresa
+ * (11-ago-2026; está atada a su mail). Va por variable de entorno y NUNCA en el
+ * código: este repo es PÚBLICO. Sin la variable, el botón de sombras
+ * directamente no existe — la web queda exactamente como antes.
+ *   · Local:  frontend/.env.local
+ *   · Render: Environment → VITE_SHADEMAP_API_KEY (la carga Juani a mano)
+ */
+export const SOMBRAS_KEY: string | undefined = import.meta.env.VITE_SHADEMAP_API_KEY || undefined;
