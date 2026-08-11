@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles, SlidersHorizontal,
-  ShieldCheck, MapPin, Phone, Mail, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves, BedDouble, Maximize,
+  ShieldCheck, MapPin, Phone, Clock, Home as HomeIcon, Building2, Store, Trees, KeyRound, Waves,
   Camera, Handshake, Check,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
@@ -135,9 +135,12 @@ export default function Home() {
           <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-paper/60 to-transparent" />
         </div>
 
-        {/* toque real estate: ficha flotante en vidrio con parallax */}
-        <FichaFlotante />
-
+        {/* ⚠️ Acá NO va ninguna ficha flotante. Hubo una tarjeta de propiedad en
+            vidrio con parallax flotando sobre el mar y se SACÓ el 10-ago a pedido
+            del cliente: "a Mateo no le gusta lo que flota entre el hero". Además
+            tenía datos hardcodeados (precio, dorm, m²) que iban a quedar viejos.
+            Si alguien la quiere de vuelta, está en el historial de git — pero
+            primero preguntarle a Mateo. */}
 
         <div className="container-x relative z-10 pt-28 md:pb-64 md:pt-52">
           <div className="max-w-3xl">
@@ -469,58 +472,6 @@ export default function Home() {
 
       <Footer />
     </div>
-  );
-}
-
-// Ficha de propiedad flotando sobre el mar: vidrio + parallax 3D con el mouse.
-function FichaFlotante() {
-  const ref = useRef<HTMLAnchorElement>(null);
-  useEffect(() => {
-    let raf = 0;
-    const cur = { x: 0, y: 0 };
-    const tgt = { x: 0, y: 0 };
-    const onMove = (e: PointerEvent) => {
-      tgt.x = e.clientX / window.innerWidth - 0.5;
-      tgt.y = e.clientY / window.innerHeight - 0.5;
-    };
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
-      cur.x += (tgt.x - cur.x) * 0.07;
-      cur.y += (tgt.y - cur.y) * 0.07;
-      if (ref.current) {
-        ref.current.style.transform =
-          `perspective(900px) rotateX(${(-cur.y * 7).toFixed(2)}deg) rotateY(${(cur.x * 10).toFixed(2)}deg) translateY(${(-cur.y * 10).toFixed(1)}px)`;
-      }
-    };
-    loop();
-    window.addEventListener("pointermove", onMove, { passive: true });
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("pointermove", onMove);
-    };
-  }, []);
-
-  return (
-    <Link
-      ref={ref}
-      to="/propiedad/POT-153992"
-      className="group absolute right-[6%] top-[26%] z-10 hidden w-[290px] overflow-hidden rounded-2xl border border-white/40 bg-white/70 shadow-card backdrop-blur-xl transition-shadow duration-300 will-change-transform hover:shadow-[0_30px_70px_-24px_rgba(2,35,82,0.45)] xl:block"
-      aria-label="Ver departamento destacado frente al mar"
-    >
-      <div className="relative h-36 overflow-hidden">
-        <img src="https://storage.googleapis.com/portales-prod-images/4990/property-images/2025/2/74b93e21-f54c-4f78-a268-1689e2878d29.jpeg" alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-        <span className="absolute left-3 top-3 rounded-full bg-brand px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Venta</span>
-      </div>
-      <div className="p-4">
-        <p className="font-display text-[15px] font-semibold leading-snug text-graph">Piso único de 4 dormitorios frente al mar</p>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-graph-500"><MapPin size={12} className="text-brand" /> Playa Grande, Mar del Plata</p>
-        <div className="mt-3 flex items-center gap-4 border-t border-graph/10 pt-3 text-[11px] text-graph-500">
-          <span className="flex items-center gap-1"><BedDouble size={13} className="text-brand" /> 4 dorm.</span>
-          <span className="flex items-center gap-1"><Maximize size={13} className="text-brand" /> 145 m²</span>
-          <span className="ml-auto font-display text-sm font-semibold text-brand">U$S 700.000</span>
-        </div>
-      </div>
-    </Link>
   );
 }
 

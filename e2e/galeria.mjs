@@ -107,6 +107,91 @@ for (const [nombre, w, h] of [["Escritorio 1440x900", 1440, 900], ["Celular 390x
   chequear(`${nombre}: la miniatura salta a esa foto`, m.ahora.startsWith(nMini + " /"), m.ahora);
 }
 
+/* ── AMPLIAR LA FOTO (el visor a pantalla completa) ──────────────────────────
+ * 🔴 Tocar la foto para ampliarla tuvo EL MISMO BUG que las flechas y nadie lo
+ * vio hasta que lo reportó Juani (10-ago): la captura de puntero le entrega el
+ * click al marco, así que el onClick de la <img> no se disparaba nunca con 2+
+ * fotos. Por eso acá se abre CON MOUSE REAL y se prueba todo el visor.
+ */
+console.log("\n── Ampliar la foto ──");
+await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+await send("Emulation.setTouchEmulationEnabled", { enabled: false, maxTouchPoints: 5 });
+await ir(URL_APP + "/propiedad/" + PROP, 4500);
+
+// 1. Click real en el centro de la foto grande → se abre el visor.
+const foto = JSON.parse(await evaluar(
+  'const img = document.querySelector(".cursor-zoom-in");' +
+  'if (!img) return JSON.stringify({ falta: true });' +
+  'const r = img.getBoundingClientRect();' +
+  'return JSON.stringify({ x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2) });'
+));
+await send("Input.dispatchMouseEvent", { type: "mousePressed", x: foto.x, y: foto.y, button: "left", clickCount: 1 });
+await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: foto.x, y: foto.y, button: "left", clickCount: 1 });
+await new Promise((r) => setTimeout(r, 900));
+chequear("Tocar la FOTO abre el visor a pantalla completa", (await evaluar('return Boolean(document.querySelector("[role=dialog]"))')) === true);
+
+// El contador y las flechas de ADENTRO del visor (hay otro juego atrás, tapado).
+const CONTADOR_VISOR =
+  'const d = document.querySelector("[role=dialog]");' +
+  'if (!d) return "sin visor";' +
+  'const e = [...d.querySelectorAll("span,div")].map(x => (x.textContent||"").trim())' +
+  '  .find(t => t.length < 8 && t.indexOf("/") > 0); return e || "?";';
+const clickEnVisor = async (etiqueta) => {
+  const p = JSON.parse(await evaluar(
+    'const d = document.querySelector("[role=dialog]");' +
+    'const b = d && [...d.querySelectorAll("button")].find(x => (x.getAttribute("aria-label")||"") === "' + etiqueta + '");' +
+    'if (!b) return JSON.stringify({ falta: true });' +
+    'const r = b.getBoundingClientRect();' +
+    'return JSON.stringify({ x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2) });'
+  ));
+  if (p.falta) return "falta el botón";
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: p.x, y: p.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: p.x, y: p.y, button: "left", clickCount: 1 });
+  await new Promise((r) => setTimeout(r, 800));
+  return await evaluar(CONTADOR_VISOR);
+};
+
+// 2. Las flechas DE ADENTRO avanzan y retroceden.
+const v1 = await clickEnVisor("Foto siguiente");
+chequear("Adentro del visor, la flecha avanza a la 2", String(v1).startsWith("2 /"), String(v1));
+const v2 = await clickEnVisor("Foto anterior");
+chequear("Y la de atrás vuelve a la 1", String(v2).startsWith("1 /"), String(v2));
+
+// 3. La flecha del teclado también (es el visor: ahí el teclado manda).
+await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+await send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+await new Promise((r) => setTimeout(r, 700));
+chequear("La flecha → del teclado avanza", String(await evaluar(CONTADOR_VISOR)).startsWith("2 /"));
+
+// 4. Escape lo cierra y devuelve el scroll.
+await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+await new Promise((r) => setTimeout(r, 700));
+chequear(
+  "Escape cierra el visor y la página vuelve a scrollear",
+  (await evaluar('return JSON.stringify({ v: Boolean(document.querySelector("[role=dialog]")), s: document.body.style.overflow !== "hidden" })')) === '{"v":false,"s":true}',
+);
+
+// 5. Y un ARRASTRE no abre el visor (deslizar no es tocar).
+const f2 = JSON.parse(await evaluar(
+  'const img = document.querySelector(".cursor-zoom-in");' +
+  'const r = img.getBoundingClientRect();' +
+  'return JSON.stringify({ x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2) });'
+));
+await send("Input.dispatchMouseEvent", { type: "mousePressed", x: f2.x, y: f2.y, button: "left", clickCount: 1 });
+for (let k = 1; k <= 6; k++) {
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: f2.x - k * 40, y: f2.y, button: "left" });
+  await new Promise((r) => setTimeout(r, 30));
+}
+await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: f2.x - 240, y: f2.y, button: "left", clickCount: 1 });
+await new Promise((r) => setTimeout(r, 900));
+const trasArrastre = JSON.parse(await evaluar(
+  'return JSON.stringify({ visor: Boolean(document.querySelector("[role=dialog]")),' +
+  ' contador: ([...document.querySelectorAll("span,div")].map(x => (x.textContent||"").trim()).find(t => t.length < 8 && t.indexOf("/") > 0) || "?") })',
+));
+chequear("Arrastrar NO abre el visor (deslizar no es tocar)", trasArrastre.visor === false);
+chequear("…y el arrastre pasó de foto", trasArrastre.contador.startsWith("2 /"), trasArrastre.contador);
+
 // La tira de miniaturas tiene que seguir sola a la foto actual: si no, avanzás
 // con la flecha y la miniatura marcada queda fuera de vista.
 console.log("\n── La tira sigue a la foto actual ──");

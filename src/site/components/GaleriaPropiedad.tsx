@@ -143,7 +143,7 @@ function Riel({
     setArrastre(enElBorde ? resistencia(dx) * 3 : dx);
   };
 
-  const alSoltar = () => {
+  const alSoltar = (cancelado = false) => {
     const g = gesto.current;
     if (!g?.activo) return;
     const dx = g.ultimaX - g.x0;
@@ -156,6 +156,19 @@ function Riel({
 
     gesto.current = { ...g, activo: false };
     setArrastre(0);
+
+    // 🔴 EL TOQUE QUE AMPLÍA SE DETECTA ACÁ, no con onClick en la imagen.
+    //
+    // Mismo mecanismo del bug de las flechas: al capturar el puntero en el
+    // marco, el navegador le entrega también el `click` posterior AL MARCO — el
+    // onClick de la <img> no se dispara nunca cuando hay 2+ fotos. "Tocá la
+    // foto para ampliarla" estuvo muerto en producción hasta el 10-ago y ningún
+    // test lo vio porque todos usaban `.click()` sintético.
+    //
+    // Un toque = soltó sin haber arrastrado. `cancelado` distingue el
+    // pointercancel (el navegador cortó el gesto: scroll táctil, etc.) — eso NO
+    // es un toque y no puede abrir el visor.
+    if (!cancelado && !g.movio) onAmpliar?.();
 
     // El navegador dispara "click" justo después de soltar. Mientras la marca de
     // "hubo deslizamiento" siga puesta, ese click se ignora (si no, terminar un
@@ -178,8 +191,8 @@ function Riel({
       className={`group relative select-none overflow-hidden ${altura}`}
       onPointerDown={alApoyar}
       onPointerMove={alMover}
-      onPointerUp={alSoltar}
-      onPointerCancel={alSoltar}
+      onPointerUp={() => alSoltar(false)}
+      onPointerCancel={() => alSoltar(true)}
       style={{ touchAction: "pan-y" }}
     >
       <div ref={pista} className="flex h-full w-full" style={estilo}>
@@ -199,6 +212,12 @@ function Riel({
                 draggable={false}
                 loading={n === 0 ? "eager" : "lazy"}
                 decoding="async"
+                // Con 2+ fotos este onClick NO llega a dispararse: la captura de
+                // puntero le entrega el click al marco, y el toque lo detecta
+                // `alSoltar`. Queda como respaldo para el caso de UNA sola foto
+                // (ahí no se arranca gesto ni hay captura). Si un navegador no
+                // re-dirigiera el click, lo peor es abrir el visor dos veces,
+                // que es idempotente.
                 onClick={() => { if (!gesto.current?.movio) onAmpliar?.(); }}
                 className="h-full w-full cursor-zoom-in object-cover"
               />
@@ -233,7 +252,9 @@ function Riel({
         <button
           onClick={onAmpliar}
           aria-label="Ver en pantalla completa"
-          className="absolute left-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-graph/50 text-white opacity-0 backdrop-blur transition duration-300 hover:scale-105 hover:bg-graph/70 focus-visible:opacity-100 group-hover:opacity-100"
+          // `max-md:opacity-100`: en el celular NO hay hover, así que un botón
+          // que solo aparece al pasar el mouse ahí es un botón que no existe.
+          className="absolute left-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-graph/50 text-white opacity-0 backdrop-blur transition duration-300 hover:scale-105 hover:bg-graph/70 focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100"
         >
           <Expand size={18} />
         </button>
