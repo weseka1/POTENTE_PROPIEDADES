@@ -6,7 +6,7 @@
  * `index.css`, Vite lo mete en la hoja de estilos principal y se lo baja TODO
  * visitante, incluso el que nunca abre una propiedad.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAPA } from "../../config/mapa";
@@ -33,6 +33,12 @@ const pinDeMarca = () =>
 
 export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: number; titulo: string }) {
   const caja = useRef<HTMLDivElement>(null);
+  // Mapa ↔ Satélite (pedido de Juani, 11-ago: "que el cliente pueda ver también
+  // el satélite"). Las dos capas viven creadas; el toggle las intercambia sin
+  // recrear el mapa ni perder el zoom ni el centro.
+  const [satelite, setSatelite] = useState(false);
+  const capas = useRef<{ mapa: L.TileLayer; sat: L.TileLayer } | null>(null);
+  const mapaRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     const nodo = caja.current;
@@ -64,7 +70,11 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
       keyboard: false,
     });
 
-    L.tileLayer(MAPA.mosaicos, { maxZoom: MAPA.zoomMax, attribution: MAPA.atribucion }).addTo(mapa);
+    const capaMapa = L.tileLayer(MAPA.mosaicos, { maxZoom: MAPA.zoomMax, attribution: MAPA.atribucion });
+    const capaSat = L.tileLayer(MAPA.satelite, { maxZoom: MAPA.zoomMax, attribution: MAPA.atribucionSatelite });
+    capaMapa.addTo(mapa);
+    capas.current = { mapa: capaMapa, sat: capaSat };
+    mapaRef.current = mapa;
     L.control.attribution({ prefix: false, position: "bottomright" }).addTo(mapa);
     L.marker([lat, lng], { icon: pinDeMarca(), title: titulo, keyboard: false }).addTo(mapa);
 
@@ -76,9 +86,39 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
     return () => {
       clearTimeout(t);
       mapa.remove();
+      mapaRef.current = null;
+      capas.current = null;
     };
   }, [lat, lng, titulo]);
 
+  const alternar = () => {
+    const m = mapaRef.current;
+    const c = capas.current;
+    if (!m || !c) return;
+    if (satelite) {
+      m.removeLayer(c.sat);
+      c.mapa.addTo(m);
+    } else {
+      m.removeLayer(c.mapa);
+      c.sat.addTo(m);
+    }
+    setSatelite((v) => !v);
+  };
+
   // `data-lenis-prevent`: adentro del mapa manda el mapa, no el scroll suave.
-  return <div ref={caja} className="h-[320px] w-full sm:h-[380px]" data-lenis-prevent />;
+  return (
+    <div className="relative">
+      <div ref={caja} className="h-[320px] w-full sm:h-[380px]" data-lenis-prevent />
+      {/* El toggle, estilo pastilla de vidrio de la casa. z-[500] queda por
+          encima de los panes de Leaflet (los mosaicos van de 200 a 400). */}
+      <button
+        type="button"
+        onClick={alternar}
+        aria-pressed={satelite}
+        className="absolute right-3 top-3 z-[500] inline-flex h-9 items-center gap-1.5 rounded-full bg-white/85 px-3.5 text-xs font-semibold text-graph shadow-card ring-1 ring-graph/10 backdrop-blur transition hover:ring-brand/40"
+      >
+        {satelite ? "🗺 Mapa" : "🛰 Satélite"}
+      </button>
+    </div>
+  );
 }

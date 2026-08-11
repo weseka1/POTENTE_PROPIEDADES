@@ -14,6 +14,7 @@ import { PanelAuthProvider, usePanelAuth } from "./panel/auth";
 import Login from "./panel/Login";
 import { ErrorBoundary } from "./ErrorBoundary";
 import ChatAsistente from "./site/components/ChatAsistente";
+import { subirYa } from "./site/lib/useLenis";
 
 // El panel (con recharts) se carga solo cuando se entra a /panel.
 const PanelApp = lazy(() => import("./panel/PanelApp"));
@@ -28,7 +29,10 @@ function RequirePanelAuth({ children }: { children: ReactNode }) {
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
-    window.scrollTo(0, 0);
+    // 🔴 Vía Lenis, no window.scrollTo: el scroll suave pisaba el salto en el
+    // frame siguiente y al navegar entre propiedades quedabas abajo de la
+    // página nueva — parecía que el click no había tomado (bug del 11-ago).
+    subirYa();
   }, [pathname]);
   return null;
 }

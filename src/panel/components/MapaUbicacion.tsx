@@ -31,7 +31,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { LocateFixed, MapPin, Satellite, Search, Undo2, X, Compass } from "lucide-react";
-import { MAPA, CENTRO_MDP, linkSatelite } from "@/config/mapa";
+import { MAPA, CENTRO_MDP, linkSatelite, embedStreetView } from "@/config/mapa";
 import { supabase } from "@/lib/supabase";
 import type { Orientacion } from "@/data/propiedadTypes";
 
@@ -346,22 +346,6 @@ export default function MapaUbicacion({
             <LocateFixed size={13} /> Corregir ubicación
           </button>
         )}
-        {/* Satélite para VERIFICAR el frente antes de marcar el pétalo: el techo
-            y la calle desde arriba, con el norte hacia arriba — carga al toque
-            en todos lados. Street View se probó y se descartó (11-ago): donde no
-            hay fotos abre pantalla negra, y donde hay tarda muchísimo. Desde el
-            satélite, el muñequito queda a dos clics para quien quiera la fachada. */}
-        {hayPin && (
-          <a
-            href={linkSatelite(nLat, nLng)}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Google Maps en vista satelital, clavado en el pin (norte hacia arriba)"
-            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-graph-500 ring-1 ring-graph/15 transition hover:text-brand hover:ring-brand/40"
-          >
-            <Satellite size={13} /> Ver en satélite
-          </a>
-        )}
       </div>
 
       {/* El estado, dicho con palabras (y con el color del pin) */}
@@ -403,8 +387,44 @@ export default function MapaUbicacion({
         }}
       />
 
+      {/* ── La calle, AUTOMÁTICA ──────────────────────────────────────────────
+          Pedido de Juani (11-ago): "debe ser todo automático — detectar las
+          coordenadas y tirar el streetview". Con el pin puesto, Street View
+          aparece solo acá abajo apuntando al pin, y se actualiza cuando el pin
+          se mueve. Sin key (output=svembed) y sin salir del panel: se mira la
+          fachada acá y se marca el pétalo ahí abajo, todo en la misma pantalla. */}
+      {hayPin && (
+        <div className="overflow-hidden rounded-xl ring-1 ring-graph/10">
+          <div className="flex items-center justify-between gap-2 bg-graph/[0.03] px-3 py-2">
+            <span className="text-[11px] font-medium text-graph-500">
+              La calle en el punto del pin — para confirmar hacia dónde da el frente
+            </span>
+            <a
+              href={linkSatelite(nLat, nLng)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Vista satelital en Google Maps (norte hacia arriba)"
+              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brand hover:underline"
+            >
+              <Satellite size={12} /> Satélite ↗
+            </a>
+          </div>
+          <iframe
+            title="Street View en el pin"
+            src={embedStreetView(nLat, nLng)}
+            className="h-[240px] w-full border-0 sm:h-[280px]"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            allowFullScreen
+          />
+          <p className="bg-graph/[0.03] px-3 py-1.5 text-[11px] text-graph-400">
+            Si se ve oscuro, Google no tiene fotos de esa cuadra — usá el satélite de arriba a la derecha.
+          </p>
+        </div>
+      )}
+
       {/* La brújula — recién cuando hay pin: la orientación se marca MIRANDO la
-          calle en el mapa, no de memoria. */}
+          calle (acá arriba) o el satélite, no de memoria. */}
       {hayPin && (
         <div className="rounded-xl border border-graph/10 bg-graph/[0.02] p-3">
           <Brujula valor={orientacion} onElegir={onOrientacion} />
