@@ -63,6 +63,9 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
   const sombraRef = useRef<{ onRemove: () => void; setDate: (d: Date) => void } | null>(null);
   const [sombras, setSombras] = useState(false);
   const [cargandoSombras, setCargandoSombras] = useState(false);
+  // Zona sin relevar (Mar del Sur: 1 edificio en OSM y terreno plano = cero
+  // sombra a la vista): se dice en la barrita, no se deja pensar que está roto.
+  const [sinEdificios, setSinEdificios] = useState(false);
   const [hora, setHora] = useState(15 * 60); // 15:00 — la hora a la que se visita
   const [epoca, setEpoca] = useState<EpocaSombra>("hoy");
   // Solo horas CON sol: pasada la puesta el simulador no dibuja "noche", dibuja
@@ -164,10 +167,15 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
     try {
       const q = `[out:json][timeout:15];(way["building"](${bbox}););out body;>;out skel qt;`;
       const r = await fetch("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(q));
-      if (!r.ok) return [];
+      // Sin respuesta (Overpass rate-limitea) = sombras de terreno solo: el
+      // aviso va IGUAL — si no, la barrita parece muerta sin explicación.
+      if (!r.ok) { setSinEdificios(true); return []; }
       const json = await r.json();
       const { default: osmtogeojson } = await import("osmtogeojson");
       const gj = osmtogeojson(json) as { features: Array<{ properties?: Record<string, unknown> }> };
+      // Mismo umbral que la vista 3D: con menos de 15 edificios el encuadre
+      // parece vacío aunque técnicamente haya alguno.
+      setSinEdificios(gj.features.length < 15);
       for (const f of gj.features) {
         const p = (f.properties ??= {});
         // Altura: la declarada en OSM; si solo hay pisos, 3 m por piso; y si no
@@ -181,6 +189,7 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
       cacheEdificios.current.set(clave, gj.features);
       return gj.features;
     } catch {
+      setSinEdificios(true);
       return []; // sin edificios sigue habiendo sombra de terreno — nunca romper el mapa
     }
   };
@@ -223,6 +232,9 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
       });
       sombra.addTo(m);
       sombraRef.current = sombra;
+      // A mano para las suites e2e (leer estado, nunca manejarlo) — mismo
+      // criterio que window.__mapa3d en la vista 3D.
+      (window as unknown as { __sombra2d?: unknown }).__sombra2d = sombra;
       setSombras(true);
     } catch {
       // Si ShadeMap no carga (sin red, key vencida), el mapa sigue intacto.
@@ -320,6 +332,11 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
             aria-label="Hora del día para ver las sombras"
             className="mt-2 w-full accent-brand"
           />
+          {sinEdificios && (
+            <p className="mt-2 rounded-lg bg-brand-50 px-2.5 py-1.5 text-[11px] font-medium text-brand-700">
+              En esta zona los edificios todavía no están relevados: las sombras muestran solo el terreno.
+            </p>
+          )}
           <p className="mt-1 text-right text-[10px] text-graph-400">
             Sombras © <a href="https://shademap.app" target="_blank" rel="noopener" className="underline decoration-graph/20 hover:text-graph">ShadeMap</a> · edificios de OpenStreetMap
           </p>
