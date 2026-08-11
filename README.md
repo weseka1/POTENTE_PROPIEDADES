@@ -134,7 +134,11 @@ visitaron siguen mostrando lo viejo.
 - `index.html`: meta + Open Graph + JSON-LD `RealEstateAgent` (las dos oficinas).
 - `src/site/lib/seo.ts`: título, descripción y canonical por ruta; cada ficha emite
   `RealEstateListing`.
-- `scripts/gen-sitemap.mjs`: regenera `public/sitemap.xml` en cada build.
-- `public/robots.txt`: indexa la web, bloquea `/panel`.
-- Para el dominio propio: cambiar `SITE` en `seo.ts`, `SITE_URL` del build y el
-  canonical de `index.html` a `potenteprop.com.ar`.
+- `scripts/gen-sitemap.mjs`: regenera `public/sitemap.xml` **y `public/robots.txt`**
+  en cada build (los dos con el mismo dominio, para que nunca se desincronicen).
+- Para el dominio propio: **setear la variable `VITE_SITE_URL` en el hosting**
+  (build y runtime) o cambiar el default en `src/config/dominio.js`. Con eso
+  cambian juntos canonical, OG, JSON-LD, sitemap, robots, el link de compartir
+  del panel y los pies de los PDF. ⚠️ El dominio de la web NO es
+  `potenteprop.com.ar` — ese es solo el dominio del mail; usarlo en links fue el
+  bug de los links muertos del 10-ago.
