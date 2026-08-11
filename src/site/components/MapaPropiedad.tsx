@@ -16,34 +16,55 @@
  * faltaba — "Cómo llegar" es la que importa: en el celular abre la app de Maps
  * con la ruta armada desde donde está parado el que consulta.
  */
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Component, Suspense, lazy, type ReactNode } from "react";
 import { MapPin, Navigation, ExternalLink } from "lucide-react";
 import { linkComoLlegar, linkEnMaps } from "@/config/mapa";
 
-// Leaflet + su CSS pesan ~46 KB gzip. Se bajan SOLO si el visitante llega a
-// scrollear hasta acá, así que la mayoría de las visitas no los paga nunca.
-const MapaLeaflet = lazy(() => import("./MapaLeaflet"));
+/**
+ * Leaflet va en su propio chunk (~46 KB gzip, fuera del bundle principal), pero
+ * se empieza a descargar APENAS SE ABRE LA FICHA, no cuando el visitante llega
+ * scrolleando a la sección.
+ *
+ * 🔴 Antes se montaba recién al entrar en pantalla (IntersectionObserver) y
+ * Juani lo vio gris en producción (10-ago): si el chunk tarda —server frío,
+ * conexión lenta, o un deploy en el medio que cambió el nombre del archivo— el
+ * visitante ya está PARADO mirando el hueco vacío. Arrancar la descarga con la
+ * página esconde toda esa latencia: para cuando alguien scrollea hasta
+ * "Ubicación", el mapa hace rato que está listo.
+ *
+ * Y si el chunk igual falla (la ventana de un deploy purga los assets viejos),
+ * se reintenta UNA vez con cache-bust; si tampoco, el recuadro lo dice y los
+ * botones de Maps siguen andando — nunca un gris mudo.
+ */
+const cargarMapa = () =>
+  import("./MapaLeaflet").catch(
+    () => new Promise<typeof import("./MapaLeaflet")>((res, rej) => {
+      setTimeout(() => import("./MapaLeaflet").then(res, rej), 1200);
+    }),
+  );
+const MapaLeaflet = lazy(cargarMapa);
+
+/** Si Leaflet no pudo cargar, el recuadro lo dice en vez de quedarse gris. */
+class RedDeSeguridad extends Component<{ children: ReactNode }, { fallo: boolean }> {
+  state = { fallo: false };
+  static getDerivedStateFromError() {
+    return { fallo: true };
+  }
+  render() {
+    if (!this.state.fallo) return this.props.children;
+    return (
+      <div className="grid h-[320px] w-full place-items-center bg-paper-200 px-6 text-center sm:h-[380px]">
+        <p className="text-sm text-graph-500">
+          No se pudo cargar el mapa. Use «Cómo llegar» o «Abrir en Maps» aquí arriba.
+        </p>
+      </div>
+    );
+  }
+}
 
 export default function MapaPropiedad({
   lat, lng, direccion, zona, titulo,
 }: { lat: number; lng: number; direccion?: string; zona?: string; titulo: string }) {
-  const caja = useRef<HTMLDivElement>(null);
-  const [aLaVista, setALaVista] = useState(false);
-
-  // El mapa se monta cuando la sección está por entrar en pantalla, no antes.
-  useEffect(() => {
-    const nodo = caja.current;
-    if (!nodo) return;
-    // Sin IntersectionObserver (navegador viejo) se muestra igual: es preferible
-    // pagar el chunk que dejar un hueco gris.
-    if (typeof IntersectionObserver === "undefined") { setALaVista(true); return; }
-    const obs = new IntersectionObserver(
-      (e) => { if (e.some((x) => x.isIntersecting)) { setALaVista(true); obs.disconnect(); } },
-      { rootMargin: "250px" },
-    );
-    obs.observe(nodo);
-    return () => obs.disconnect();
-  }, []);
 
   // ⚠️ Dos botones, no tres. Falta "Ver la calle" (Street View) A PROPÓSITO:
   // Google no tiene cobertura en todas las localidades de la costa —Mar del Sur,
@@ -57,7 +78,7 @@ export default function MapaPropiedad({
   ];
 
   return (
-    <div className="mt-10" ref={caja}>
+    <div className="mt-10">
       <h2 className="font-display text-2xl text-graph">Ubicación</h2>
 
       <div className="mt-5 overflow-hidden rounded-2xl ring-1 ring-graph/10">
@@ -88,13 +109,11 @@ export default function MapaPropiedad({
           </div>
         </div>
 
-        {aLaVista ? (
+        <RedDeSeguridad>
           <Suspense fallback={<div className="h-[320px] w-full animate-pulse bg-paper-200 sm:h-[380px]" />}>
             <MapaLeaflet lat={lat} lng={lng} titulo={titulo} />
           </Suspense>
-        ) : (
-          <div className="h-[320px] w-full bg-paper-200 sm:h-[380px]" />
-        )}
+        </RedDeSeguridad>
       </div>
 
       {/* Honesto y a propósito: las coordenadas de las propiedades importadas

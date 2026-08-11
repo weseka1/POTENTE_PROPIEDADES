@@ -6,6 +6,7 @@ import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
 import { useLenis } from "./lib/useLenis";
 import { useDisolverAlBajar } from "./lib/useDisolverAlBajar";
+import RielHorizontal from "./components/RielHorizontal";
 import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
 import { fmtUSD, fmtARS } from "@/lib/format";
@@ -354,7 +355,11 @@ export default function Catalogo() {
         >
           <div className="container-x flex flex-col gap-2 py-2.5">
             <div className="flex items-center gap-2">
-              <div className="flex flex-1 gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {/* RielHorizontal y no un overflow pelado: cuando las categorías no
+                  entran, el degradé muestra que hay más (antes "Oficinas" quedaba
+                  cortada a secas y parecía la última habiendo tres atrás), y la
+                  rueda del mouse desplaza el riel en vez de bajar la página. */}
+              <RielHorizontal className="gap-2">
                 {tabs.map((t) => (
                   <button
                     key={t.key}
@@ -368,7 +373,7 @@ export default function Catalogo() {
                     {t.label} <span className="opacity-60">({t.n})</span>
                   </button>
                 ))}
-              </div>
+              </RielHorizontal>
 
               {/* En TODAS las medidas: es la única puerta a los filtros una vez que
                   el bloque se fue, y no te hace perder la posición del scroll. */}
@@ -420,7 +425,7 @@ export default function Catalogo() {
                 un alto DETERMINISTA (nunca envuelve), y de eso depende que la
                 disolución arranque siempre en el mismo punto. */}
             {chips.length > 0 && (
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <RielHorizontal className="flex-nowrap items-center gap-2 pb-0.5">
                 <span className="shrink-0 text-xs text-graph-400">Buscando:</span>
                 {chips.map((c) => (
                   <button
@@ -439,7 +444,7 @@ export default function Catalogo() {
                 >
                   Limpiar todo
                 </button>
-              </div>
+              </RielHorizontal>
             )}
           </div>
         </div>

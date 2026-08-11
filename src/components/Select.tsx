@@ -166,6 +166,12 @@ export default function Select({
           role="listbox"
           tabIndex={-1}
           onKeyDown={onKey}
+          // 🔴 Con el menú abierto, la rueda mueve EL MENÚ, no la página. El
+          // scroll suave (Lenis) captura la rueda de toda la ventana; sin esta
+          // marca, apoyar el mouse en el menú y scrollear bajaba la página con
+          // el menú flotando encima (lo reportó Juani probando Temporada).
+          // `data-lenis-prevent` es el opt-out oficial de Lenis.
+          data-lenis-prevent
           style={{
             position: "fixed",
             top: pos.top,
@@ -176,7 +182,11 @@ export default function Select({
             transform: pos.arriba ? "translateY(-100%)" : undefined,
           }}
           className={cx(
-            "z-[100] max-h-64 overflow-y-auto rounded-xl border border-graph/10 bg-paper-100 p-1 shadow-[0_24px_60px_-24px_rgba(13,21,33,0.35)]",
+            // `overscroll-contain`: cuando el menú llega al fondo, la rueda NO
+            // sigue de largo hacia la página (el encadenado nativo del navegador).
+            // Medido: sin esto, tres golpes de rueda scrolleaban el menú Y DESPUÉS
+            // la página, con el menú flotando encima.
+            "z-[100] max-h-64 overflow-y-auto overscroll-contain rounded-xl border border-graph/10 bg-paper-100 p-1 shadow-[0_24px_60px_-24px_rgba(13,21,33,0.35)]",
             "animate-[fadeIn_.12s_ease-out]"
           )}
         >

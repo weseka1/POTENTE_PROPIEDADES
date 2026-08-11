@@ -186,7 +186,9 @@ export default function MapaUbicacion({
     const m = L.map(nodo, {
       center: hayPin ? [nLat, nLng] : [CENTRO_MDP.lat, CENTRO_MDP.lng],
       zoom: hayPin ? MAPA.zoomPropiedad : 12,
-      scrollWheelZoom: false,
+      // La rueda hace zoom en escritorio, igual que la web pública: apoyar el
+      // mouse en un mapa y rodar tiene que acercar, como en Google Maps.
+      scrollWheelZoom: !esCelular,
       dragging: !esCelular,
       touchZoom: !esCelular,
       attributionControl: false,

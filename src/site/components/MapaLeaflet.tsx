@@ -42,17 +42,20 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
       center: [lat, lng],
       zoom: MAPA.zoomPropiedad,
 
-      // 🔴 La rueda NO hace zoom. Lenis maneja el scroll de toda la página con
-      // scroll suave; si el mapa también escucha la rueda, bajar la página con
-      // el puntero encima del mapa hace zoom en vez de scrollear. Se acerca con
-      // los botones + / − y con doble clic, que es lo que espera cualquiera.
-      scrollWheelZoom: false,
+      // La rueda HACE ZOOM (en escritorio). Primero lo habíamos apagado para
+      // proteger el scroll de la página, y el cliente lo vetó con razón
+      // (Juani, 10-ago: "si quiero hacer zoom en el maps me baja la página"):
+      // el que apoya el mouse en un mapa espera que la rueda acerque, como en
+      // Google Maps. El `data-lenis-prevent` del contenedor evita que el
+      // scroll suave se pelee por el mismo evento. En el celular queda apagado
+      // junto con el arrastre (ver abajo).
+      scrollWheelZoom: !L.Browser.mobile,
 
-      // 🔴 En el celular el mapa NO se arrastra. Un dedo adentro de un mapa que
-      // ocupa el ancho de la pantalla deja al visitante atrapado: no puede
-      // seguir bajando. Acá el mapa es una foto de referencia y el que quiere
-      // moverlo toca "Cómo llegar" o "Abrir en Maps", que abre la app nativa —
-      // que es lo que uno quiere hacer en el teléfono igual.
+      // 🔴 En el celular el mapa NO se arrastra ni zoomea. Un dedo adentro de
+      // un mapa que ocupa el ancho de la pantalla deja al visitante atrapado:
+      // no puede seguir bajando. Acá el mapa es una foto de referencia y el que
+      // quiere moverlo toca "Cómo llegar" o "Abrir en Maps", que abre la app
+      // nativa — que es lo que uno quiere hacer en el teléfono igual.
       dragging: !L.Browser.mobile,
       touchZoom: !L.Browser.mobile,
 

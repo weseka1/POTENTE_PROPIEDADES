@@ -317,9 +317,29 @@ function Tira({ imagenes, i, setI }: { imagenes: string[]; i: number; setI: (n: 
     activa?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   }, [i]);
 
+  // La rueda del mouse sobre la tira la desplaza HORIZONTALMENTE (es una fila:
+  // no hay otro scroll con sentido acá), en vez de dejar que el scroll suave se
+  // lleve la página. Nativo y no-pasivo a propósito: el onWheel de React es
+  // pasivo y su preventDefault no funciona — sin él, riel y página scrollean a
+  // la vez.
+  useEffect(() => {
+    const el = cinta.current;
+    if (!el) return;
+    const alRodar = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth + 2) return;
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (!delta) return;
+      e.preventDefault();
+      el.scrollLeft += delta;
+    };
+    el.addEventListener("wheel", alRodar, { passive: false });
+    return () => el.removeEventListener("wheel", alRodar);
+  }, []);
+
   return (
     <div
       ref={cinta}
+      data-lenis-prevent
       className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {imagenes.map((f, n) => (
