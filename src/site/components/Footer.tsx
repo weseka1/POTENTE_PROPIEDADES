@@ -70,14 +70,34 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-graph/10">
-        <div className="container-x flex flex-col items-center justify-between gap-3 py-6 text-xs text-graph-400 md:flex-row">
+        <div className="container-x flex flex-col items-center justify-between gap-4 py-6 text-xs text-graph-400 md:flex-row">
           <span>© {new Date().getFullYear()} Potente Propiedades · Todos los derechos reservados.</span>
-          <span>
-            Sitio + sistema desarrollado por{" "}
-            <a href="https://www.wsk.com.ar" target="_blank" rel="noreferrer" className="text-brand hover:text-brand-700">
-              WESEKA.IA
-            </a>
-          </span>
+
+          {/* ── La firma del estudio ──────────────────────────────────────────
+              Monograma + wordmark, discreta pero inconfundible: cada web que
+              entregamos es la vidriera de la próxima. El monograma va como SVG
+              inline (nítido en cualquier pantalla, cero peso) con la W y la ola
+              de WESEKA. Deriva a wsk.com.ar. */}
+          <a
+            href="https://wsk.com.ar"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="WESEKA — estudio de software e inteligencia artificial"
+            className="group inline-flex items-center gap-2.5"
+          >
+            <span className="transition group-hover:text-graph-500">Sitio y sistema por</span>
+            <svg
+              width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            >
+              <rect width="22" height="22" rx="6" fill="#022352" />
+              <polyline points="5,6 8,13.2 11,8 14,13.2 17,6" fill="none" stroke="#F6F8FB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5 17.2c2-1.4 4-1.4 6 0s4 1.4 6 0" fill="none" stroke="#1495D8" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            <span className="font-display text-[13px] font-semibold tracking-[0.22em] text-graph-500 transition group-hover:text-navy">
+              WESEKA
+            </span>
+          </a>
         </div>
       </div>
     </footer>

@@ -208,6 +208,17 @@ html.lenis body {
   to { opacity: 1; transform: scale(1); }
 }
 
+/* El menú móvil (Navbar): la hoja de vidrio baja y se asienta; los ítems entran
+   en cascada. Solo opacity/transform — nada que mueva el layout de la página. */
+@keyframes menuGlass {
+  from { opacity: 0; transform: translateY(-14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes menuItem {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ===== PANEL — tema CLARO premium (flow Apple) ===== */
 @layer components {
   /* Fondo del panel: blanco cálido con glow azul sutilísimo en las esquinas (aire + profundidad) */

@@ -46,6 +46,16 @@ export const linkComoLlegar = (lat: number, lng: number) =>
 export const linkEnMaps = (lat: number, lng: number) =>
   `https://www.google.com/maps/search/?api=1&query=${coord(lat, lng)}`;
 
-// No hay link a Street View a propósito: la cobertura de Google es despareja en
-// la costa y averiguar si existe panorama exige la Street View Static API, que
-// es paga. Está explicado en `MapaPropiedad.tsx`.
+/**
+ * "Ver la calle": Street View parado en esas coordenadas. Es un LINK, no una
+ * API: gratis, sin key.
+ *
+ * ⚠️ SOLO PARA EL PANEL, no para la web pública. La cobertura de Google en la
+ * costa es despareja (Mar del Sur no tiene) y saber si existe panorama antes de
+ * mostrar el botón exige la Static API, que es paga. Un botón que a veces cae
+ * en "no hay imágenes" no puede estar en la web del cliente — pero al equipo,
+ * que lo usa para VERIFICAR hacia dónde da el frente antes de marcar el pétalo
+ * de la brújula, le sirve aunque a veces no haya foto.
+ */
+export const linkStreetView = (lat: number, lng: number) =>
+  `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${coord(lat, lng)}`;

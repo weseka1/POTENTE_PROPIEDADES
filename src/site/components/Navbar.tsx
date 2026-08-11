@@ -125,24 +125,41 @@ export default function Navbar({ variant = "overlay" }: { variant?: "overlay" | 
           </div>
         </nav>
 
+        {/* ── Menú móvil: LIQUID GLASS de verdad ──────────────────────────────
+            Rediseñado el 11-ago (pedido de Juani: "que no parezca Windows 98").
+            · Hoja de vidrio (blur + saturación, la misma receta del catálogo),
+              despegada del borde y con las puntas redondeadas — es una pieza,
+              no un cajón que se abre.
+            · Entra deslizándose con la curva de la casa, y los ítems aparecen
+              en cascada (cada uno 40 ms después del anterior).
+            · Ítems altos (48px = dedo cómodo), con la flechita de "esto lleva a
+              algún lado". El activo no existe acá: son 6 destinos, sin estados.
+            La animación de entrada usa la MISMA técnica del catálogo: solo
+            opacity/transform, nada que mueva layout. */}
         {open && (
-          <div className="mt-3 max-h-[calc(100vh-5.5rem)] overflow-y-auto border-t border-graph/10 bg-paper-100 pb-6 pt-3 shadow-[0_24px_50px_-20px_rgba(13,21,33,0.35)] lg:hidden">
-            <div className="container-x flex flex-col gap-1">
-            {cats.map((c) =>
-              c.to.includes("#") ? (
-                <a key={c.to} href={c.to} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-graph-500 hover:bg-graph/5">
-                  {c.label}
-                </a>
-              ) : (
-                <Link key={c.to} to={c.to} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-graph-500 hover:bg-graph/5">
-                  {c.label}
-                </Link>
-              )
-            )}
-            <div className="mt-3 flex gap-2 border-t border-graph/10 pt-4">
-
-            </div>
-            <WhatsAppCTA className="btn-primary mt-2 w-full">Consultar por WhatsApp</WhatsAppCTA>
+          <div className="mt-2 px-3 lg:hidden">
+            <div
+              className="max-h-[calc(100vh-6.5rem)] overflow-y-auto overscroll-contain rounded-3xl border border-white/40 bg-paper-100/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_30px_70px_-24px_rgba(2,35,82,0.45)] backdrop-blur-2xl backdrop-saturate-150 motion-safe:animate-[menuGlass_.45s_cubic-bezier(0.16,1,0.3,1)_both]"
+              data-lenis-prevent
+            >
+              {cats.map((c, i) => {
+                const clase =
+                  "flex min-h-[48px] items-center justify-between rounded-2xl px-4 text-[15px] font-medium text-graph transition active:bg-brand/[0.06] motion-safe:animate-[menuItem_.4s_cubic-bezier(0.16,1,0.3,1)_both]";
+                const demora = { animationDelay: `${60 + i * 40}ms` } as const;
+                const flecha = <ChevronDown size={16} className="-rotate-90 text-graph-300" aria-hidden />;
+                return c.to.includes("#") ? (
+                  <a key={c.to} href={c.to} onClick={() => setOpen(false)} className={clase} style={demora}>
+                    {c.label} {flecha}
+                  </a>
+                ) : (
+                  <Link key={c.to} to={c.to} onClick={() => setOpen(false)} className={clase} style={demora}>
+                    {c.label} {flecha}
+                  </Link>
+                );
+              })}
+              <div className="mt-2 border-t border-graph/10 pt-3 motion-safe:animate-[menuItem_.4s_cubic-bezier(0.16,1,0.3,1)_both]" style={{ animationDelay: `${60 + cats.length * 40}ms` }}>
+                <WhatsAppCTA className="btn-primary w-full">Consultar por WhatsApp</WhatsAppCTA>
+              </div>
             </div>
           </div>
         )}

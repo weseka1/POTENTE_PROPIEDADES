@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Heart,
-  BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle, ChevronLeft, ChevronRight,
+  BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle, ChevronLeft, ChevronRight, ChevronDown,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -141,24 +141,34 @@ export default function PropiedadDetalle() {
           {/* La grilla de datos. El `data-datos` lo usa e2e/ficha-sin-vacios.mjs
               para mirar SOLO esta sección: la palabra "baños" aparece igual más
               abajo, en las propiedades similares, y sin esto la prueba de "los
-              campos vacíos no se muestran" daba un falso positivo. */}
+              campos vacíos no se muestran" daba un falso positivo.
+
+              📱 DOS COLUMNAS TAMBIÉN EN EL CELULAR (pedido de Juani, 11-ago:
+              "te aburre bajar tanto"). Antes era una columna de celdas enormes:
+              con 10 datos, la lista sola medía más de dos pantallas. */}
           <div
             data-datos="propiedad"
-            className="mt-8 grid gap-px overflow-hidden rounded-2xl bg-graph/10 sm:grid-cols-2 lg:grid-cols-3"
+            className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-graph/10 lg:grid-cols-3"
           >
             {datos.map((d, i) => (
-              <div key={i} className="bg-paper-100 p-5">
-                <span className="flex items-center gap-2 text-xs uppercase tracking-widest2 text-graph-400">
-                  <d.icon size={15} className="text-brand" /> {d.l}
+              <div key={i} className="bg-paper-100 p-3.5 sm:p-5">
+                {/* La etiqueta baja a dos líneas si no entra ("Superficie
+                    cubierta"): truncarla dejaba "SUPERFICIE CU…", que parece
+                    un error en vez de un dato. */}
+                <span className="flex items-start gap-1.5 text-[10px] uppercase leading-snug tracking-widest2 text-graph-400 sm:gap-2 sm:text-xs">
+                  <d.icon size={14} className="mt-px shrink-0 text-brand" /> <span>{d.l}</span>
                 </span>
-                <p className="mt-2 font-display text-lg capitalize text-graph">{d.v}</p>
+                <p className="mt-1.5 font-display text-base capitalize text-graph sm:mt-2 sm:text-lg">{d.v}</p>
               </div>
             ))}
           </div>
 
           <div className="mt-10">
             <h2 className="font-display text-2xl text-graph">Descripción</h2>
-            <p className="mt-4 whitespace-pre-line text-lg leading-relaxed text-graph-500">{p.descripcion}</p>
+            {/* La descripción entera son varias pantallas de scroll en el celular.
+                Se muestra el arranque y el resto se abre a pedido: la página
+                queda corta y el que quiere leer todo, lee todo. */}
+            <VerMasTexto texto={p.descripcion} />
           </div>
 
           {p.video && (esVideoArchivo(p.video) ? videoUrl : true) && (
@@ -177,13 +187,11 @@ export default function PropiedadDetalle() {
           {caracs.length > 0 && (
             <div className="mt-10">
               <h2 className="font-display text-2xl text-graph">Características</h2>
-              <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-                {caracs.map((m) => (
-                  <li key={m} className="flex items-center gap-3 rounded-xl bg-paper-100 px-4 py-3 text-graph-500">
-                    <CheckCircle2 size={18} className="text-brand" /> {m}
-                  </li>
-                ))}
-              </ul>
+              {/* 📱 Plegadas: quince características en una columna eran otra
+                  pantalla y media de scroll. Se muestran las primeras y el resto
+                  se abre a pedido, con la banda de contraste atrás para que las
+                  tarjetas blancas respiren (la referencia que pasó Juani). */}
+              <CaracteristicasPlegadas items={caracs} />
             </div>
           )}
 
@@ -259,6 +267,90 @@ export default function PropiedadDetalle() {
       )}
 
       <Footer />
+    </div>
+  );
+}
+
+/* ── "Ver más" de la descripción ──────────────────────────────────────────────
+   📱 Pedido de Juani (11-ago): "la web debe ser corta, pero se debe poder
+   ampliar... te aburre bajar tanto". La descripción entera son 3-4 pantallas en
+   el celular; acá se muestran las primeras líneas y el resto se abre a pedido.
+   El recorte va por CSS (line-clamp), así el texto completo queda igual en el
+   HTML: Google lo lee entero aunque el visitante vea el resumen. */
+function VerMasTexto({ texto }: { texto: string }) {
+  const [abierto, setAbierto] = useState(false);
+  // Corto no se recorta: un "Ver más" que muestra dos renglones es un chiste.
+  const esLargo = texto.length > 420;
+
+  return (
+    <div>
+      <p
+        className="mt-4 whitespace-pre-line text-lg leading-relaxed text-graph-500"
+        style={!abierto && esLargo ? { display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden" } : undefined}
+      >
+        {texto}
+      </p>
+      {esLargo && (
+        <button
+          onClick={() => setAbierto((v) => !v)}
+          className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white/70 px-5 text-sm font-semibold text-brand shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] ring-1 ring-graph/10 backdrop-blur transition hover:ring-brand/40"
+        >
+          {abierto ? "Ver menos" : "Leer la descripción completa"}
+          <ChevronDown size={16} className={`transition-transform duration-300 ${abierto ? "rotate-180" : ""}`} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── Características plegadas ─────────────────────────────────────────────────
+   Dos columnas SIEMPRE (antes en el celular era una columna de 15 renglones) y
+   lo que pasa de 8 se abre a pedido. La apertura anima con grid-template-rows:
+   suave, sin medir alturas y sin tocar el layout del resto de la página. */
+const CARACTERISTICAS_VISIBLES = 8;
+
+function CaracteristicasPlegadas({ items }: { items: string[] }) {
+  const [abierto, setAbierto] = useState(false);
+  const primeras = items.slice(0, CARACTERISTICAS_VISIBLES);
+  const resto = items.slice(CARACTERISTICAS_VISIBLES);
+
+  const Chip = ({ texto }: { texto: string }) => (
+    <li className="flex items-center gap-2 rounded-xl bg-paper-100 px-3 py-2.5 text-sm text-graph-500 shadow-[0_1px_2px_rgba(13,21,33,0.04)] sm:gap-3 sm:px-4 sm:py-3 sm:text-base">
+      <CheckCircle2 size={16} className="shrink-0 text-brand" /> <span className="min-w-0">{texto}</span>
+    </li>
+  );
+
+  return (
+    // La banda de contraste: las tarjetas blancas sobre un fondo apenas más
+    // oscuro (la receta de la referencia que pasó Juani, en la paleta de Potente).
+    <div className="mt-5 rounded-3xl bg-paper-200/60 p-3 sm:p-4">
+      <ul className="grid grid-cols-2 gap-2 sm:gap-3">
+        {primeras.map((m) => <Chip key={m} texto={m} />)}
+      </ul>
+
+      {resto.length > 0 && (
+        <>
+          <div
+            className="grid transition-[grid-template-rows] duration-500"
+            style={{ gridTemplateRows: abierto ? "1fr" : "0fr", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+          >
+            <div className="overflow-hidden">
+              <ul className="grid grid-cols-2 gap-2 pt-2 sm:gap-3 sm:pt-3">
+                {resto.map((m) => <Chip key={m} texto={m} />)}
+              </ul>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setAbierto((v) => !v)}
+            aria-expanded={abierto}
+            className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-2xl bg-white/70 text-sm font-semibold text-brand shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] ring-1 ring-graph/10 backdrop-blur transition hover:ring-brand/40"
+          >
+            {abierto ? "Ver menos" : `Ver las ${items.length} características`}
+            <ChevronDown size={16} className={`transition-transform duration-300 ${abierto ? "rotate-180" : ""}`} />
+          </button>
+        </>
+      )}
     </div>
   );
 }
