@@ -215,34 +215,38 @@ export default function Home() {
         <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 animate-bounce text-white/70"><ChevronDown /></div>
       </section>
 
-      {/* ===== TRAYECTORIA ===== · la cinta navy con TARJETAS BLANCAS
-          El gesto completo de la referencia que trajo Juani (11-ago): tarjetas
-          blancas flotando sobre la banda de color, y al pasarles por encima se
-          PINTAN de azul con el texto en blanco — "al revés", como pidió él.
-          Sin border-y: el cambio de color ES el borde. */}
-      <section className="relative overflow-hidden bg-brand-950">
-        <Horizonte />
-        <div className="container-x relative grid grid-cols-2 gap-4 py-14 md:grid-cols-4 md:gap-5">
+      {/* ===== TRAYECTORIA ===== · FONDO CLARO, el contraste lo hacen las cards.
+          Veredicto de Juani sobre la banda navy (11-ago): "la línea recta en
+          azul me parece vieja, no vende... que quede fondo blanco y generamos
+          el contraste con efecto en las cards". Entonces:
+          · La banda de color, AFUERA. Fondo claro, sin bordes duros.
+          · Cada cifra es una placa liquid glass (el squircle iPhone de la casa)
+            con el reflejo arriba.
+          · Al tocarla: una FRANJA AZUL la barre en diagonal (el brillo que pasa
+            por el vidrio), se enciende el filo de abajo en degradé azul→celeste
+            y la placa se levanta. Efecto, no pintura — un solo azul. */}
+      <section className="bg-paper-100 py-14">
+        <div className="container-x grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5">
           {[
             { n: "+50", l: "Años en Mar del Plata" },
             { n: "3", l: "Generaciones" },
             { n: "2", l: "Oficinas en la ciudad" },
             { n: `${propiedades.length}`, l: "Propiedades en cartera" },
           ].map((s, i) => (
-            // El material iPhone de la casa: EL MISMO de las placas de la galería
-            // (radio 1.75rem, anillo de luz, reflejo en el borde superior, curva
-            // de Apple). Nada de rectángulos duros: la tarjeta es una placa de
-            // vidrio apoyada en el navy, y al hover se pinta de azul CON el
-            // reflejo encima — vidrio azul, no cartulina azul.
             <div
               key={i}
               data-delay={`${i * 80}ms`}
-              className="reveal group relative overflow-hidden rounded-[1.75rem] bg-white/[0.92] p-5 text-center shadow-[0_24px_60px_-24px_rgba(2,10,30,0.65)] ring-1 ring-white/30 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:bg-brand md:p-6 md:text-left"
+              className="reveal group relative overflow-hidden rounded-[1.75rem] bg-white/80 p-5 text-center shadow-[0_18px_44px_-26px_rgba(2,35,82,0.35)] ring-1 ring-graph/10 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 hover:shadow-[0_30px_70px_-28px_rgba(12,77,162,0.4)] hover:ring-brand/25 md:p-6 md:text-left"
             >
-              {/* El reflejo de vidrio, igual que en la galería. */}
-              <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[1.75rem] bg-gradient-to-b from-white/45 via-transparent to-transparent opacity-70 transition-opacity duration-500 group-hover:opacity-40" />
-              <p className="relative font-display text-3xl font-semibold tracking-tight text-brand-950 transition-colors duration-500 group-hover:text-white md:text-4xl">{s.n}</p>
-              <p className="relative mt-1 text-sm text-graph-500 transition-colors duration-500 group-hover:text-white/85">{s.l}</p>
+              {/* El reflejo de vidrio de la casa. */}
+              <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[1.75rem] bg-gradient-to-b from-white/60 via-transparent to-transparent" />
+              {/* La franja azul que BARRE la placa al hover: nace fuera del borde
+                  izquierdo, inclinada, y cruza entera como un brillo. */}
+              <span aria-hidden className="pointer-events-none absolute inset-y-0 left-[-70%] w-[50%] -skew-x-12 bg-gradient-to-r from-transparent via-brand/20 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[340%]" />
+              {/* El filo de abajo se enciende de izquierda a derecha. */}
+              <span aria-hidden className="pointer-events-none absolute inset-x-5 bottom-2.5 h-[3px] origin-left scale-x-0 rounded-full bg-gradient-to-r from-brand to-sea transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-x-100" />
+              <p className="relative font-display text-3xl font-semibold tracking-tight text-brand-950 md:text-4xl">{s.n}</p>
+              <p className="relative mt-1 text-sm text-graph-500">{s.l}</p>
             </div>
           ))}
         </div>
