@@ -44,6 +44,9 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
   const caja = useRef<HTMLDivElement>(null);
   const sombraRef = useRef<{ setDate: (d: Date) => void; remove: () => void } | null>(null);
   const [listo, setListo] = useState(false);
+  // Zonas sin relevar: OSM no tiene edificios en pueblos chicos (Mar del Sur
+  // tiene CERO) y la vista parece rota si no se explica. Se mide y se dice.
+  const [sinEdificios, setSinEdificios] = useState(false);
   const [hora, setHora] = useState(15 * 60);
   const [epoca, setEpoca] = useState<EpocaSombra>("hoy");
   // El slider solo recorre horas CON sol (bug del 11-ago: pasada la puesta,
@@ -130,6 +133,16 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
       }).addTo(mapa);
       sombraRef.current = sombra;
       setListo(true);
+
+      // ¿Hay edificios relevados en este encuadre? Si casi no hay, se avisa
+      // (honesto): el visitante de un pueblo chico no tiene que pensar que
+      // esto anda mal. Umbral 15 y no cero: en Mar del Sur hay UN (1) edificio
+      // mapeado en OSM y la vista igual parece vacía — medido el 11-ago.
+      mapa.once("idle", () => {
+        try {
+          setSinEdificios(mapa.queryRenderedFeatures({ layers: ["edificios-3d"] }).length < 15);
+        } catch { /* la capa siempre existe acá; por las dudas, sin aviso */ }
+      });
     });
 
     return () => {
@@ -191,6 +204,14 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
       <p className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full bg-graph/70 px-3.5 py-1.5 text-[11px] font-medium text-white backdrop-blur sm:text-xs">
         Girá la ciudad arrastrando con dos dedos o con el botón derecho
       </p>
+
+      {/* Zona sin edificios relevados: se dice, no se deja pensar que está roto. */}
+      {listo && sinEdificios && (
+        <div className="pointer-events-none absolute left-1/2 top-16 z-10 w-[min(92%,440px)] -translate-x-1/2 rounded-2xl bg-white/85 px-4 py-3 text-center shadow-card ring-1 ring-graph/10 backdrop-blur-xl">
+          <p className="text-sm font-semibold text-graph">En esta zona los edificios todavía no están relevados</p>
+          <p className="mt-1 text-xs text-graph-500">Las sombras muestran el terreno. En el centro de Mar del Plata la ciudad se ve completa en 3D.</p>
+        </div>
+      )}
 
       {/* La misma barrita del sol que la vista 2D */}
       <div className="absolute bottom-6 left-1/2 z-10 w-[min(94%,560px)] -translate-x-1/2 rounded-2xl bg-white/85 px-4 py-3 shadow-card ring-1 ring-graph/10 backdrop-blur-xl backdrop-saturate-150">
