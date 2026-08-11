@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAPA, SOMBRAS_KEY } from "../../config/mapa";
-import { EPOCAS_SOMBRA, fechaSombras, horaLegible, TERRENO_SHADEMAP, type EpocaSombra } from "../lib/sombras";
+import { EPOCAS_SOMBRA, fechaSombras, horaLegible, ventanaSolar, TERRENO_SHADEMAP, type EpocaSombra } from "../lib/sombras";
 
 // La ciudad en 3D (MapLibre, ~230 KB gzip): SU PROPIO chunk, baja recién si
 // el visitante toca "Ver en 3D". El video de Mateo, hecho feature.
@@ -65,6 +65,10 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
   const [cargandoSombras, setCargandoSombras] = useState(false);
   const [hora, setHora] = useState(15 * 60); // 15:00 — la hora a la que se visita
   const [epoca, setEpoca] = useState<EpocaSombra>("hoy");
+  // Solo horas CON sol: pasada la puesta el simulador no dibuja "noche", dibuja
+  // una placa rota (bug 11-ago). La ventana la da SunCalc para ESTE lugar.
+  const ventana = ventanaSolar(epoca, lat, lng);
+  useEffect(() => { setHora((h) => ventana.clamp(h)); }, [epoca, ventana.min, ventana.max]);
   // La ciudad en 3D (pantalla completa). Solo el flag: el componente es lazy.
   const [ver3D, setVer3D] = useState(false);
   // Los edificios de OSM por zona visible, para no pegarle a Overpass dos veces
@@ -308,10 +312,10 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
           </div>
           <input
             type="range"
-            min={6 * 60}
-            max={20 * 60}
+            min={ventana.min}
+            max={ventana.max}
             step={15}
-            value={hora}
+            value={ventana.clamp(hora)}
             onChange={(e) => setHora(Number(e.target.value))}
             aria-label="Hora del día para ver las sombras"
             className="mt-2 w-full accent-brand"

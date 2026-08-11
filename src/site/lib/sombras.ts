@@ -23,6 +23,30 @@ export const fechaSombras = (epoca: EpocaSombra, minutos: number) => {
 export const horaLegible = (minutos: number) =>
   `${Math.floor(minutos / 60)}:${String(minutos % 60).padStart(2, "0")}`;
 
+import * as SunCalc from "suncalc";
+
+/**
+ * 🔴 La VENTANA SOLAR del slider: de salida a puesta del sol REALES para esa
+ * fecha y ese lugar (SunCalc, el mismo motor de "Orientación y sol").
+ *
+ * Existe por un bug que encontró Juani en producción (11-ago): a las 18:30 de
+ * un día de agosto el sol ya se puso, y el simulador sin sol no pinta "noche" —
+ * pinta una PLACA gigante con bordes duros que parece rota. Sin sol no hay
+ * sombras que mostrar, así que el slider directamente no llega ahí.
+ * Se redondea hacia adentro a los 15 min del paso del slider, con un margen
+ * para que el sol esté de verdad ARRIBA del horizonte (sombras con sentido).
+ */
+export function ventanaSolar(epoca: EpocaSombra, lat: number, lng: number) {
+  const dia = EPOCAS_SOMBRA.find((e) => e.k === epoca)!.dia();
+  dia.setHours(12, 0, 0, 0); // mediodía: getTimes quiere un instante del día
+  const t = SunCalc.getTimes(dia, lat, lng);
+  const aMin = (d: Date) => d.getHours() * 60 + d.getMinutes();
+  // +/- 30 min del amanecer/atardecer: sol rasante todavía dibuja sombra real.
+  const min = Math.ceil((aMin(t.sunrise) + 30) / 15) * 15;
+  const max = Math.floor((aMin(t.sunset) - 30) / 15) * 15;
+  return { min, max, clamp: (m: number) => Math.min(max, Math.max(min, m)) };
+}
+
 import { MAPA } from "../../config/mapa";
 
 /** El terreno para el simulador: dataset Terrain Tiles de AWS Open Data

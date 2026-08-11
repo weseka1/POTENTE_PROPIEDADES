@@ -30,7 +30,7 @@ import urlWorkerMapLibre from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 maplibregl.setWorkerUrl(urlWorkerMapLibre);
 import ShadeMap from "mapbox-gl-shadow-simulator";
 import { SOMBRAS_KEY } from "../../config/mapa";
-import { EPOCAS_SOMBRA, fechaSombras, horaLegible, TERRENO_SHADEMAP, type EpocaSombra } from "../lib/sombras";
+import { EPOCAS_SOMBRA, fechaSombras, horaLegible, ventanaSolar, TERRENO_SHADEMAP, type EpocaSombra } from "../lib/sombras";
 
 /** Espera a que el mapa termine de dibujar (los tiles de edificios recién ahí
  *  se pueden consultar). Patrón del ejemplo oficial del plugin. */
@@ -46,6 +46,10 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
   const [listo, setListo] = useState(false);
   const [hora, setHora] = useState(15 * 60);
   const [epoca, setEpoca] = useState<EpocaSombra>("hoy");
+  // El slider solo recorre horas CON sol (bug del 11-ago: pasada la puesta,
+  // el simulador dibuja una placa rota en vez de noche).
+  const ventana = ventanaSolar(epoca, lat, lng);
+  useEffect(() => { setHora((h) => ventana.clamp(h)); }, [epoca, ventana.min, ventana.max]);
 
   useEffect(() => {
     const nodo = caja.current;
@@ -64,7 +68,10 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
       zoom: 16.2,
       pitch: 58, // inclinada: se ven los frentes, no los techos
       bearing: -17,
-      minZoom: 14, // los edificios existen de 14 para arriba — más lejos sería una alfombra gris
+      // 🔴 minZoom 15: más lejos que esto la textura de sombras no cubre el
+      // encuadre y SE LE VE EL RECTÁNGULO (bug que encontró Juani alejando el
+      // mapa en producción). A 15 todavía se ve el barrio entero.
+      minZoom: 15,
       maxZoom: 18.5,
       attributionControl: false,
     });
@@ -207,10 +214,10 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
         </div>
         <input
           type="range"
-          min={6 * 60}
-          max={20 * 60}
+          min={ventana.min}
+          max={ventana.max}
           step={15}
-          value={hora}
+          value={ventana.clamp(hora)}
           onChange={(e) => setHora(Number(e.target.value))}
           aria-label="Hora del día para ver las sombras"
           className="mt-2 w-full accent-brand"
