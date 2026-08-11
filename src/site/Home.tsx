@@ -215,23 +215,27 @@ export default function Home() {
         <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 animate-bounce text-white/70"><ChevronDown /></div>
       </section>
 
-      {/* ===== TRAYECTORIA ===== · la cinta navy
-          El gesto de la referencia que trajo Juani (11-ago): los números grandes
-          sobre banda de color apenas termina el hero. Banda BAJA a propósito
-          (py-12): lee como cinta, no como pared. Sin border-y — el cambio de
-          color ES el borde. */}
+      {/* ===== TRAYECTORIA ===== · la cinta navy con TARJETAS BLANCAS
+          El gesto completo de la referencia que trajo Juani (11-ago): tarjetas
+          blancas flotando sobre la banda de color, y al pasarles por encima se
+          PINTAN de azul con el texto en blanco — "al revés", como pidió él.
+          Sin border-y: el cambio de color ES el borde. */}
       <section className="relative overflow-hidden bg-brand-950">
         <Horizonte />
-        <div className="container-x relative grid grid-cols-2 gap-8 py-12 md:grid-cols-4">
+        <div className="container-x relative grid grid-cols-2 gap-4 py-14 md:grid-cols-4 md:gap-5">
           {[
             { n: "+50", l: "Años en Mar del Plata" },
             { n: "3", l: "Generaciones" },
             { n: "2", l: "Oficinas en la ciudad" },
             { n: `${propiedades.length}`, l: "Propiedades en cartera" },
           ].map((s, i) => (
-            <div key={i} className="reveal text-center md:text-left" data-delay={`${i * 80}ms`}>
-              <p className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">{s.n}</p>
-              <p className="mt-1 text-sm text-white/60">{s.l}</p>
+            <div
+              key={i}
+              data-delay={`${i * 80}ms`}
+              className="reveal group rounded-2xl bg-paper-100 p-5 text-center shadow-[0_24px_60px_-28px_rgba(2,10,30,0.6)] transition duration-300 hover:-translate-y-1 hover:bg-brand md:p-6 md:text-left"
+            >
+              <p className="font-display text-3xl font-semibold tracking-tight text-brand-950 transition-colors duration-300 group-hover:text-white md:text-4xl">{s.n}</p>
+              <p className="mt-1 text-sm text-graph-500 transition-colors duration-300 group-hover:text-white/80">{s.l}</p>
             </div>
           ))}
         </div>
@@ -471,14 +475,31 @@ export default function Home() {
           sería invisible sobre navy (mismo patrón que ya usa Tasaciones). */}
       <section id="contacto" className="relative overflow-hidden bg-brand-950 py-24">
         <Horizonte />
+        {/* El año fundacional, gigante y fantasma: ancla la historia y llena el
+            azul sin meter datos repetidos (Mateo pidió que acá quede SOLO el
+            formulario — direcciones y teléfonos viven en Sucursales y el footer). */}
+        <span aria-hidden className="pointer-events-none absolute -bottom-10 left-0 select-none font-display text-[11rem] font-semibold leading-none text-white/[0.045] md:text-[15rem]">
+          1974
+        </span>
         <div className="container-x relative grid gap-14 lg:grid-cols-2">
-          <div>
+          <div className="flex flex-col">
             <p className="eyebrow reveal !text-sea-300">Hablemos</p>
             <h2 className="reveal mt-3 font-display text-4xl font-medium tracking-tight text-white md:text-5xl">Contanos qué estás buscando</h2>
             <p className="reveal mt-5 text-lg text-white/70" data-delay="100ms">Te respondemos rápido por WhatsApp o teléfono.</p>
-            {/* Pedido Mateo (3-ago): acá los datos se repetían → queda SOLO el formulario.
-                Direcciones y teléfonos viven en "Pasá cuando quieras" y en el footer. */}
-            <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero hacer una consulta." className="btn-primary reveal mt-9 !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Escribinos por WhatsApp</WhatsAppCTA>
+            {/* Confianza, no datos: lo que el que consulta quiere saber antes de
+                dejar el teléfono. */}
+            <ul className="reveal mt-8 space-y-3.5 text-white/75" data-delay="160ms">
+              {[
+                "Te respondemos en el día",
+                "Sin cargo ni compromiso",
+                "Te atiende el equipo de la oficina que corresponde",
+              ].map((x) => (
+                <li key={x} className="flex items-center gap-3 text-[15px]">
+                  <ShieldCheck size={17} className="shrink-0 text-sea-300" /> {x}
+                </li>
+              ))}
+            </ul>
+            <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero hacer una consulta." className="btn-primary reveal mt-9 self-start !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Escribinos por WhatsApp</WhatsAppCTA>
           </div>
           <ContactForm onEnviar={addLead} motivo={motivoContacto} enBandaOscura />
         </div>
