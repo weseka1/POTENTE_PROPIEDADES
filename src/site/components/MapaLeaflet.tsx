@@ -6,10 +6,15 @@
  * `index.css`, Vite lo mete en la hoja de estilos principal y se lo baja TODO
  * visitante, incluso el que nunca abre una propiedad.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAPA, SOMBRAS_KEY } from "../../config/mapa";
+import { EPOCAS_SOMBRA, fechaSombras, horaLegible, TERRENO_SHADEMAP, type EpocaSombra } from "../lib/sombras";
+
+// La ciudad en 3D (MapLibre, ~230 KB gzip): SU PROPIO chunk, baja recién si
+// el visitante toca "Ver en 3D". El video de Mateo, hecho feature.
+const Mapa3DSombras = lazy(() => import("./Mapa3DSombras"));
 
 /**
  * El pin, dibujado a mano.
@@ -36,28 +41,12 @@ const pinDeMarca = () =>
  * día uno, ahora con datos: terreno real (AWS Open Data) + los EDIFICIOS de
  * OpenStreetMap, así se ve la sombra que la torre de al lado tira sobre el
  * balcón a las 4 de la tarde. La key es de ShadeMap (la consiguió Mateo).
+ * Épocas, fecha del sol y terreno viven en `../lib/sombras` — compartidos con
+ * la vista 3D para que las dos digan lo mismo.
  *
  * Todo lo pesado (el simulador + el conversor de OSM) baja RECIÉN cuando el
  * visitante toca el botón: el que no lo usa no paga ni un byte.
  */
-
-/** Las mismas tres épocas que la sección "Orientación y sol": los solsticios
- *  son los extremos reales del año. */
-const EPOCAS_SOMBRA = [
-  { k: "verano", l: "Verano", dia: () => new Date(2026, 11, 21) },
-  { k: "hoy", l: "Hoy", dia: () => new Date() },
-  { k: "invierno", l: "Invierno", dia: () => new Date(2026, 5, 21) },
-] as const;
-type EpocaSombra = (typeof EPOCAS_SOMBRA)[number]["k"];
-
-const fechaSombras = (epoca: EpocaSombra, minutos: number) => {
-  const d = EPOCAS_SOMBRA.find((e) => e.k === epoca)!.dia();
-  d.setHours(Math.floor(minutos / 60), minutos % 60, 0, 0);
-  return d;
-};
-
-const horaLegible = (minutos: number) =>
-  `${Math.floor(minutos / 60)}:${String(minutos % 60).padStart(2, "0")}`;
 
 export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: number; titulo: string }) {
   const caja = useRef<HTMLDivElement>(null);
@@ -76,6 +65,8 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
   const [cargandoSombras, setCargandoSombras] = useState(false);
   const [hora, setHora] = useState(15 * 60); // 15:00 — la hora a la que se visita
   const [epoca, setEpoca] = useState<EpocaSombra>("hoy");
+  // La ciudad en 3D (pantalla completa). Solo el flag: el componente es lazy.
+  const [ver3D, setVer3D] = useState(false);
   // Los edificios de OSM por zona visible, para no pegarle a Overpass dos veces
   // por el mismo encuadre (su política pide moderación).
   const cacheEdificios = useRef<Map<string, unknown[]>>(new Map());
@@ -216,14 +207,7 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
         color: "#0b1a33", // el azul noche de la casa, no un negro plano
         opacity: 0.62,
         apiKey: SOMBRAS_KEY,
-        terrainSource: {
-          tileSize: 256,
-          maxZoom: 15,
-          getSourceUrl: ({ x, y, z }: { x: number; y: number; z: number }) =>
-            MAPA.elevacion.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y)),
-          // Fórmula "terrarium" del dataset de AWS: altura en metros por píxel.
-          getElevation: ({ r, g, b }: { r: number; g: number; b: number; a: number }) => r * 256 + g + b / 256 - 32768,
-        },
+        terrainSource: TERRENO_SHADEMAP,
         getFeatures: edificiosOSM,
         // Sin esto, el primer montaje dibuja el canvas del tamaño de la VENTANA
         // (1440×900 medido) en vez del mapa: sombras corridas. Con el tamaño
@@ -278,7 +262,23 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
             {cargandoSombras ? "Calculando…" : "🌒 Sombras"}
           </button>
         )}
+        {SOMBRAS_KEY && (
+          <button
+            type="button"
+            onClick={() => setVer3D(true)}
+            className={`${pill} bg-white/85 text-graph ring-graph/10 hover:ring-brand/40`}
+          >
+            🏙 Ver en 3D
+          </button>
+        )}
       </div>
+
+      {/* La ciudad en 3D, pantalla completa (va por portal al body). */}
+      {ver3D && (
+        <Suspense fallback={null}>
+          <Mapa3DSombras lat={lat} lng={lng} titulo={titulo} onCerrar={() => setVer3D(false)} />
+        </Suspense>
+      )}
 
       {/* La barrita del sol: aparece solo con las sombras prendidas. Vidrio de
           la casa, una línea: época + hora. Corrida del borde inferior derecho
