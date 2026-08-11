@@ -11,6 +11,7 @@ import { cargarDemo, guardarDemo } from "@/lib/DataProvider";
 import { aDataUrlComprimida, dataUrlAchicado } from "@/lib/imagenes";
 import type { Ficha } from "@/data/propiedadTypes";
 import { Campo, Inp, Sel, FichaSecciones } from "../components/fichaUI";
+import { sinTildes } from "@/site/lib/parseBusqueda";
 import { descargarFichaPDF } from "../lib/fichaPDF";
 import PlanEditor from "../components/PlanEditor";
 
@@ -87,7 +88,8 @@ export default function Fichas() {
 
   if (sel) return <FichaEditor row={sel} onBack={() => setSel(null)} onSave={guardar} onDelete={borrar} />;
 
-  const lista = fichas.filter((f) => (`${f.titulo} ${f.zona} ${f.id}`).toLowerCase().includes(q.toLowerCase()));
+  // La dirección del borrador también busca (mismo criterio que Cartera).
+  const lista = fichas.filter((f) => sinTildes(`${f.titulo} ${f.zona} ${f.datos?.direccion ?? ""} ${f.id}`).includes(sinTildes(q)));
 
   return (
     <div>
@@ -103,7 +105,7 @@ export default function Fichas() {
 
       <div className="mb-5 flex items-center gap-2 rounded-xl border border-graph/10 bg-graph/[0.03] px-3">
         <Search size={16} className="text-graph-400" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por referencia, zona o ID…" className="h-11 flex-1 bg-transparent text-sm text-graph outline-none placeholder:text-graph-400" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por referencia, dirección, zona o ID…" className="h-11 flex-1 bg-transparent text-sm text-graph outline-none placeholder:text-graph-400" />
         <span className="text-xs text-graph-400">{lista.length} ficha{lista.length === 1 ? "" : "s"}</span>
       </div>
 

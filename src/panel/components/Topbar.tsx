@@ -41,7 +41,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               setQ("");
             }
           }}
-          placeholder="Buscar propiedades por título, zona o ID…  (Enter)"
+          placeholder="Buscar por título, dirección, zona o ID…  (Enter)"
           className="h-9 w-full rounded-xl border border-graph/15 bg-paper-100 pl-9 pr-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60 focus:bg-white focus:ring-2 focus:ring-brand/15"
         />
       </div>

@@ -16,7 +16,9 @@ export type Busqueda = {
 };
 
 const DIACRITICOS = new RegExp("[\u0300-\u036f]", "g");
-const sinTildes = (s: string) =>
+/** Exportado: tambi\u00e9n lo usa el buscador del panel (Cartera) \u2014 "colon" tiene
+ *  que encontrar "Col\u00f3n" tanto para el visitante como para el equipo. */
+export const sinTildes = (s: string) =>
   s.normalize("NFD").replace(DIACRITICOS, "").toLowerCase();
 
 // Sinónimos → categoría del catálogo

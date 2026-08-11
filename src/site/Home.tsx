@@ -491,12 +491,8 @@ export default function Home() {
           sería invisible sobre navy (mismo patrón que ya usa Tasaciones). */}
       <section id="contacto" className="relative overflow-hidden bg-brand-950 py-24">
         <Horizonte />
-        {/* El año fundacional, gigante y fantasma: ancla la historia y llena el
-            azul sin meter datos repetidos (Mateo pidió que acá quede SOLO el
-            formulario — direcciones y teléfonos viven en Sucursales y el footer). */}
-        <span aria-hidden className="pointer-events-none absolute -bottom-10 left-0 select-none font-display text-[11rem] font-semibold leading-none text-white/[0.045] md:text-[15rem]">
-          1974
-        </span>
+        {/* Acá NO va el año fantasma: Mateo lo vio y pidió sacarlo (WhatsApp 11-ago,
+            "se podrá borrar ese 1974?"). La banda queda navy plena, solo el formulario. */}
         <div className="container-x relative grid gap-14 lg:grid-cols-2">
           <div className="flex flex-col">
             <p className="eyebrow reveal !text-sea-300">Hablemos</p>

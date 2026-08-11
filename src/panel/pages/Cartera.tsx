@@ -13,6 +13,7 @@ import CampoThumb from "../components/CampoThumb";
 import CampoDrawer from "../components/CampoDrawer";
 import { useToast } from "../components/Toast";
 import { estadoCampo, ESTADOS_PROPIEDAD, verEstado } from "../ui/estados";
+import { sinTildes } from "@/site/lib/parseBusqueda";
 import { cn } from "../ui/cn";
 
 const catLabel = (cat: string) => CATEGORIAS.find((c) => c.key === cat)?.label ?? cat;
@@ -56,7 +57,10 @@ export default function Cartera() {
 
   const filtrados = useMemo(() => {
     return propiedades.filter((c) => {
-      if (q && !`${c.titulo} ${c.zona} ${c.id}`.toLowerCase().includes(q.toLowerCase())) return false;
+      // La DIRECCIÓN entra en la búsqueda (pedido de Mateo por WhatsApp, 11-ago:
+      // "me toma TODO menos la dirección"). Y sin tildes en las dos puntas:
+      // él tipea "colon 3537" y la ficha dice "Av. Colón 3537".
+      if (q && !sinTildes(`${c.titulo} ${c.zona} ${c.direccion ?? ""} ${c.id}`).includes(sinTildes(q))) return false;
       if (cat !== "todas" && c.categoria !== cat) return false;
       if (op !== "todas" && c.operacion !== op) return false;
       if (est !== "todos" && c.estado !== est) return false;
@@ -93,7 +97,7 @@ export default function Cartera() {
 
       {/* toolbar */}
       <div className="pcard mb-5 flex flex-wrap items-center gap-2.5 p-3">
-        <SearchInput value={q} onChange={setQ} placeholder="Buscar por título, zona o ID…" className="min-w-[220px] flex-1" />
+        <SearchInput value={q} onChange={setQ} placeholder="Buscar por título, dirección, zona o ID…" className="min-w-[220px] flex-1" />
         <FilterSelect
           value={cat}
           onChange={setCat}
