@@ -47,15 +47,18 @@ export const linkEnMaps = (lat: number, lng: number) =>
   `https://www.google.com/maps/search/?api=1&query=${coord(lat, lng)}`;
 
 /**
- * "Ver la calle": Street View parado en esas coordenadas. Es un LINK, no una
- * API: gratis, sin key.
+ * "Ver en satélite": Google Maps en vista satelital, clavado en el pin a ~80 m
+ * de altura. Es un LINK, no una API: gratis, sin key. Lo usa el PANEL para
+ * verificar hacia dónde da el frente antes de marcar el pétalo de la brújula:
+ * se ve el techo, el lote y la calle desde arriba CON EL NORTE HACIA ARRIBA —
+ * para orientación es mejor que la foto de la fachada.
  *
- * ⚠️ SOLO PARA EL PANEL, no para la web pública. La cobertura de Google en la
- * costa es despareja (Mar del Sur no tiene) y saber si existe panorama antes de
- * mostrar el botón exige la Static API, que es paga. Un botón que a veces cae
- * en "no hay imágenes" no puede estar en la web del cliente — pero al equipo,
- * que lo usa para VERIFICAR hacia dónde da el frente antes de marcar el pétalo
- * de la brújula, le sirve aunque a veces no haya foto.
+ * 🔴 Por qué NO Street View: se probó (11-ago) y donde Google no tiene fotos de
+ * esa cuadra el link abre una PANTALLA NEGRA — le pasó a Juani a la primera. La
+ * cobertura en la costa es despareja y saber si hay panorama exige la Static
+ * API, que es paga. El satélite existe en todos lados, siempre. (Desde el
+ * satélite, arrastrar el muñequito a la calle son dos clics para quien quiera
+ * la fachada igual.)
  */
-export const linkStreetView = (lat: number, lng: number) =>
-  `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${coord(lat, lng)}`;
+export const linkSatelite = (lat: number, lng: number) =>
+  `https://www.google.com/maps/@${coord(lat, lng)},80m/data=!3m1!1e3`;

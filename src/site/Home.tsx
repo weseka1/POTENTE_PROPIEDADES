@@ -215,9 +215,14 @@ export default function Home() {
         <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 animate-bounce text-white/70"><ChevronDown /></div>
       </section>
 
-      {/* ===== TRAYECTORIA ===== */}
-      <section className="border-y border-graph/10 bg-paper-100">
-        <div className="container-x grid grid-cols-2 gap-8 py-10 md:grid-cols-4">
+      {/* ===== TRAYECTORIA ===== · la cinta navy
+          El gesto de la referencia que trajo Juani (11-ago): los números grandes
+          sobre banda de color apenas termina el hero. Banda BAJA a propósito
+          (py-12): lee como cinta, no como pared. Sin border-y — el cambio de
+          color ES el borde. */}
+      <section className="relative overflow-hidden bg-brand-950">
+        <Horizonte />
+        <div className="container-x relative grid grid-cols-2 gap-8 py-12 md:grid-cols-4">
           {[
             { n: "+50", l: "Años en Mar del Plata" },
             { n: "3", l: "Generaciones" },
@@ -225,8 +230,8 @@ export default function Home() {
             { n: `${propiedades.length}`, l: "Propiedades en cartera" },
           ].map((s, i) => (
             <div key={i} className="reveal text-center md:text-left" data-delay={`${i * 80}ms`}>
-              <p className="font-display text-3xl font-semibold tracking-tight text-brand md:text-4xl">{s.n}</p>
-              <p className="mt-1 text-sm text-graph-500">{s.l}</p>
+              <p className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">{s.n}</p>
+              <p className="mt-1 text-sm text-white/60">{s.l}</p>
             </div>
           ))}
         </div>
@@ -404,6 +409,7 @@ export default function Home() {
           <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: "url(/img/props/casa2.jpg)" }} />
           <div className="absolute inset-0 bg-gradient-to-br from-brand-950/[0.97] via-brand-950/90 to-brand/80" />
         </div>
+        <Horizonte />
         <div className="container-x relative z-10">
           <div className="max-w-2xl">
             <p className="eyebrow reveal flex items-center gap-2 !text-sea-300"><FileSearch size={16} /> Tasación profesional</p>
@@ -422,8 +428,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== SUCURSALES ===== */}
-      <section className="border-t border-graph/10 bg-paper-100 py-24">
+      {/* ===== SUCURSALES ===== · tarjetas blancas que FLOTAN.
+          Antes la banda era paper-100 y las tarjetas .card también paper-100:
+          blanco sobre blanco, no flotaba nada. Con el fondo paper (un tono más
+          profundo) las tarjetas contrastan — que era el punto. */}
+      <section className="border-t border-graph/10 bg-paper py-24">
         <div className="container-x">
           <div className="reveal mb-12">
             <p className="eyebrow">Dos oficinas, una ciudad</p>
@@ -431,7 +440,7 @@ export default function Home() {
           </div>
           <div className="grid gap-6 md:grid-cols-2">
             {OFICINAS.map((o, i) => (
-              <div key={o.nombre} className="reveal card group p-8 transition hover:shadow-card" data-delay={`${i * 100}ms`}>
+              <div key={o.nombre} className="reveal card group p-8 transition duration-300 hover:-translate-y-0.5 hover:shadow-card" data-delay={`${i * 100}ms`}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="eyebrow">{o.nombre}</p>
@@ -455,22 +464,42 @@ export default function Home() {
 
       <InstagramFeed />
 
-      {/* ===== CONTACTO ===== */}
-      <section id="contacto" className="border-t border-graph/10 py-24">
-        <div className="container-x grid gap-14 lg:grid-cols-2">
+      {/* ===== CONTACTO ===== · el gesto grande de la referencia:
+          la tarjeta blanca del formulario flotando sobre la banda navy plena.
+          Todo el embudo de la home desemboca acá (irAlFormulario) — el destino
+          se tiene que ver desde lejos. El botón va BLANCO: el azul de siempre
+          sería invisible sobre navy (mismo patrón que ya usa Tasaciones). */}
+      <section id="contacto" className="relative overflow-hidden bg-brand-950 py-24">
+        <Horizonte />
+        <div className="container-x relative grid gap-14 lg:grid-cols-2">
           <div>
-            <p className="eyebrow reveal">Hablemos</p>
-            <h2 className="reveal mt-3 font-display text-4xl font-medium tracking-tight text-graph md:text-5xl">Contanos qué estás buscando</h2>
-            <p className="reveal mt-5 text-lg text-graph-500" data-delay="100ms">Te respondemos rápido por WhatsApp o teléfono.</p>
+            <p className="eyebrow reveal !text-sea-300">Hablemos</p>
+            <h2 className="reveal mt-3 font-display text-4xl font-medium tracking-tight text-white md:text-5xl">Contanos qué estás buscando</h2>
+            <p className="reveal mt-5 text-lg text-white/70" data-delay="100ms">Te respondemos rápido por WhatsApp o teléfono.</p>
             {/* Pedido Mateo (3-ago): acá los datos se repetían → queda SOLO el formulario.
                 Direcciones y teléfonos viven en "Pasá cuando quieras" y en el footer. */}
-            <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero hacer una consulta." className="btn-primary reveal mt-9"><Phone size={16} /> Escribinos por WhatsApp</WhatsAppCTA>
+            <WhatsAppCTA mensaje="Hola Potente Propiedades, quiero hacer una consulta." className="btn-primary reveal mt-9 !bg-white !text-brand-950 hover:!bg-sea-50"><Phone size={16} /> Escribinos por WhatsApp</WhatsAppCTA>
           </div>
-          <ContactForm onEnviar={addLead} motivo={motivoContacto} />
+          <ContactForm onEnviar={addLead} motivo={motivoContacto} enBandaOscura />
         </div>
       </section>
 
       <Footer />
+    </div>
+  );
+}
+
+/* ── El horizonte Potente ─────────────────────────────────────────────────────
+   La firma de las bandas navy: la línea del mar cruzando el borde superior, con
+   un resplandor de amanecer arriba del agua. Un solo detalle, repetido con la
+   misma forma en las tres bandas (Trayectoria, Tasaciones, Contacto) = sistema,
+   no ruido. Va absolutamente posicionado y el section lleva overflow-hidden:
+   el blur no ensancha nada. */
+function Horizonte() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0">
+      <div className="h-px bg-gradient-to-r from-transparent via-sea/70 to-transparent" />
+      <div className="mx-auto -mt-px h-20 max-w-2xl rounded-full bg-sea/15 blur-3xl" />
     </div>
   );
 }
@@ -497,7 +526,7 @@ const MOTIVOS = [
   { id: "consulta", label: "Otra consulta", tag: "CONSULTA", ph: "Contanos en qué te podemos ayudar..." },
 ] as const;
 
-function ContactForm({ onEnviar, motivo }: { onEnviar: (l: any) => void; motivo?: "" | "comprar" | "vender" }) {
+function ContactForm({ onEnviar, motivo, enBandaOscura }: { onEnviar: (l: any) => void; motivo?: "" | "comprar" | "vender"; enBandaOscura?: boolean }) {
   const [sent, setSent] = useState(false);
   const [f, setF] = useState({ nombre: "", telefono: "", mensaje: "", motivo: "" as string });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -529,7 +558,16 @@ function ContactForm({ onEnviar, motivo }: { onEnviar: (l: any) => void; motivo?
   };
 
   return (
-    <form onSubmit={submit} className="reveal rounded-2xl border border-graph/10 bg-paper-100 p-7 shadow-card">
+    // Sobre la banda navy, el borde gris muere y la sombra necesita más caída:
+    // anillo de luz + sombra profunda (la receta "tarjeta blanca sobre navy").
+    <form
+      onSubmit={submit}
+      className={`reveal rounded-2xl bg-paper-100 p-7 ${
+        enBandaOscura
+          ? "ring-1 ring-white/10 shadow-[0_30px_80px_-32px_rgba(2,10,30,0.55)]"
+          : "border border-graph/10 shadow-card"
+      }`}
+    >
       {sent ? (
         <div className="flex h-full min-h-[340px] flex-col items-center justify-center text-center">
           <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-brand"><ShieldCheck size={30} /></span>

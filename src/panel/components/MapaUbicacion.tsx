@@ -30,8 +30,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Eye, LocateFixed, MapPin, Search, Undo2, X, Compass } from "lucide-react";
-import { MAPA, CENTRO_MDP, linkStreetView } from "@/config/mapa";
+import { LocateFixed, MapPin, Satellite, Search, Undo2, X, Compass } from "lucide-react";
+import { MAPA, CENTRO_MDP, linkSatelite } from "@/config/mapa";
 import { supabase } from "@/lib/supabase";
 import type { Orientacion } from "@/data/propiedadTypes";
 
@@ -346,20 +346,20 @@ export default function MapaUbicacion({
             <LocateFixed size={13} /> Corregir ubicación
           </button>
         )}
-        {/* Street View para VERIFICAR el frente antes de marcar el pétalo de la
-            brújula: se ve la fachada real y listo, sin adivinar. Es un link
-            gratis (sin API). Vive acá y NO en la web pública a propósito: la
-            cobertura es despareja y a veces cae en "no hay imágenes" — al
-            equipo no le molesta, al comprador sí. */}
+        {/* Satélite para VERIFICAR el frente antes de marcar el pétalo: el techo
+            y la calle desde arriba, con el norte hacia arriba — carga al toque
+            en todos lados. Street View se probó y se descartó (11-ago): donde no
+            hay fotos abre pantalla negra, y donde hay tarda muchísimo. Desde el
+            satélite, el muñequito queda a dos clics para quien quiera la fachada. */}
         {hayPin && (
           <a
-            href={linkStreetView(nLat, nLng)}
+            href={linkSatelite(nLat, nLng)}
             target="_blank"
             rel="noopener noreferrer"
-            title="Abre Google Street View en el pin (si Google tiene fotos de esa calle)"
+            title="Google Maps en vista satelital, clavado en el pin (norte hacia arriba)"
             className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-graph-500 ring-1 ring-graph/15 transition hover:text-brand hover:ring-brand/40"
           >
-            <Eye size={13} /> Ver la fachada (Street View)
+            <Satellite size={13} /> Ver en satélite
           </a>
         )}
       </div>

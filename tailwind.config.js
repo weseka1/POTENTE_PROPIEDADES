@@ -32,6 +32,12 @@ export default {
           300: "#7CC7EC",
           50: "#E9F6FD",
         },
+        // 🔴 Alias del navy histórico (= brand-950). Tiene que existir con este
+        // nombre: cuatro archivos ya usaban `bg-navy` / `text-navy` y Tailwind
+        // descartaba esas clases EN SILENCIO — la tarjeta navy de Instagram
+        // quedaba blanca con texto blanco y la banda del sol no se teñía. Lo
+        // encontró la revisión de diseño del 11-ago.
+        navy: "#022352",
 
         // ===== Sistema OSCURO heredado (panel, hasta su barrido a blanco) =====
         ink: { DEFAULT: "#0B1220", 800: "#111A2B", 700: "#1A2436", 600: "#243044" },
