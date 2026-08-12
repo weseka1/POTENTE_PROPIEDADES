@@ -11,9 +11,3 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-/** osmtogeojson no publica tipos: convierte la respuesta cruda de Overpass
- *  (edificios de OSM) en GeoJSON para el simulador de sombras. */
-declare module "osmtogeojson" {
-  const osmtogeojson: (json: unknown) => { features: Array<{ properties?: Record<string, unknown> }> };
-  export default osmtogeojson;
-}

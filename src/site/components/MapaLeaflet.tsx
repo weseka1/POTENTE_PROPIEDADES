@@ -74,9 +74,6 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
   useEffect(() => { setHora((h) => ventana.clamp(h)); }, [epoca, ventana.min, ventana.max]);
   // La ciudad en 3D (pantalla completa). Solo el flag: el componente es lazy.
   const [ver3D, setVer3D] = useState(false);
-  // Los edificios de OSM por zona visible, para no pegarle a Overpass dos veces
-  // por el mismo encuadre (su política pide moderación).
-  const cacheEdificios = useRef<Map<string, unknown[]>>(new Map());
 
   useEffect(() => {
     const nodo = caja.current;
@@ -128,7 +125,6 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
       sombraRef.current?.onRemove();
       sombraRef.current = null;
       setSombras(false);
-      cacheEdificios.current.clear();
       mapa.remove();
       mapaRef.current = null;
       capas.current = null;
@@ -149,49 +145,21 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
     setSatelite((v) => !v);
   };
 
-  /** Los edificios de OSM del encuadre visible, como GeoJSON con altura.
-   *  Overpass es un servicio comunitario: se consulta UNA vez por encuadre y
-   *  con timeout corto — si no contesta, quedan las sombras del terreno solo. */
-  const edificiosOSM = async () => {
+  /** Los edificios del encuadre visible: el dataset COMPLETO de ShadeMap
+   *  decodificado de sus tiles .mlt (ver edificiosMlt.ts — cobertura total,
+   *  chau Overpass y sus rate limits). Si el dataset no está disponible, las
+   *  sombras quedan de terreno solo y la barrita lo dice. */
+  const edificiosParaSombras = async () => {
     const m = mapaRef.current;
-    // Lejos no se distinguen edificios y la consulta se vuelve gigante.
-    if (!m || m.getZoom() < 15) return [];
+    if (!m) return [];
     const b = m.getBounds();
-    const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-    const clave = bbox
-      .split(",")
-      .map((v) => Number(v).toFixed(3))
-      .join(",");
-    const guardado = cacheEdificios.current.get(clave);
-    if (guardado) return guardado;
-    try {
-      const q = `[out:json][timeout:15];(way["building"](${bbox}););out body;>;out skel qt;`;
-      const r = await fetch("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(q));
-      // Sin respuesta (Overpass rate-limitea) = sombras de terreno solo: el
-      // aviso va IGUAL — si no, la barrita parece muerta sin explicación.
-      if (!r.ok) { setSinEdificios(true); return []; }
-      const json = await r.json();
-      const { default: osmtogeojson } = await import("osmtogeojson");
-      const gj = osmtogeojson(json) as { features: Array<{ properties?: Record<string, unknown> }> };
-      // Mismo umbral que la vista 3D: con menos de 15 edificios el encuadre
-      // parece vacío aunque técnicamente haya alguno.
-      setSinEdificios(gj.features.length < 15);
-      for (const f of gj.features) {
-        const p = (f.properties ??= {});
-        // Altura: la declarada en OSM; si solo hay pisos, 3 m por piso; y si no
-        // hay nada, 6 m (dos plantas) — en MdP subestimar la sombra del vecino
-        // es prometer un sol que después no está, y eso no se hace.
-        const pisos = Number(p["building:levels"]) || 0;
-        const altura = Number(p.height) || (pisos ? pisos * 3 : 6);
-        p.height = altura;
-        p.render_height = altura;
-      }
-      cacheEdificios.current.set(clave, gj.features);
-      return gj.features;
-    } catch {
-      setSinEdificios(true);
-      return []; // sin edificios sigue habiendo sombra de terreno — nunca romper el mapa
-    }
+    const { edificiosEnBbox } = await import("../lib/edificiosMlt");
+    const feats = await edificiosEnBbox(b.getSouth(), b.getWest(), b.getNorth(), b.getEast());
+    // Con el dataset completo esto casi nunca dispara; queda como red por si
+    // el archivo datado de ShadeMap desaparece (ver nota en edificiosMlt.ts).
+    setSinEdificios(feats.length < 15);
+    // De abajo hacia arriba: la base de una torre no pisa la punta de otra.
+    return [...feats].sort((a, b_) => a.properties.height - b_.properties.height);
   };
 
   /** Apagar de verdad: `onRemove()` del plugin NO saca el <canvas> del DOM
@@ -221,7 +189,7 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
         opacity: 0.62,
         apiKey: SOMBRAS_KEY,
         terrainSource: TERRENO_SHADEMAP,
-        getFeatures: edificiosOSM,
+        getFeatures: edificiosParaSombras,
         // Sin esto, el primer montaje dibuja el canvas del tamaño de la VENTANA
         // (1440×900 medido) en vez del mapa: sombras corridas. Con el tamaño
         // del contenedor queda clavado.
@@ -338,7 +306,7 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
             </p>
           )}
           <p className="mt-1 text-right text-[10px] text-graph-400">
-            Sombras © <a href="https://shademap.app" target="_blank" rel="noopener" className="underline decoration-graph/20 hover:text-graph">ShadeMap</a> · edificios de OpenStreetMap
+            Sombras y edificios © <a href="https://shademap.app" target="_blank" rel="noopener" className="underline decoration-graph/20 hover:text-graph">ShadeMap</a>
           </p>
         </div>
       )}

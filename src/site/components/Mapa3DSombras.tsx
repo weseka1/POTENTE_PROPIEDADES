@@ -49,6 +49,9 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
   const [sinEdificios, setSinEdificios] = useState(false);
   const [hora, setHora] = useState(15 * 60);
   const [epoca, setEpoca] = useState<EpocaSombra>("hoy");
+  // La fecha vigente como ref: la usan los callbacks del mapa (cargar
+  // edificios en moveend) sin arrastrar closures viejos.
+  const fechaActual = useRef(fechaSombras("hoy", 15 * 60));
   // El slider solo recorre horas CON sol (bug del 11-ago: pasada la puesta,
   // el simulador dibuja una placa rota en vez de noche).
   const ventana = ventanaSolar(epoca, lat, lng);
@@ -88,31 +91,74 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
     (window as unknown as { __mapa3d?: unknown }).__mapa3d = mapa;
 
     let sombra: InstanceType<typeof ShadeMap> | null = null;
+    // Los edificios VIVOS del encuadre (dataset ShadeMap decodificado): los
+    // consumen la capa de extrusión (fuente GeoJSON) y el simulador de
+    // sombras — mismos polígonos, mismas alturas, un solo criterio.
+    const edificiosVivos: { lista: import("../lib/edificiosMlt").EdificioGeoJSON[] } = { lista: [] };
     mapa.on("load", () => {
-      // Los EDIFICIOS salen del MISMO estilo de OpenFreeMap que ya estamos
-      // dibujando (fuente "openmaptiles", capa "building"): cero requests
-      // extra, y `render_height` viene calculado (altura declarada, o pisos
-      // × 3, o el default del esquema). 🔴 Los tiles de edificios propios de
-      // ShadeMap (cfw.shademap.app/buildings) ya NO sirven: migraron a
-      // formato .mlt, que MapLibre todavía no decodifica — devuelven 400.
       const primeraDeTexto = mapa.getStyle().layers.find((c) => c.type === "symbol")?.id;
+
+      // EDIFICIOS con cobertura TOTAL (pedido Juani 11-ago: "debe verse en
+      // TODAS"): el dataset satelital de ShadeMap decodificado de sus tiles
+      // .mlt (ver edificiosMlt.ts). Si el archivo datado desaparece o falla,
+      // RESPALDO: la capa de OSM del propio estilo (cobertura parcial).
+      mapa.addSource("edificios", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       mapa.addLayer(
         {
           id: "edificios-3d",
-          source: "openmaptiles",
-          "source-layer": "building",
+          source: "edificios",
           type: "fill-extrusion",
-          minzoom: 14,
           paint: {
             "fill-extrusion-color": "#cdd1d9",
-            "fill-extrusion-height": ["max", 3, ["coalesce", ["to-number", ["get", "render_height"]], 6]],
-            "fill-extrusion-base": ["coalesce", ["to-number", ["get", "render_min_height"]], 0],
+            "fill-extrusion-height": ["get", "height"],
             "fill-extrusion-opacity": 0.94,
           },
         },
         // Debajo de la primera capa de texto: los nombres de calles quedan legibles.
         primeraDeTexto,
       );
+
+      const usarRespaldoOSM = () => {
+        if (mapa.getLayer("edificios-3d-osm")) return;
+        mapa.addLayer(
+          {
+            id: "edificios-3d-osm",
+            source: "openmaptiles",
+            "source-layer": "building",
+            type: "fill-extrusion",
+            minzoom: 14,
+            paint: {
+              "fill-extrusion-color": "#cdd1d9",
+              "fill-extrusion-height": ["max", 3, ["coalesce", ["to-number", ["get", "render_height"]], 6]],
+              "fill-extrusion-base": ["coalesce", ["to-number", ["get", "render_min_height"]], 0],
+              "fill-extrusion-opacity": 0.94,
+            },
+          },
+          primeraDeTexto,
+        );
+      };
+
+      const cargarEdificios = async () => {
+        const b = mapa.getBounds();
+        const { edificiosEnBbox } = await import("../lib/edificiosMlt");
+        const feats = await edificiosEnBbox(b.getSouth(), b.getWest(), b.getNorth(), b.getEast());
+        if (feats.length > 0) {
+          edificiosVivos.lista = feats;
+          (mapa.getSource("edificios") as maplibregl.GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: feats } as GeoJSON.FeatureCollection);
+          setSinEdificios(false);
+          // Nueva geometría en escena → las sombras se recalculan (misma fecha).
+          sombraRef.current?.setDate(fechaActual.current);
+        } else {
+          usarRespaldoOSM();
+          // Con el respaldo OSM el aviso se decide mirando lo dibujado.
+          mapa.once("idle", () => {
+            try { setSinEdificios(mapa.queryRenderedFeatures({ layers: ["edificios-3d-osm"] }).length < 15); } catch { /* sin aviso */ }
+          });
+        }
+        return feats;
+      };
+      void cargarEdificios();
+      mapa.on("moveend", () => void cargarEdificios()); // barato: cache por tile
 
       sombra = new ShadeMap({
         apiKey: SOMBRAS_KEY,
@@ -121,28 +167,21 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
         opacity: 0.62,
         terrainSource: TERRENO_SHADEMAP,
         getFeatures: async () => {
-          if (mapa.getZoom() < 14) return [];
           await mapaQuieto(mapa);
-          const edificios = mapa.querySourceFeatures("openmaptiles", { sourceLayer: "building" });
-          for (const f of edificios) f.properties.height = Number(f.properties.render_height) || 6;
-          // De abajo hacia arriba: si no, la base de una torre puede pisar la
-          // punta de otra al rasterizar (nota del ejemplo oficial).
-          edificios.sort((a, b) => a.properties.height - b.properties.height);
-          return edificios;
+          if (edificiosVivos.lista.length > 0) {
+            // De abajo hacia arriba: si no, la base de una torre puede pisar
+            // la punta de otra al rasterizar (nota del ejemplo oficial).
+            return [...edificiosVivos.lista].sort((a, b) => a.properties.height - b.properties.height);
+          }
+          // Respaldo OSM (el dataset completo no está disponible).
+          const deOSM = mapa.querySourceFeatures("openmaptiles", { sourceLayer: "building" });
+          for (const f of deOSM) f.properties.height = Number(f.properties.render_height) || 6;
+          deOSM.sort((a, b) => a.properties.height - b.properties.height);
+          return deOSM;
         },
       }).addTo(mapa);
       sombraRef.current = sombra;
       setListo(true);
-
-      // ¿Hay edificios relevados en este encuadre? Si casi no hay, se avisa
-      // (honesto): el visitante de un pueblo chico no tiene que pensar que
-      // esto anda mal. Umbral 15 y no cero: en Mar del Sur hay UN (1) edificio
-      // mapeado en OSM y la vista igual parece vacía — medido el 11-ago.
-      mapa.once("idle", () => {
-        try {
-          setSinEdificios(mapa.queryRenderedFeatures({ layers: ["edificios-3d"] }).length < 15);
-        } catch { /* la capa siempre existe acá; por las dudas, sin aviso */ }
-      });
     });
 
     return () => {
@@ -155,7 +194,8 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
 
   // El sol se mueve en vivo al tocar la hora o la época.
   useEffect(() => {
-    sombraRef.current?.setDate(fechaSombras(epoca, hora));
+    fechaActual.current = fechaSombras(epoca, hora);
+    sombraRef.current?.setDate(fechaActual.current);
   }, [epoca, hora]);
 
   // Cerrar con Escape, como la galería.
@@ -244,7 +284,7 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
           className="mt-2 w-full accent-brand"
         />
         <p className="mt-1 text-right text-[10px] text-graph-400">
-          Sombras © <a href="https://shademap.app" target="_blank" rel="noopener" className="underline decoration-graph/20 hover:text-graph">ShadeMap</a> · edificios de OpenStreetMap
+          Sombras y edificios © <a href="https://shademap.app" target="_blank" rel="noopener" className="underline decoration-graph/20 hover:text-graph">ShadeMap</a>
         </p>
       </div>
     </div>,

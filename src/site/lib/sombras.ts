@@ -60,10 +60,7 @@ export const TERRENO_SHADEMAP = {
   getElevation: ({ r, g, b }: { r: number; g: number; b: number; a: number }) => r * 256 + g + b / 256 - 32768,
 };
 
-/* 🔴 NOTA para el futuro: los tiles de edificios PROPIOS de ShadeMap
- * (cfw.shademap.app/buildings) migraron de .mvt al formato .mlt (MapLibre
- * Tiles) y devuelven 400 al pedirlos como .mvt. MapLibre 6.3 todavía no
- * decodifica MLT, así que la vista 3D extruye los edificios de OSM que ya
- * vienen adentro del estilo de OpenFreeMap (fuente "openmaptiles", capa
- * "building"). El día que MapLibre soporte MLT, volver a evaluar la fuente
- * de ShadeMap: su cobertura es más completa (es la del video de Mateo). */
+/* Los EDIFICIOS de cobertura total (dataset .mlt de ShadeMap, decodificado
+ * con @maplibre/mlt) viven en `./edificiosMlt.ts` — lo comparten las sombras
+ * 2D y la ciudad 3D. El respaldo OSM del estilo de OpenFreeMap queda solo
+ * como plan B en la 3D por si el archivo datado del proveedor desaparece. */
