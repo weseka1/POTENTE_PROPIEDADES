@@ -140,6 +140,75 @@ app.get("/api/edificios/:x/:y", async (req, res) => {
   }
 });
 
+// ── Vista previa de WhatsApp por PROPIEDAD (pedido Mateo, 12-ago) ────────────
+// WhatsApp/Facebook/Instagram NO ejecutan JavaScript: leen los <meta og:*> del
+// HTML crudo. En una SPA esos meta son los genéricos del index — toda propiedad
+// compartida mostraba la misma tarjeta. Acá, ANTES del fallback SPA, se
+// intercepta /propiedad/:id, se lee la propiedad de la vista pública y se
+// inyectan título, precio y SU foto en el HTML. El visitante humano no nota
+// nada: recibe el mismo index.html y React arranca normal.
+// 🔴 Lección BOCHILE→acá: esto es ESTÁNDAR de toda SPA de cliente, no un extra.
+const escaparAtributo = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const reemplazarMeta = (html: string, propiedad: string, valor: string) =>
+  html.replace(
+    new RegExp(`(<meta[^>]*(?:property|name)="${propiedad}"[^>]*content=")[^"]*(")`),
+    `$1${escaparAtributo(valor)}$2`,
+  );
+// La cartera es viva (Mateo edita a diario): cache corto, no eterno.
+const cacheOG = new Map<string, { html: string; vence: number }>();
+
+app.get("/propiedad/:id", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const id = String(req.params.id || "");
+  const generico = () => res.sendFile(path.join(DIST, "index.html"));
+  if (!/^[A-Za-z0-9-]{1,40}$/.test(id)) return generico();
+  try {
+    const enCache = cacheOG.get(id);
+    if (enCache && enCache.vence > Date.now()) return res.type("html").send(enCache.html);
+
+    const base = process.env.VITE_SUPABASE_URL, key = process.env.VITE_SUPABASE_ANON_KEY;
+    if (!base || !key) return generico(); // modo demo: sin base no hay datos que inyectar
+    const r = await fetch(
+      `${base}/rest/v1/potente_propiedades_web?id=eq.${encodeURIComponent(id)}&select=titulo,zona,operacion,fotos,precioUSD,precioARS&limit=1`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+    );
+    const filas = r.ok ? ((await r.json()) as Array<Record<string, unknown>>) : [];
+    const p = filas[0];
+    if (!p) return generico(); // id inexistente: la SPA resuelve el 404 como siempre
+
+    // La descripción se ARMA con campos limpios (nunca el texto scrapeado, que
+    // arrastra teléfonos y links viejos). El precio como lo muestra la web.
+    const usd = Number(p.precioUSD), ars = Number(p.precioARS);
+    const precio = usd > 0 ? `U$S ${usd.toLocaleString("es-AR")}` : ars > 0 ? `$ ${ars.toLocaleString("es-AR")}${p.operacion === "alquiler" ? " por mes" : ""}` : "";
+    const titulo = `${String(p.titulo || "Propiedad")} · Potente Propiedades`;
+    const bajada = [precio, String(p.zona || ""), "Fotos, mapa y sol en la ficha completa."].filter(Boolean).join(" · ");
+    // La PRIMERA foto de ESA propiedad — el corazón del pedido de Mateo.
+    const fotos = Array.isArray(p.fotos) ? (p.fotos as string[]) : [];
+    const foto = fotos.find((f) => /^https?:\/\//.test(String(f)));
+    // Portable: sirve en cualquier dominio (Render hoy, Hostinger mañana) y
+    // respeta el protocolo real (trust proxy lee x-forwarded-proto).
+    const urlPropia = `${req.protocol}://${req.get("host")}${req.path}`;
+
+    let html = readFileSync(path.join(DIST, "index.html"), "utf8");
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${escaparAtributo(titulo)}</title>`);
+    html = reemplazarMeta(html, "og:title", titulo);
+    html = reemplazarMeta(html, "twitter:title", titulo);
+    html = reemplazarMeta(html, "og:description", bajada);
+    html = reemplazarMeta(html, "twitter:description", bajada);
+    html = reemplazarMeta(html, "og:url", urlPropia);
+    if (foto) {
+      html = reemplazarMeta(html, "og:image", foto);
+      html = reemplazarMeta(html, "twitter:image", foto);
+    } // sin foto propia queda la tarjeta de marca (og-portada) — nunca vacío
+
+    if (cacheOG.size >= 300) cacheOG.delete(cacheOG.keys().next().value!);
+    cacheOG.set(id, { html, vence: Date.now() + 10 * 60_000 });
+    res.type("html").send(html);
+  } catch {
+    generico(); // cualquier tropiezo = la página de siempre, jamás un error al visitante
+  }
+});
+
 // Estáticos con cache larga para assets versionados por Vite.
 // El index.html va SIN caché (no-store): después de cada deploy, los navegadores
 // que ya visitaron la demo seguían mostrando la versión vieja (les pasó a Juani
