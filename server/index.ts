@@ -112,8 +112,20 @@ app.get("/api/edificios/:x/:y", async (req, res) => {
   try {
     let bytes = cacheEdificios.get(clave);
     if (!bytes) {
-      const r = await fetch(`${EDIFICIOS_ORIGEN}/14/${x}/${y}.mlt`);
-      if (!r.ok) return res.status(502).json({ error: "El proveedor de edificios no contestó." });
+      // Cabeceras de navegador: el CDN es un worker de Cloudflare y a un fetch
+      // pelado desde la IP de un datacenter lo mira feo (502 medido en Render;
+      // el mismo fetch desde una IP hogareña pasaba).
+      const r = await fetch(`${EDIFICIOS_ORIGEN}/14/${x}/${y}.mlt`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+          Accept: "*/*",
+          "Accept-Language": "es-AR,es;q=0.9",
+          Referer: "https://shademap.app/",
+        },
+      });
+      // El estado del origen viaja en el error: sin esto, diagnosticar un 502
+      // en producción es adivinar (cicatriz del 11-ago).
+      if (!r.ok) return res.status(502).json({ error: "El proveedor de edificios no contestó.", origen: r.status });
       bytes = Buffer.from(await r.arrayBuffer());
       // Tope de memoria: ~50 tiles ≈ 10 MB. El archivo es datado (inmutable),
       // así que el navegador cachea 30 días y casi nunca vuelve a pedir.
