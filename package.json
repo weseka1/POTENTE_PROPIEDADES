@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
-    "@maplibre/maplibre-tile-spec": "^0.0.1-alpha.3",
     "@maplibre/mlt": "^1.1.12",
     "@supabase/supabase-js": "^2.108.2",
     "@types/leaflet": "^1.9.22",
