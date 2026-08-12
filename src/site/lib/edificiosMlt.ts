@@ -27,7 +27,13 @@
 // todo visitante.)
 import { decodeTile } from "@maplibre/mlt";
 
-const ARCHIVO_MLT = "https://cfw.shademap.app/buildings20260617/{z}/{x}/{y}.mlt";
+/**
+ * 🔴 Los tiles van por NUESTRO server (`/api/edificios`), no directo al CDN:
+ * cfw.shademap.app solo permite CORS desde sus dominios y localhost — desde
+ * potente-propiedades.onrender.com el navegador bloquea la respuesta (medido
+ * 11-ago; el archivo real vive en cfw.shademap.app/buildings20260617).
+ */
+const ARCHIVO_MLT = "/api/edificios/{x}/{y}";
 /** Los tiles de edificios existen SOLO en z14 (igual que los .mvt viejos). */
 const Z = 14;
 /** Default para huellas sin altura: dos plantas. Ver nota de arriba. */
@@ -54,7 +60,7 @@ async function tileDecodificado(x: number, y: number): Promise<EdificioGeoJSON[]
   const guardado = cachePorTile.get(clave);
   if (guardado) return guardado;
   try {
-    const url = ARCHIVO_MLT.replace("{z}", String(Z)).replace("{x}", String(x)).replace("{y}", String(y));
+    const url = ARCHIVO_MLT.replace("{x}", String(x)).replace("{y}", String(y));
     const r = await fetch(url);
     if (!r.ok) return [];
     const tablas = decodeTile(new Uint8Array(await r.arrayBuffer()));

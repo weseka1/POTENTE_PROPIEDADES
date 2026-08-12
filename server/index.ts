@@ -89,6 +89,45 @@ app.post("/api/geocodificar", async (req, res) => {
   res.json(await geocodificar(req.body ?? {}));
 });
 
+// ── Tiles de edificios (proxy a ShadeMap) ────────────────────────────────────
+// El CDN de ShadeMap (cfw.shademap.app) solo permite CORS desde sus dominios y
+// localhost — desde nuestro dominio el navegador bloquea la respuesta (medido
+// 11-ago: sin Access-Control-Allow-Origin para onrender.com). Server a server
+// no hay CORS, así que el sitio pide acá. Es PÚBLICO (lo usa el visitante que
+// abre las sombras/3D) pero con cupo por IP y cache: cada vista son 1-4 tiles.
+const EDIFICIOS_ORIGEN = "https://cfw.shademap.app/buildings20260617";
+const cacheEdificios = new Map<string, Buffer>(); // ~200 KB por tile
+app.get("/api/edificios/:x/:y", async (req, res) => {
+  const cupo = pasaElCupo(ipDe(req.headers), "chat");
+  if (!cupo.ok) {
+    res.setHeader("Retry-After", String(cupo.esperarS));
+    return res.status(429).json({ error: "Muchos pedidos seguidos. Esperá un momento." });
+  }
+  const x = Number(req.params.x), y = Number(req.params.y);
+  // Los tiles existen solo en z14: 0 ≤ x,y < 2^14.
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= 16384 || y >= 16384) {
+    return res.status(400).json({ error: "Tile inválido." });
+  }
+  const clave = `${x}/${y}`;
+  try {
+    let bytes = cacheEdificios.get(clave);
+    if (!bytes) {
+      const r = await fetch(`${EDIFICIOS_ORIGEN}/14/${x}/${y}.mlt`);
+      if (!r.ok) return res.status(502).json({ error: "El proveedor de edificios no contestó." });
+      bytes = Buffer.from(await r.arrayBuffer());
+      // Tope de memoria: ~50 tiles ≈ 10 MB. El archivo es datado (inmutable),
+      // así que el navegador cachea 30 días y casi nunca vuelve a pedir.
+      if (cacheEdificios.size >= 50) cacheEdificios.delete(cacheEdificios.keys().next().value!);
+      cacheEdificios.set(clave, bytes);
+    }
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    res.send(bytes);
+  } catch {
+    res.status(502).json({ error: "El proveedor de edificios no contestó." });
+  }
+});
+
 // Estáticos con cache larga para assets versionados por Vite.
 // El index.html va SIN caché (no-store): después de cada deploy, los navegadores
 // que ya visitaron la demo seguían mostrando la versión vieja (les pasó a Juani
