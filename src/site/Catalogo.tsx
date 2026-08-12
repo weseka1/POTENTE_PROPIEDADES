@@ -69,7 +69,9 @@ export default function Catalogo() {
     max: params.get("max") || "",
     q: params.get("q") || "",
     caract: (params.get("caract") || "").split(",").filter(Boolean),
-    orden: "destacados",
+    // Sin filtros, lo NUEVO primero (pedido Mateo 12-ago: "que se muestren
+    // primero las últimas cargadas"). Destacados y precio quedan como opciones.
+    orden: "recientes",
   });
 
   // Sincronizar con la URL: el buscador del inicio llega con todo puesto acá.
@@ -205,6 +207,10 @@ export default function Catalogo() {
         tokens.every((t) => variantes(t).some((v) => blob.includes(norm(v))))
       );
     });
+    // "Más recientes": por fecha de carga, la de hoy arriba de todo. En el modo
+    // demo los seeds no traen created_at → todas empatan y el sort ESTABLE deja
+    // el orden del archivo: nunca rompe, solo mejora cuando el dato existe.
+    if (f.orden === "recientes") r = [...r].sort((a, b) => (b.created_at ? Date.parse(b.created_at) : 0) - (a.created_at ? Date.parse(a.created_at) : 0));
     if (f.orden === "destacados") r = [...r].sort((a, b) => Number(b.destacado) - Number(a.destacado));
     // ⚠️ Se ordena por `precioDe`, que respeta la moneda de la operación elegida.
     // Antes ordenaba solo por `precioUSD`, así que con el filtro en "alquiler"
@@ -228,7 +234,7 @@ export default function Catalogo() {
     setParams(np, { replace: true });
   };
   const limpiar = () => {
-    setF({ cat: f.cat, operacion: "", zona: "", amb: "", dorm: "", banos: "", min: "", max: "", q: "", caract: [], orden: "destacados" });
+    setF({ cat: f.cat, operacion: "", zona: "", amb: "", dorm: "", banos: "", min: "", max: "", q: "", caract: [], orden: "recientes" });
     const np = new URLSearchParams();
     if (f.cat) np.set("cat", f.cat);
     setParams(np, { replace: true });
@@ -397,6 +403,7 @@ export default function Catalogo() {
                   value={f.orden}
                   onChange={(v) => set("orden", v)}
                   options={[
+                    { v: "recientes", l: "Más recientes" },
                     { v: "destacados", l: "Destacados" },
                     { v: "precio_desc", l: "Mayor precio" },
                     { v: "precio_asc", l: "Menor precio" },
@@ -561,6 +568,7 @@ export default function Catalogo() {
                   value={f.orden}
                   onChange={(v) => set("orden", v)}
                   options={[
+                    { v: "recientes", l: "Más recientes" },
                     { v: "destacados", l: "Destacados" },
                     { v: "precio_desc", l: "Mayor precio" },
                     { v: "precio_asc", l: "Menor precio" },

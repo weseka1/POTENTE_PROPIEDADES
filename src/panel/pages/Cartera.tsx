@@ -56,7 +56,14 @@ export default function Cartera() {
   );
 
   const filtrados = useMemo(() => {
-    return propiedades.filter((c) => {
+    // Lo NUEVO primero, acá también (pedido Mateo 12-ago): el equipo carga una
+    // propiedad y la ve arriba de todo, no la tiene que buscar. En el modo demo
+    // los seeds no traen created_at → empatan todas y el sort estable respeta
+    // el orden del archivo.
+    const porFecha = [...propiedades].sort(
+      (a, b) => (b.created_at ? Date.parse(b.created_at) : 0) - (a.created_at ? Date.parse(a.created_at) : 0),
+    );
+    return porFecha.filter((c) => {
       // La DIRECCIÓN entra en la búsqueda (pedido de Mateo por WhatsApp, 11-ago:
       // "me toma TODO menos la dirección"). Y sin tildes en las dos puntas:
       // él tipea "colon 3537" y la ficha dice "Av. Colón 3537".

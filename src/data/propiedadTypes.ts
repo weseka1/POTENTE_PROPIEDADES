@@ -161,6 +161,10 @@ export interface Propiedad {
   destacado: boolean;
   esNuevo?: boolean;
   esOportunidad?: boolean;
+  /** Cuándo se cargó (lo pone la base al insertar). Ordena "más recientes
+   *  primero" en el catálogo y en Cartera — pedido Mateo 12-ago. En los seeds
+   *  del modo demo no existe: el orden cae al del archivo, que está bien. */
+  created_at?: string;
   // rural
   hectareas?: number;
   aptitud?: "agrícola" | "ganadera" | "mixta";

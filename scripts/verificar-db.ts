@@ -418,6 +418,13 @@ async function main() {
     `expensas ${filaVista?.expensasARS} · piso ${filaVista?.piso}`,
   );
   chequear("La vista sigue SIN exponer la ficha interna", !("ficha" in (filaVista ?? { ficha: 1 })));
+  // 010: el catálogo ordena "más recientes primero" con esta columna. Si la
+  // vista no la expone, el orden del visitante degrada al del archivo en mudo.
+  chequear(
+    "La vista pública EXPONE created_at (orden 'más recientes', migración 010)",
+    "created_at" in (filaVista ?? {}),
+    "created_at" in (filaVista ?? {}) ? "" : "🔴 correr 02_INFRA/supabase/010_orden_recientes.sql",
+  );
 
   // ── El relleno de la migración ──────────────────────────────────────────────
   //
