@@ -44,6 +44,9 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
   const caja = useRef<HTMLDivElement>(null);
   const sombraRef = useRef<{ setDate: (d: Date) => void; remove: () => void } | null>(null);
   const [listo, setListo] = useState(false);
+  // Si el aparato no puede (WebGL viejo) o la red no llega, se DICE — un
+  // spinner eterno es la peor respuesta posible. null = todo bien.
+  const [fallo, setFallo] = useState<string | null>(null);
   // Zonas sin relevar: OSM no tiene edificios en pueblos chicos (Mar del Sur
   // tiene CERO) y la vista parece rota si no se explica. Se mide y se dice.
   const [sinEdificios, setSinEdificios] = useState(false);
@@ -65,22 +68,36 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
     const overflowAntes = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const mapa = new maplibregl.Map({
-      container: nodo,
-      // Basemap vectorial de OpenFreeMap: gratis, sin key, sin registro.
-      // "positron" = gris claro, el mismo clima visual del video de Mateo.
-      style: "https://tiles.openfreemap.org/styles/positron",
-      center: [lng, lat],
-      zoom: 16.2,
-      pitch: 58, // inclinada: se ven los frentes, no los techos
-      bearing: -17,
-      // 🔴 minZoom 15: más lejos que esto la textura de sombras no cubre el
-      // encuadre y SE LE VE EL RECTÁNGULO (bug que encontró Juani alejando el
-      // mapa en producción). A 15 todavía se ve el barrio entero.
-      minZoom: 15,
-      maxZoom: 18.5,
-      attributionControl: false,
-    });
+    // Un aparato sin WebGL2 (celulares viejos) no puede crear el mapa: MapLibre
+    // tira al construirse. Sin este catch quedaba el spinner PARA SIEMPRE.
+    let mapa: maplibregl.Map;
+    try {
+      mapa = new maplibregl.Map({
+        container: nodo,
+        // Basemap vectorial de OpenFreeMap: gratis, sin key, sin registro.
+        // "positron" = gris claro, el mismo clima visual del video de Mateo.
+        style: "https://tiles.openfreemap.org/styles/positron",
+        center: [lng, lat],
+        zoom: 16.2,
+        pitch: 58, // inclinada: se ven los frentes, no los techos
+        bearing: -17,
+        // 🔴 minZoom 15: más lejos que esto la textura de sombras no cubre el
+        // encuadre y SE LE VE EL RECTÁNGULO (bug que encontró Juani alejando el
+        // mapa en producción). A 15 todavía se ve el barrio entero.
+        minZoom: 15,
+        maxZoom: 18.5,
+        attributionControl: false,
+      });
+    } catch {
+      setFallo("Este dispositivo no puede mostrar la ciudad en 3D. El mapa y las sombras de la ficha funcionan igual.");
+      return () => { document.body.style.overflow = overflowAntes; };
+    }
+
+    // Y si la red no llega (o el estilo no carga), a los 45 s se dice en vez
+    // de esperar eternamente. En un navegador normal carga en 2-5 s.
+    const guardian = setTimeout(() => {
+      setFallo((f) => f ?? "La ciudad en 3D no cargó. Revisá la conexión y probá de nuevo.");
+    }, 45_000);
     mapa.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     mapa.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
     new maplibregl.Marker({ color: "#0C4DA2" }).setLngLat([lng, lat]).addTo(mapa);
@@ -181,10 +198,12 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
         },
       }).addTo(mapa);
       sombraRef.current = sombra;
+      clearTimeout(guardian); // llegó: el guardián de los 45 s ya no hace falta
       setListo(true);
     });
 
     return () => {
+      clearTimeout(guardian);
       document.body.style.overflow = overflowAntes;
       sombra?.remove();
       sombraRef.current = null;
@@ -220,13 +239,27 @@ export default function Mapa3DSombras({ lat, lng, titulo, onCerrar }: { lat: num
         <div ref={caja} className="h-full w-full" />
       </div>
 
-      {/* Mientras la ciudad se arma */}
+      {/* Mientras la ciudad se arma — y si no puede, se DICE (nada de spinner eterno) */}
       {!listo && (
         <div className="absolute inset-0 grid place-items-center bg-paper-100">
-          <div className="text-center">
-            <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-            <p className="mt-4 text-sm font-medium text-graph-500">Armando la ciudad en 3D…</p>
-          </div>
+          {fallo ? (
+            <div className="max-w-sm px-8 text-center">
+              <p className="font-display text-xl font-semibold text-graph">No pudimos armar el 3D</p>
+              <p className="mt-2 text-sm text-graph-500">{fallo}</p>
+              <button
+                type="button"
+                onClick={onCerrar}
+                className="mt-6 inline-flex h-10 items-center rounded-full bg-brand px-6 text-sm font-semibold text-white transition hover:bg-brand-600"
+              >
+                Volver a la ficha
+              </button>
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+              <p className="mt-4 text-sm font-medium text-graph-500">Armando la ciudad en 3D…</p>
+            </div>
+          )}
         </div>
       )}
 
