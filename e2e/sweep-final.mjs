@@ -51,7 +51,7 @@ const PANEL = [
   ["/panel", "Inicio"], ["/panel/asistente", "Asistente IA"], ["/panel/cargar", "Cargar"],
   ["/panel/fichas", "Fichas"], ["/panel/planos", "Planos"], ["/panel/temporada", "Temporada"],
   ["/panel/cartera", "Cartera"], ["/panel/leads", "Consultas"], ["/panel/crm", "Clientes"],
-  ["/panel/pipeline", "Embudo"], ["/panel/agenda", "Agenda"], ["/panel/tasaciones", "Tasaciones"],
+  ["/panel/pipeline", "Embudo"], ["/panel/agenda", "Agenda"], ["/panel/tasaciones", "Tasaciones"], ["/panel/llaves", "Registro de llaves"],
   ["/panel/arrendamientos", "Alquileres"], ["/panel/reportes", "Reportes"],
 ];
 const SITIO = [

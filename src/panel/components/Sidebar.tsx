@@ -7,6 +7,7 @@ import {
   KanbanSquare,
   CalendarDays,
   Calculator,
+  KeyRound,
   FileSignature,
   BarChart3,
   Sprout,
@@ -50,6 +51,7 @@ export default function Sidebar({
     { to: "/panel/pipeline", key: "pipeline", label: "Embudo de ventas", icon: KanbanSquare },
     { to: "/panel/agenda", key: "agenda", label: "Agenda de visitas", icon: CalendarDays },
     { to: "/panel/tasaciones", key: "tasaciones", label: "Tasaciones", icon: Calculator },
+    { to: "/panel/llaves", key: "llaves", label: "Llaves", icon: KeyRound },
     { to: "/panel/arrendamientos", key: "arrendamientos", label: "Alquileres", icon: FileSignature },
     { to: "/panel/reportes", key: "reportes", label: "Reportes", icon: BarChart3 },
     // El menú se arma con lo que el TOKEN permite, no con lo que diga el

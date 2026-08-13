@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
 import { supabase } from "./supabase";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { ESTADOS_CERRADOS } from "@/data/propiedadTypes";
-import type { Lead, Cliente, Operacion_, Visita, Tasacion, Arrendamiento, UnidadTemporada, ReservaTemporada } from "@/data/types";
+import type { Lead, Cliente, Operacion_, Visita, Tasacion, Arrendamiento, UnidadTemporada, ReservaTemporada, Llave, MovimientoLlave } from "@/data/types";
+import { seedLlaves, seedMovimientosLlave } from "@/data/llaves";
 import { propiedades as seedPropiedades } from "@/data/propiedades";
 import { leads as seedLeads } from "@/data/leads";
 import { clientes as seedClientes } from "@/data/clientes";
@@ -79,6 +80,7 @@ export function resetDemoData() {
     [
       "propiedades", "leads", "clientes", "operaciones", "visitas", "tasaciones", "arrendamientos",
       "unidades_temporada", "reservas_temporada", "conversaciones", "fichas",
+      "llaves", "movimientos_llave",
     ].forEach((n) => localStorage.removeItem(lsKey(n)));
   } catch { /* noop */ }
 }
@@ -151,6 +153,14 @@ interface DataCtx {
   addArrendamiento: (a: Arrendamiento) => Promise<void>;
   updateArrendamiento: (id: string, patch: Partial<Arrendamiento>) => Promise<void>;
   deleteArrendamiento: (id: string) => Promise<void>;
+  // llaves (el llavero físico de cada oficina — audios de Mateo 12-ago)
+  llaves: Llave[];
+  movimientosLlave: MovimientoLlave[];
+  addLlave: (l: Llave) => Promise<Resultado>;
+  updateLlave: (id: string, patch: Partial<Llave>) => Promise<Resultado>;
+  deleteLlave: (id: string) => Promise<Resultado>;
+  addMovimientoLlave: (m: MovimientoLlave) => Promise<Resultado>;
+  deleteMovimientoLlave: (id: string) => Promise<Resultado>;
   // temporada (alquiler temporario)
   unidadesTemporada: UnidadTemporada[];
   reservasTemporada: ReservaTemporada[];
@@ -215,6 +225,12 @@ export function DataScope({ oficina, children }: { oficina?: "chauvin" | "puntam
     const unidadesTemporada = full.unidadesTemporada.filter((u) => u.oficina === oficina);
     const idsUnidades = new Set(unidadesTemporada.map((u) => u.id));
     const reservasTemporada = full.reservasTemporada.filter((r) => idsUnidades.has(r.unidadId));
+    // Llaves: «que cada oficina tenga su registro de llaves» (Mateo, 12-ago).
+    // Los movimientos se filtran por los ids de las llaves YA filtradas — nunca
+    // por una columna propia: el movimiento hereda la oficina de su llave.
+    const llaves = full.llaves.filter((l) => l.oficina === oficina);
+    const idsLlaves = new Set(llaves.map((l) => l.id));
+    const movimientosLlave = full.movimientosLlave.filter((m) => idsLlaves.has(m.llaveId));
 
     const canal: Record<string, number> = {};
     leads.forEach((l) => (canal[l.canal] = (canal[l.canal] || 0) + 1));
@@ -232,6 +248,7 @@ export function DataScope({ oficina, children }: { oficina?: "chauvin" | "puntam
     return {
       ...full,
       propiedades, leads, clientes, conversaciones, operaciones, visitas, unidadesTemporada, reservasTemporada,
+      llaves, movimientosLlave,
       getProp: (id: string) => propiedades.find((p) => p.id === id),
       conversacionesNoLeidas: conversaciones.filter((c) => c.noLeida).length,
       kpis: computeKpis(propiedades, leads, operaciones, clientes),
@@ -257,6 +274,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [unidadesTemporada, setUnidadesTemporada] = useState<UnidadTemporada[]>(() => loadLocal("unidades_temporada", seedUnidades));
   const [reservasTemporada, setReservasTemporada] = useState<ReservaTemporada[]>(() => loadLocal("reservas_temporada", seedReservas));
   const [conversaciones, setConversaciones] = useState<Conversacion[]>(() => loadLocal("conversaciones", seedConversaciones));
+  // Registro de llaves (audios de Mateo 12-ago). Tablas del PANEL: se cargan
+  // solo con sesión, nunca en el pedido del visitante.
+  const [llaves, setLlaves] = useState<Llave[]>(() => loadLocal("llaves", seedLlaves));
+  const [movimientosLlave, setMovimientosLlave] = useState<MovimientoLlave[]>(() => loadLocal("movimientos_llave", seedMovimientosLlave));
 
   // Persistir cada colección en modo demo (no-op si hay Supabase).
   useEffect(() => { saveLocal("propiedades", propiedades); }, [propiedades]);
@@ -269,6 +290,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveLocal("unidades_temporada", unidadesTemporada); }, [unidadesTemporada]);
   useEffect(() => { saveLocal("reservas_temporada", reservasTemporada); }, [reservasTemporada]);
   useEffect(() => { saveLocal("conversaciones", conversaciones); }, [conversaciones]);
+  useEffect(() => { saveLocal("llaves", llaves); }, [llaves]);
+  useEffect(() => { saveLocal("movimientos_llave", movimientosLlave); }, [movimientosLlave]);
 
   // Sincronizar desde Supabase (en segundo plano; si falla, quedan los datos locales).
   //
@@ -304,7 +327,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!p.error) setOnline(true);
 
         if (haySesion) {
-          const [l, c, o, v, t, a, rt, cv] = await Promise.all([
+          const [l, c, o, v, t, a, rt, cv, lv, ml] = await Promise.all([
             supabase.from("potente_leads").select("*"),
             supabase.from("potente_clientes").select("*"),
             supabase.from("potente_operaciones").select("*"),
@@ -313,6 +336,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             supabase.from("potente_arrendamientos").select("*"),
             supabase.from("potente_reservas_temporada").select("*"),
             supabase.from("potente_conversaciones").select("*"),
+            supabase.from("potente_llaves").select("*"),
+            supabase.from("potente_movimientos_llave").select("*"),
           ]);
           if (cancel) return;
           if (l.data) setLeads(l.data as Lead[]);
@@ -323,6 +348,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           if (a.data) setArrendamientos(a.data as Arrendamiento[]);
           if (!rt.error && rt.data) setReservasTemporada(rt.data as ReservaTemporada[]);
           if (!cv.error && cv.data) setConversaciones(cv.data as Conversacion[]);
+          // ⚠️ `!error && data` (no `data?.length`): con el llavero vacío la base
+          // tiene que ganarle al seed, si no aparecen llaves inventadas.
+          if (!lv.error && lv.data) setLlaves(lv.data as Llave[]);
+          if (!ml.error && ml.data) setMovimientosLlave(ml.data as MovimientoLlave[]);
         }
       } catch {
         /* offline → datos locales */
@@ -451,6 +480,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setTasaciones((prev) => prev.filter((x) => x.id !== id));
     if (supabase) await aviso("delete en potente_tasaciones", supabase.from("potente_tasaciones").delete().eq("id", id));
   };
+
+  /* ── LLAVES ────────────────────────────────────────────────────────────────
+   * Estas mutaciones DEVUELVEN `Resultado` (como las de propiedades): un
+   * movimiento de llaves es dato operativo — si la base lo rechazó, la persona
+   * tiene que verlo en pantalla, no en la consola. Es la cicatriz del 7-ago.  */
+  const addLlave = async (l: Llave): Promise<Resultado> => {
+    setLlaves((prev) => [l, ...prev]);
+    if (!supabase) return SIN_BASE;
+    return aviso("upsert en potente_llaves", supabase.from("potente_llaves").upsert(l));
+  };
+  const updateLlave = async (id: string, patch: Partial<Llave>): Promise<Resultado> => {
+    setLlaves((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (!supabase) return SIN_BASE;
+    return aviso("update en potente_llaves", supabase.from("potente_llaves").update(patch).eq("id", id));
+  };
+  // Borrar una llave se lleva su historia (la base también lo hace en cascada,
+  // pero el estado local tiene que quedar coherente al instante).
+  const deleteLlave = async (id: string): Promise<Resultado> => {
+    setLlaves((prev) => prev.filter((x) => x.id !== id));
+    setMovimientosLlave((prev) => prev.filter((m) => m.llaveId !== id));
+    if (!supabase) return SIN_BASE;
+    await aviso("delete en potente_movimientos_llave", supabase.from("potente_movimientos_llave").delete().eq("llaveId", id));
+    return aviso("delete en potente_llaves", supabase.from("potente_llaves").delete().eq("id", id));
+  };
+  const addMovimientoLlave = async (m: MovimientoLlave): Promise<Resultado> => {
+    setMovimientosLlave((prev) => [m, ...prev]);
+    if (!supabase) return SIN_BASE;
+    return aviso("upsert en potente_movimientos_llave", supabase.from("potente_movimientos_llave").upsert(m));
+  };
+  const deleteMovimientoLlave = async (id: string): Promise<Resultado> => {
+    setMovimientosLlave((prev) => prev.filter((x) => x.id !== id));
+    if (!supabase) return SIN_BASE;
+    return aviso("delete en potente_movimientos_llave", supabase.from("potente_movimientos_llave").delete().eq("id", id));
+  };
   const deleteVisita = async (id: string) => {
     setVisitas((prev) => prev.filter((x) => x.id !== id));
     if (supabase) await aviso("delete en potente_visitas", supabase.from("potente_visitas").delete().eq("id", id));
@@ -540,6 +603,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         getProp: (id) => propiedades.find((p) => p.id === id),
         addPropiedad, updatePropiedad, deletePropiedad, addLead, updateLead, deleteLead, updateOperacion, addCliente, updateCliente, deleteCliente,
         addVisita, updateVisita, deleteVisita, addTasacion, updateTasacion, deleteTasacion, addArrendamiento, updateArrendamiento, deleteArrendamiento,
+        llaves, movimientosLlave, addLlave, updateLlave, deleteLlave, addMovimientoLlave, deleteMovimientoLlave,
         unidadesTemporada, reservasTemporada, addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada, addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
         conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion, setOficinaConversacion,
         kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,

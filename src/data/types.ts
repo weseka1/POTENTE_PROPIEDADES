@@ -187,3 +187,61 @@ export interface ReservaTemporada {
   creadaISO: string;
   notas?: string;
 }
+
+/* ── REGISTRO DE LLAVES (audios de Mateo, 12-ago-2026) ──────────────────────
+ * El llavero físico de cada oficina. Textual: «que haya 300 números y yo a cada
+ * número le pueda asignar una llave», «guardarlo con el apellido del dueño y
+ * con la dirección del inmueble», «si las tenemos nosotros o si las entregamos
+ * y a quién», «poder hacer anotaciones».
+ *
+ * 🔴 NO depende de las propiedades cargadas: «va a haber propiedades cargadas y
+ * propiedades que NO están cargadas que igualmente administramos». `propiedadId`
+ * es un vínculo OPCIONAL, no un requisito.
+ *
+ * ⚠️ No confundir con `Ficha.llaves` (booleano de la ficha de captación: "el
+ * propietario nos dejó un juego"). Esto es el REGISTRO OPERATIVO: dónde está
+ * cada juego hoy y toda su historia. Una verdad por cosa (estándar 5).
+ */
+export type EstadoLlave =
+  | "en_oficina" // el juego está en el cajón
+  | "entregada" // se lo llevó alguien (siempre con nombre)
+  | "perdida"; // el caso que originó todo esto
+
+export interface Llave {
+  id: string;
+  /** Multi-oficina: cada oficina su llavero. Sin oficina = central. */
+  oficina?: "chauvin" | "puntamogotes";
+  /** El número del llavero físico, como lo nombra el equipo. Único por oficina. */
+  numero?: number;
+  /** Apellido del dueño — con esto la busca Mateo. */
+  propietario?: string;
+  direccion?: string;
+  /** Vínculo OPCIONAL a una propiedad cargada (queda vacío si no está en el sistema). */
+  propiedadId?: string;
+  estado: EstadoLlave;
+  /** A quién se la entregamos. Obligatorio cuando estado = entregada (lo exige la base). */
+  enPoderDe?: string;
+  entregadaISO?: string;
+  notas?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type TipoMovimientoLlave =
+  | "entrega" // se la llevó alguien
+  | "devolucion" // volvió al cajón
+  | "ingreso" // entró un juego nuevo al llavero
+  | "nota"; // anotación suelta, sin cambio de tenencia
+
+export interface MovimientoLlave {
+  id: string;
+  /** Se cuelga de la llave y HEREDA su oficina: no repetir `oficina` acá
+   *  (cicatriz de la migración 003: dos fuentes de verdad se desincronizan). */
+  llaveId: string;
+  tipo: TipoMovimientoLlave;
+  fechaISO: string;
+  /** Quién se la llevó o quién la devolvió. Libre: dueño, albañil, inquilino… */
+  persona?: string;
+  nota?: string;
+  created_at?: string;
+}

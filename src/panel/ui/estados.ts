@@ -141,3 +141,32 @@ export const canalLabel: Record<string, string> = {
   telefono: "Teléfono",
   portal: "Portales",
 };
+
+/* ── LLAVES (audios de Mateo, 12-ago-2026) ────────────────────────────────── */
+export const ESTADOS_LLAVE = ["en_oficina", "entregada", "perdida"] as const;
+export type EstadoLlaveUI = (typeof ESTADOS_LLAVE)[number];
+
+// Record COMPLETO tipado, misma regla que estadoCampo: un estado sin entrada
+// devuelve undefined y el `.tone` tira la pantalla abajo.
+export const estadoLlave: Record<EstadoLlaveUI, { label: string; tone: Tone }> = {
+  en_oficina: { label: "En la oficina", tone: "green" },
+  entregada: { label: "Entregada", tone: "amber" },
+  perdida: { label: "Sin ubicar", tone: "red" },
+};
+
+/** Tolerante con lo desconocido, igual que verEstado. */
+export const verEstadoLlave = (e: string | undefined | null) =>
+  estadoLlave[e as EstadoLlaveUI] ?? { label: e || "—", tone: "neutral" as Tone };
+
+export const MOVIMIENTOS_LLAVE = ["entrega", "devolucion", "ingreso", "nota"] as const;
+export type TipoMovimientoLlaveUI = (typeof MOVIMIENTOS_LLAVE)[number];
+
+export const movimientoLlave: Record<TipoMovimientoLlaveUI, { label: string; tone: Tone }> = {
+  entrega: { label: "Se la llevó", tone: "amber" },
+  devolucion: { label: "La devolvió", tone: "green" },
+  ingreso: { label: "Ingresó al llavero", tone: "blue" },
+  nota: { label: "Nota", tone: "neutral" },
+};
+
+export const verMovimientoLlave = (t: string | undefined | null) =>
+  movimientoLlave[t as TipoMovimientoLlaveUI] ?? { label: t || "—", tone: "neutral" as Tone };

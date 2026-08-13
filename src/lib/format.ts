@@ -36,14 +36,26 @@ export function fmtHa(n: number): string {
   return n.toLocaleString("es-AR") + " ha";
 }
 
+/**
+ * 🔴 Una fecha SIN hora ("2026-08-12") la spec manda interpretarla como UTC, así
+ * que `new Date("2026-08-12")` es medianoche UTC = 11-ago 21:00 en Argentina, y
+ * el panel mostraba TODAS las fechas simples un día antes (lo cazamos el 12-ago
+ * probando el registro de llaves: decía "se la llevó el 11/8" el mismo día que
+ * se entregó). Agregarle la hora la vuelve LOCAL, que es lo que quiso escribir
+ * quien la cargó. Los timestamps completos (con T y zona) no se tocan.
+ */
+function comoFechaLocal(iso: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso);
+}
+
 export function fmtFecha(iso: string): string {
-  const d = new Date(iso);
+  const d = comoFechaLocal(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function fmtFechaCorta(iso: string): string {
-  const d = new Date(iso);
+  const d = comoFechaLocal(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
 }

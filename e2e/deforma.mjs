@@ -9,7 +9,7 @@ await p.evaluar(`localStorage.clear(); localStorage.setItem("potente_demo_auth",
 const RUTAS = [
   "/panel", "/panel/asistente", "/panel/cargar", "/panel/fichas", "/panel/planos",
   "/panel/temporada", "/panel/cartera", "/panel/leads", "/panel/crm", "/panel/pipeline",
-  "/panel/agenda", "/panel/tasaciones", "/panel/arrendamientos", "/panel/reportes",
+  "/panel/agenda", "/panel/tasaciones", "/panel/llaves", "/panel/arrendamientos", "/panel/reportes",
   "/", "/propiedades", "/propiedad/URB-001", "/temporada", "/temporada/playa-grande", "/favoritos",
 ];
 

@@ -40,6 +40,7 @@ import CRM from "./pages/CRM";
 import Pipeline from "./pages/Pipeline";
 import Agenda from "./pages/Agenda";
 import Tasaciones from "./pages/Tasaciones";
+import Llaves from "./pages/Llaves";
 import Arrendamientos from "./pages/Arrendamientos";
 import Reportes from "./pages/Reportes";
 
@@ -101,6 +102,7 @@ export default function PanelApp() {
                 <Route path="pipeline" element={<Pipeline />} />
                 <Route path="agenda" element={<Agenda />} />
                 <Route path="tasaciones" element={<Tasaciones />} />
+                <Route path="llaves" element={<Llaves />} />
                 <Route path="arrendamientos" element={<Arrendamientos />} />
                 <Route path="reportes" element={<Reportes />} />
                 <Route path="*" element={<Navigate to="/panel" replace />} />

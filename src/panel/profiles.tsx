@@ -52,6 +52,9 @@ export const SECCIONES = [
   { key: "pipeline", label: "Embudo de ventas", basic: false },
   { key: "agenda", label: "Agenda de visitas", basic: true },
   { key: "tasaciones", label: "Tasaciones", basic: true },
+  // El llavero es herramienta de todos los días de cualquiera que atienda:
+  // basic. El aislamiento por oficina lo hace el RLS, no el menú.
+  { key: "llaves", label: "Llaves", basic: true },
   { key: "arrendamientos", label: "Alquileres", basic: false },
   { key: "reportes", label: "Reportes", basic: true },
 ] as const;

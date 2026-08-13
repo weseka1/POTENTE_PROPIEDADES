@@ -76,6 +76,10 @@ async function limpiar(sb: any) {
   await sb.from("potente_propiedades").delete().like("id", "PROP-VERIF-%");
   await sb.from("potente_propiedades").delete().like("id", "VERIF-%");
   await sb.from("potente_reservas_temporada").delete().like("id", "RSV-VERIF-%");
+  // Llaves de prueba: los movimientos se van en cascada con su llave, pero se
+  // barren igual por si alguno quedó apuntando a una llave ya borrada.
+  await sb.from("potente_movimientos_llave").delete().like("id", "MOV-VERIF-%");
+  await sb.from("potente_llaves").delete().like("id", "LLV-VERIF-%");
 }
 
 const contar = async (sb: any, tabla: string, filtro?: [string, string]) => {
@@ -176,6 +180,46 @@ async function main() {
   const robo = await contar(chauvin, "potente_propiedades", ["oficina", "puntamogotes"]);
   chequear("Chauvín no puede mover una propiedad a Mogotes", robo === 0, errRobo ? "rechazado con error" : "sin efecto");
 
+  // ── LLAVES (migración 011): «que cada oficina tenga su registro» ────────────
+  // El llavero es el caso más sensible del aislamiento: saber dónde está la
+  // llave de un inmueble ajeno es saber demasiado.
+  const idLlaveMogotes = `LLV-VERIF-MOG-${Date.now()}`;
+  const { error: errLlaveMog } = await mogotes.from("potente_llaves").insert({
+    id: idLlaveMogotes, numero: 9901, propietario: "Verificación Mogotes",
+    direccion: "Sonda automática", estado: "en_oficina", oficina: "puntamogotes",
+  });
+  chequear("Mogotes puede cargar una llave en SU llavero", !errLlaveMog, errLlaveMog?.message ?? "");
+
+  const laVeChauvin = await contar(chauvin, "potente_llaves", ["id", idLlaveMogotes]);
+  chequear("🔴 Chauvín NO ve la llave de Mogotes", laVeChauvin === 0, `${laVeChauvin} visibles`);
+
+  const laVeMateo = await contar(mateo, "potente_llaves", ["id", idLlaveMogotes]);
+  chequear("Mateo (dirección) SÍ la ve", laVeMateo === 1, `${laVeMateo}`);
+
+  // Y no puede llevársela a su oficina con un update (el with check de la policy).
+  await chauvin.from("potente_llaves").update({ oficina: "chauvin" }).eq("id", idLlaveMogotes);
+  const { data: trasRobo } = await mateo.from("potente_llaves").select("oficina").eq("id", idLlaveMogotes).maybeSingle();
+  chequear("Chauvín no puede mudar una llave a su oficina", trasRobo?.oficina === "puntamogotes", `quedó en ${trasRobo?.oficina}`);
+
+  // La coherencia del vistazo rápido: "entregada" SIEMPRE con nombre. Es el
+  // constraint que evita repetir el problema que originó el módulo.
+  const { error: errSinNombre } = await mogotes.from("potente_llaves")
+    .update({ estado: "entregada", enPoderDe: null }).eq("id", idLlaveMogotes);
+  chequear("La base rechaza una llave 'entregada' sin decir a quién", Boolean(errSinNombre), errSinNombre?.code ?? "");
+
+  // El movimiento hereda el permiso de su llave.
+  const { error: errMovAjeno } = await chauvin.from("potente_movimientos_llave").insert({
+    id: `MOV-VERIF-AJENO-${Date.now()}`, llaveId: idLlaveMogotes, tipo: "entrega", fechaISO: "2026-08-12", persona: "Sonda",
+  });
+  chequear("🔴 Chauvín NO puede anotar un movimiento en una llave de Mogotes", Boolean(errMovAjeno), errMovAjeno?.code ?? "");
+
+  // El número no se repite dentro de la misma oficina (índice único).
+  const { error: errDuplicado } = await mogotes.from("potente_llaves").insert({
+    id: `LLV-VERIF-DUP-${Date.now()}`, numero: 9901, propietario: "Duplicado",
+    estado: "en_oficina", oficina: "puntamogotes",
+  });
+  chequear("Dos llaves no comparten número en la misma oficina", Boolean(errDuplicado), errDuplicado?.code ?? "");
+
   console.log("\n═══ 2 · LO QUE VE UN DESCONOCIDO (clave pública) ═══\n");
 
   const anon = createClient(URL, KEY, { auth: { persistSession: false } });
@@ -198,6 +242,9 @@ async function main() {
   for (const tabla of [
     "potente_clientes", "potente_leads", "potente_conversaciones",
     "potente_operaciones", "potente_tasaciones", "potente_reservas_temporada",
+    // El llavero es del equipo: el visitante de la web no tiene nada que hacer
+    // ahí (migración 011 le revoca todo explícitamente).
+    "potente_llaves", "potente_movimientos_llave",
     "potente_auditoria",
   ]) {
     const n = await contar(anon, tabla);

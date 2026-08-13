@@ -35,6 +35,10 @@ const TABLAS = [
   "potente_fichas",
   "potente_unidades_temporada",
   "potente_reservas_temporada",
+  // El llavero y su historia: perder esto es volver al problema que lo originó
+  // (un juego sin ubicar durante un año).
+  "potente_llaves",
+  "potente_movimientos_llave",
   "potente_conversaciones",
   "potente_auditoria",
 ] as const;
