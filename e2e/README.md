@@ -42,7 +42,7 @@ sin las variables de Supabase** (o migrarse, ver abajo).
 
 | Script | Qué verifica | Entra con | Chequeos |
 |---|---|---|---|
-| `sweep-final.mjs` | Las 23 rutas del panel y del sitio: que rendericen y **no tiren un solo error de consola** | sesión real | 22 |
+| `sweep-final.mjs` | Las 23 rutas del panel y del sitio: que rendericen y **no tiren un solo error de consola** | sesión real | 23 |
 | `deforma.mjs` | Que ninguna ruta estire la página en pantallas angostas (320 y 390 px) | público | 42 |
 | `galeria.mjs` | Las flechas y las miniaturas de la galería **con mouse de verdad** (`Input.dispatchMouseEvent`), en escritorio y celular. Existe porque `setPointerCapture` mataba las flechas y con `.click()` daba verde igual | público | 23 |
 | `cartera-busqueda.mjs` | Que el buscador del panel encuentre por **dirección** y sin tildes ("cordoba" → "Av. Córdoba"). El caso de prueba se elige de la base VIVA en cada corrida — invariantes, nunca IDs fijos (reporte de Mateo del 11-ago) | sesión real | 5 |
