@@ -50,6 +50,11 @@ const SONDA = `
     combos: caja ? caja.querySelectorAll("[role=combobox],[aria-haspopup]").length : -1,
     cards: cards,
     links: links,
+    // Ninguna tarjeta de temporada muestra precio: todas dicen A consultar.
+    tarjetasConPrecio: [...document.querySelectorAll("article")]
+      .filter((a) => /\$\s?\d/.test(a.innerText || "")).length,
+    tarjetasAConsultar: [...document.querySelectorAll("article")]
+      .filter((a) => (a.innerText || "").toLowerCase().includes("a consultar")).length,
     errores: (window.__err || []).length,
   });
 `;
@@ -71,6 +76,8 @@ for (const [ancho, alto, etiqueta] of [[390, 844, "📱 390"], [1440, 950, "🖥
   chequear(`${etiqueta} · sin la grilla de barrios`, r.linksABarrio === 0, `${r.linksABarrio} links a /temporada/<barrio>`);
   chequear(`${etiqueta} · 🔑 las tarjetas llevan a la FICHA de la propiedad`,
     r.cards > 0 && r.links >= r.cards, `${r.cards} tarjetas / ${r.links} links a ficha`);
+  chequear(`${etiqueta} · 🔒 ninguna tarjeta muestra precio`, r.tarjetasConPrecio === 0, `${r.tarjetasConPrecio} con $`);
+  chequear(`${etiqueta} · …y todas dicen A consultar`, r.tarjetasAConsultar === r.cards, `${r.tarjetasAConsultar}/${r.cards}`);
   chequear(`${etiqueta} · consola limpia`, r.errores === 0);
 }
 
@@ -90,7 +97,17 @@ if (href) {
     const T = t.toLowerCase();
     return JSON.stringify({
       selloTemporada: T.includes("temporada 2027"),
-      bloquePrecio: T.includes("alquiler de temporada") && T.includes("la quincena"),
+      bloqueTemporada: T.includes("alquiler de temporada"),
+      // 🔴 NINGUNA referencia de precio de temporada (Mateo, 13-ago). Se busca
+      // el signo $ y la palabra "desde" en el bloque, no en toda la página: el
+      // precio de VENTA de la propiedad sí se publica y sí lleva $.
+      aConsultar: (() => {
+        const bloques = [...document.querySelectorAll("div")].filter((d) =>
+          (d.innerText || "").toLowerCase().startsWith("alquiler de temporada"));
+        const b = bloques[bloques.length - 1];
+        const t2 = b ? (b.innerText || "").toLowerCase() : "";
+        return { texto: t2, ok: t2.includes("a consultar") && !t2.includes("$") && !t2.includes("desde") };
+      })(),
       capacidad: /hasta \\d+ personas/.test(T),
       hayFotos: document.querySelectorAll("img").length > 0,
       hayDescripcion: t.length > 800,
@@ -100,7 +117,9 @@ if (href) {
     });
   `));
   chequear("🔑 La ficha dice TEMPORADA", f.selloTemporada);
-  chequear("🔑 …y muestra el PRECIO de temporada por quincena", f.bloquePrecio);
+  chequear("🔑 …y su bloque de temporada", f.bloqueTemporada);
+  chequear("🔒 …que dice A CONSULTAR, sin precio ni «desde»", f.aConsultar.ok,
+    f.aConsultar.texto.split("\n").join(" ").slice(0, 70));
   chequear("…con la capacidad (hasta N personas)", f.capacidad);
   chequear("…y su CTA propio de temporada", f.ctaTemporada);
   chequear("🔑 La ficha tiene las FOTOS y la descripción (lo que faltaba)", f.hayFotos && f.hayDescripcion);

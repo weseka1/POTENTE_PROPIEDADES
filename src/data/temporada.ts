@@ -99,7 +99,11 @@ export const unidadesTemporada: UnidadTemporada[] = SEMILLAS.map((s) => ({
  * su Footer y su hero) dentro de otro bundle.
  */
 export function tarifaDesde(u: UnidadTemporada): number {
-  const vals = Object.values(u.tarifas).filter((v): v is number => typeof v === "number");
+  // 🔴 `u.tarifas` puede NO venir: al visitante de la web ya no se le manda esa
+  // columna (los precios de temporada no se publican). `Object.values(undefined)`
+  // tira una excepción y se lleva puesta la pantalla entera — pasó el 13-ago con
+  // la ficha. Un helper compartido no puede asumir que el dato está.
+  const vals = Object.values(u.tarifas ?? {}).filter((v): v is number => typeof v === "number");
   return vals.length ? Math.min(...vals) : 0;
 }
 

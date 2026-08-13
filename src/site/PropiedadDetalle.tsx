@@ -87,8 +87,11 @@ export default function PropiedadDetalle() {
   // ⚠️ SIN useMemo a propósito: acá arriba hay un `return` temprano (propiedad
   // no encontrada) y un hook después de un return rompe el orden de hooks de
   // React. Es un `find` sobre una lista corta: no necesita memo.
+  // ⚠️ Acá NO se calcula ninguna tarifa: la ficha dice "A consultar" y el
+  // visitante ni siquiera recibe la columna `tarifas`. Calcularla igual fue el
+  // bug del 13-ago — `tarifaDesde` recibía undefined y tiraba abajo la ficha
+  // entera. Si no se muestra, no se calcula.
   const unidadTemp = unidadesTemporada.find((u) => u.propiedadId === p.id && u.activa);
-  const tarifaTemp = unidadTemp ? tarifaDesde(unidadTemp) : 0;
 
   const similares = propiedades.filter((x) => x.id !== p.id && x.categoria === p.categoria).slice(0, 3);
   const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
