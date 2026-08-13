@@ -6,6 +6,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DOMINIO_POR_DEFECTO } from "../src/config/dominio.js";
+// Los barrios de temporada salen de config/temporada.js — la MISMA fuente que
+// usa el front. Antes estaban copiados acá y podían desincronizarse.
+import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -14,13 +17,6 @@ const ROOT = path.resolve(__dirname, "..");
 const SITE = process.env.VITE_SITE_URL || process.env.SITE_URL || DOMINIO_POR_DEFECTO;
 
 const hoy = new Date().toISOString().slice(0, 10);
-
-// Barrios con página propia de temporada. DEBE coincidir exactamente con
-// BARRIOS_TEMPORADA de src/site/Temporada.tsx: un slug de más acá = URL en el
-// sitemap que redirige, y Google penaliza eso.
-const BARRIOS_TEMPORADA = ["Playa Grande", "Varese", "Güemes", "La Perla", "Chauvín", "Punta Mogotes"];
-const slugBarrio = (b) =>
-  b.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "-");
 
 const estaticas = [
   { loc: "/", prioridad: "1.0" },

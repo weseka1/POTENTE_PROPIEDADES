@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Heart,
+  ArrowLeft, MapPin, Maximize, Sprout, Tag, CheckCircle2, Phone, Heart, Sun,
   BedDouble, Bath, Car, Ruler, Home as HomeIcon, PlayCircle, ChevronLeft, ChevronRight, ChevronDown,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
@@ -14,6 +14,7 @@ import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
 import { fmtPrecio, fmtARS } from "@/lib/format";
+import { tarifaDesde, waTemporada } from "@/data/temporada";
 import { datosPublicos } from "@/data/esquemaPropiedad";
 import { ESTADO_LABEL, type EstadoPropiedad } from "@/data/propiedadTypes";
 import { useFavorites } from "./context/FavoritesContext";
@@ -38,7 +39,7 @@ const NO_IMG = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%2
 export default function PropiedadDetalle() {
   useLenis();
   const { id } = useParams();
-  const { getProp, propiedades } = useData();
+  const { getProp, propiedades, unidadesTemporada } = useData();
   const p = getProp(id || "");
   // La galería maneja su propio estado (ver components/GaleriaPropiedad).
   const { esFavorito, toggle } = useFavorites();
@@ -81,6 +82,14 @@ export default function PropiedadDetalle() {
   const fav = esFavorito(p.id);
   const fotos = p.fotos?.length ? p.fotos : [NO_IMG];
   const caracs = p.caracteristicas ?? [];
+  // 🏖️ ¿Esta propiedad se ofrece en temporada? La unidad se apoya en la
+  // propiedad (`propiedadId`), así que desde la ficha se llega sola.
+  // ⚠️ SIN useMemo a propósito: acá arriba hay un `return` temprano (propiedad
+  // no encontrada) y un hook después de un return rompe el orden de hooks de
+  // React. Es un `find` sobre una lista corta: no necesita memo.
+  const unidadTemp = unidadesTemporada.find((u) => u.propiedadId === p.id && u.activa);
+  const tarifaTemp = unidadTemp ? tarifaDesde(unidadTemp) : 0;
+
   const similares = propiedades.filter((x) => x.id !== p.id && x.categoria === p.categoria).slice(0, 3);
   const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
   // Cada consulta va al WhatsApp de la oficina que vende la propiedad (sin oficina → central).
@@ -129,6 +138,14 @@ export default function PropiedadDetalle() {
             <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">{opLabel[p.operacion]}</span>
             <span className="rounded-full border border-graph/20 px-3 py-1 text-xs font-medium capitalize text-graph-500">{p.categoria}</span>
             {p.estado !== "activa" && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoBadge[p.estado]}`}>{ESTADO_LABEL[p.estado]}</span>}
+            {/* 🏖️ «que diría temporada» (Mateo, 13-ago). Una propiedad puede
+                estar en venta Y ofrecerse en temporada: el sello no reemplaza a
+                la operación, se suma. */}
+            {unidadTemp && (
+              <span className="flex items-center gap-1 rounded-full bg-sea px-3 py-1 text-xs font-semibold text-white">
+                <Sun size={13} /> Temporada 2027
+              </span>
+            )}
             {p.esNuevo && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold uppercase text-white">Nuevo</span>}
             {p.esOportunidad && <span className="rounded-full bg-clay px-3 py-1 text-xs font-bold uppercase text-white">Oportunidad</span>}
           </div>
@@ -230,6 +247,32 @@ export default function PropiedadDetalle() {
               <p className="mt-1.5 text-sm font-medium text-graph-500">
                 + {fmtARS(p.expensasARS as number)} de expensas
               </p>
+            )}
+
+            {/* 🏖️ TEMPORADA — «con los datos de temporada, precio de temporada»
+                (Mateo, 13-ago). Va en su propio bloque y NUNCA mezclado con el
+                precio de venta: son dos cosas distintas, en dos monedas
+                distintas, y sumarlas o pisarlas sería mentir.
+                La consulta sale al WhatsApp de la oficina que administra la
+                unidad, no al central. */}
+            {unidadTemp && tarifaTemp > 0 && (
+              <div className="mt-6 rounded-xl border border-sea/30 bg-sea/[0.06] p-4">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest2 text-sea">
+                  <Sun size={14} /> Alquiler de temporada
+                </p>
+                <p className="mt-2 font-display text-2xl font-semibold text-graph">
+                  desde {fmtARS(tarifaTemp)}
+                </p>
+                <p className="text-xs text-graph-400">la quincena · hasta {unidadTemp.capacidad} personas</p>
+                <a
+                  href={waTemporada(p.titulo, undefined, unidadTemp.oficina)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-primary mt-4 w-full"
+                >
+                  <Phone size={15} /> Consultar la temporada
+                </a>
+              </div>
             )}
 
             <div className="mt-6 space-y-3">

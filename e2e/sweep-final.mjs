@@ -56,7 +56,10 @@ const PANEL = [
 ];
 const SITIO = [
   ["/", "Potente"], ["/propiedades", "propiedad"], ["/propiedad/POT-153992", "Playa Grande"],
-  ["/temporada", "temporada"], ["/temporada/playa-grande", "Playa Grande"],
+  // Desde el 13-ago temporada es SOLO Punta Mogotes: los otros barrios ya no
+  // tienen página (la ruta redirige a /temporada, así que un link viejo no
+  // muere, pero no hay contenido propio que verificar).
+  ["/temporada", "temporada"], ["/temporada/punta-mogotes", "Punta Mogotes"],
   ["/favoritos", "favorit"], ["/cuenta", "Potente"], ["/ingresar", "INMOBILIARIA"],
 ];
 

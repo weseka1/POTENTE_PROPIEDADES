@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
-  Waves, MapPin, Search, ArrowRight, ShieldCheck, Users, Home as HomeIcon,
+  Waves, MapPin, ShieldCheck, Users, Home as HomeIcon,
   CalendarRange, Phone, Sun, ChevronRight,
 } from "lucide-react";
 import Navbar from "./components/Navbar";
@@ -11,7 +11,10 @@ import { useSEO } from "./lib/seo";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 import UISelect from "@/components/Select";
-import { TRAMOS, tramoById, tarifaDe } from "@/data/temporada";
+import { tramoById, tarifaDe, tarifaDesde, waTemporada } from "@/data/temporada";
+// `tarifaDesde` y `waTemporada` se mudaron a data/temporada.ts: son helpers puros
+// y los usa tambien la ficha publica. Se reexportan para no romper importadores.
+export { tarifaDesde, waTemporada };
 import type { TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { fmtARS } from "@/lib/format";
@@ -23,43 +26,20 @@ const SITE = SITIO;
 const NO_IMG =
   "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23e7e8e3'/%3E%3C/svg%3E";
 
-// ── Barrios con página propia (SEO local). El orden es el que se muestra. ──
-export const BARRIOS_TEMPORADA = [
-  "Playa Grande",
-  "Varese",
-  "Güemes",
-  "La Perla",
-  "Chauvín",
-  "Punta Mogotes",
-] as const;
+// Dónde hacemos temporada sale de config/temporada.js — la MISMA lista que usa
+// el generador del sitemap. Desde el 13-ago es solo Punta Mogotes (Mateo).
+// Se reexporta para no romper a quien ya importaba desde acá.
+import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug } from "@/config/temporada";
+export { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug };
 
-// barrio → slug (Playa Grande → playa-grande, Güemes → guemes) y su inversa.
-export function slugBarrio(b: string): string {
-  return b
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, "-");
-}
-export function barrioBySlug(slug: string): string | undefined {
-  return BARRIOS_TEMPORADA.find((b) => slugBarrio(b) === slug);
-}
-
-// Tarifa más baja de una unidad (para el "desde $X la quincena").
-export function tarifaDesde(u: UnidadTemporada): number {
-  const vals = Object.values(u.tarifas).filter((v): v is number => typeof v === "number");
-  return vals.length ? Math.min(...vals) : 0;
-}
-
-// Mensaje de WhatsApp pre-armado con la propiedad y (si hay) la quincena elegida.
-// La consulta va DIRECTO al WhatsApp de la oficina que administra la unidad
-// (pedido Mateo 4-ago: división perfecta, sin fallar). Sin oficina → central.
-export function waTemporada(titulo: string, quincenaLabel?: string, oficina?: "chauvin" | "puntamogotes"): string {
-  const txt =
-    `Hola Potente Propiedades, me interesa alquilar para la temporada "${titulo}"` +
-    (quincenaLabel ? ` en la ${quincenaLabel.toLowerCase()}` : "") +
-    `. ¿Tienen disponibilidad?`;
-  return `https://wa.me/${waDigits(oficina)}?text=${encodeURIComponent(txt)}`;
+/**
+ * La foto de la card. Es un link a la ficha cuando la propiedad existe, y un
+ * div cuando no — mismo alto y mismo recorte en los dos casos, para que la
+ * grilla no cambie de forma según haya o no ficha.
+ */
+function FotoDeLaCard({ to, children }: { to: string | null; children: ReactNode }) {
+  const cls = "relative block aspect-[4/3] overflow-hidden";
+  return to ? <Link to={to} className={cls}>{children}</Link> : <div className={cls}>{children}</div>;
 }
 
 // ── Card de unidad de temporada (reusada en la landing y en las páginas por barrio) ──
@@ -78,11 +58,16 @@ export function UnidadTempCard({
   const precioTramo = tramoId ? tarifaDe(u, tramoId) : undefined;
   const precio = precioTramo ?? tarifaDesde(u);
   const wa = waTemporada(titulo, quincena?.label, u.oficina);
-  const barrioSlug = BARRIOS_TEMPORADA.some((b) => b === u.barrio) ? slugBarrio(u.barrio) : null;
+  // 🔴 13-ago, Mateo: «que me mande directamente a la ficha que yo cargué en
+  // temporada, con las fotos y la descripción». Antes la tarjeta llevaba a la
+  // página del barrio, donde no se veía ni una foto ni el texto de la propiedad.
+  // La unidad de temporada SIEMPRE se apoya en una propiedad de la cartera
+  // (`propiedadId`), así que la ficha ya existe: se apunta ahí.
+  const fichaUrl = prop ? `/propiedad/${prop.id}` : null;
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl bg-paper-100 ring-1 ring-graph/10 transition duration-500 hover:ring-brand/40 hover:shadow-card">
-      <div className="relative aspect-[4/3] overflow-hidden">
+      <FotoDeLaCard to={fichaUrl}>
         <img
           src={foto}
           onError={(e) => { e.currentTarget.src = NO_IMG; }}
@@ -101,10 +86,16 @@ export function UnidadTempCard({
             </span>
           )}
         </div>
-      </div>
+      </FotoDeLaCard>
 
       <div className="flex flex-1 flex-col p-5">
-        <h3 className="font-display text-lg font-semibold leading-snug text-graph line-clamp-2">{titulo}</h3>
+        {fichaUrl ? (
+          <Link to={fichaUrl} className="font-display text-lg font-semibold leading-snug text-graph line-clamp-2 transition hover:text-brand">
+            {titulo}
+          </Link>
+        ) : (
+          <h3 className="font-display text-lg font-semibold leading-snug text-graph line-clamp-2">{titulo}</h3>
+        )}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-graph-500">
           <span className="flex items-center gap-1.5">
             <MapPin size={15} className="text-brand" /> {u.barrio}
@@ -134,12 +125,12 @@ export function UnidadTempCard({
             </p>
             <p className="text-xs text-graph-400">{quincena ? quincena.label : "la quincena"}</p>
           </div>
-          {barrioSlug && (
+          {fichaUrl && (
             <Link
-              to={`/temporada/${barrioSlug}`}
+              to={fichaUrl}
               className="flex items-center gap-1 text-xs font-medium text-graph-500 transition hover:text-brand"
             >
-              Ver {u.barrio} <ChevronRight size={14} />
+              Ver fotos y detalle <ChevronRight size={14} />
             </Link>
           )}
         </div>
@@ -185,43 +176,49 @@ export default function Temporada() {
   useReveal();
 
   const { unidadesTemporada, propiedades } = useData();
-  const activas = useMemo(() => unidadesTemporada.filter((u) => u.activa), [unidadesTemporada]);
+  // Temporada se hace SOLO en Punta Mogotes (Mateo, 13-ago). El filtro es por la
+  // lista de config, no por un string suelto: sumar un barrio es tocar un lugar.
+  const activas = useMemo(
+    () => unidadesTemporada.filter((u) => u.activa && (BARRIOS_TEMPORADA as readonly string[]).includes(u.barrio)),
+    [unidadesTemporada],
+  );
   const propById = (id: string) => propiedades.find((p) => p.id === id);
 
-  const barrios = useMemo(() => [...new Set(activas.map((u) => u.barrio))].sort(), [activas]);
-  const ambientesOpts = useMemo(
-    () => [...new Set(activas.map((u) => u.ambientes))].sort((a, b) => a - b),
-    [activas]
+  // 🔴 13-ago, Mateo: «el buscador eliminarlo y poner únicamente cantidad de
+  // personas». Con un solo barrio, filtrar por barrio no tenía sentido; y la
+  // quincena la resuelve la consulta por WhatsApp, que es como reserva él.
+  // Queda UN control: cuántos son. Se muestran las que entran esa cantidad.
+  const capacidades = useMemo(
+    () => [...new Set(activas.map((u) => u.capacidad))].sort((a, b) => a - b),
+    [activas],
   );
-
-  const [quincena, setQuincena] = useState<TemporadaTramoId | "">("");
-  const [barrio, setBarrio] = useState("");
-  const [amb, setAmb] = useState("");
+  const [personas, setPersonas] = useState("");
 
   const filtradas = useMemo(
-    () =>
-      activas.filter(
-        (u) => (!barrio || u.barrio === barrio) && (!amb || u.ambientes === Number(amb))
-      ),
-    [activas, barrio, amb]
+    () => activas.filter((u) => !personas || u.capacidad >= Number(personas)),
+    [activas, personas],
   );
 
-  const irAResultados = () => document.getElementById("grilla")?.scrollIntoView({ behavior: "smooth" });
-
   useSEO({
-    titulo: "Alquiler de temporada · Verano 2027 en Mar del Plata | Potente Propiedades",
+    titulo: `Alquiler de temporada en ${BARRIO_TEMPORADA} · Verano 2027 | Potente Propiedades`,
     descripcion:
-      "Alquiler temporario en Mar del Plata para el verano 2027. Departamentos y casas por quincena en Playa Grande, Güemes, La Perla, Varese, Chauvín y Punta Mogotes. Reservá con seña por WhatsApp.",
+      `Alquiler temporario en ${BARRIO_TEMPORADA}, Mar del Plata, para el verano 2027. ` +
+      "Departamentos y casas por quincena. Consultá las fechas disponibles y reservá por " +
+      "WhatsApp con una inmobiliaria de más de 50 años en el rubro.",
     path: "/temporada",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "ItemList",
-      name: "Alquileres de temporada en Mar del Plata — Verano 2027",
+      name: `Alquileres de temporada en ${BARRIO_TEMPORADA}, Mar del Plata — Verano 2027`,
+      // Cada ítem apunta a SU ficha, no al barrio: es la página que de verdad
+      // describe la propiedad (fotos + descripción), y es a donde ahora lleva
+      // la tarjeta. Que el dato estructurado y el link coincidan es la mitad
+      // del SEO.
       itemListElement: activas.map((u, i) => ({
         "@type": "ListItem",
         position: i + 1,
         name: propById(u.propiedadId)?.titulo ?? `Alquiler temporario en ${u.barrio}`,
-        url: `${SITE}/temporada/${slugBarrio(u.barrio)}`,
+        url: `${SITE}/propiedad/${u.propiedadId}`,
       })),
     },
   });
@@ -243,41 +240,23 @@ export default function Temporada() {
             <Sun size={15} /> Alquiler de temporada · Verano 2027
           </p>
           <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-[1.05] tracking-tight text-white md:text-6xl">
-            Alquilá tu verano frente al mar en Mar del Plata
+            Alquilá tu verano frente al mar en {BARRIO_TEMPORADA}
           </h1>
+          {/* Copy textual de Mateo (13-ago). */}
           <p className="mt-5 max-w-xl text-lg text-white/75">
-            Departamentos y casas por quincena, en los mejores barrios de la ciudad. Elegí las fechas y
-            reservá por WhatsApp con una inmobiliaria de tres generaciones.
+            Propiedades en {BARRIO_TEMPORADA} para disfrutar el verano. Consultá por las fechas
+            disponibles y reservá por WhatsApp con una inmobiliaria de más de 50 años en el rubro.
           </p>
 
-          {/* Buscador */}
-          <div className="mt-9 rounded-2xl border border-white/15 bg-paper-100/95 p-4 shadow-card backdrop-blur md:p-5">
-            <div className="grid gap-3 md:grid-cols-[1.4fr_1.2fr_1fr_auto]">
-              <Select
-                label="Quincena"
-                value={quincena}
-                onChange={(v) => setQuincena(v as TemporadaTramoId | "")}
-                options={TRAMOS.map((t) => ({ v: t.id, l: t.label + (t.pico ? " · más pedida" : "") }))}
-                placeholder="Cualquier fecha"
-              />
-              <Select
-                label="Barrio"
-                value={barrio}
-                onChange={setBarrio}
-                options={barrios.map((b) => ({ v: b, l: b }))}
-                placeholder="Todos los barrios"
-              />
-              <Select
-                label="Ambientes"
-                value={amb}
-                onChange={setAmb}
-                options={ambientesOpts.map((n) => ({ v: String(n), l: `${n} ambientes` }))}
-                placeholder="Cualquiera"
-              />
-              <button onClick={irAResultados} className="btn-primary h-[46px] self-end whitespace-nowrap">
-                <Search size={16} /> Buscar
-              </button>
-            </div>
+          {/* Un solo filtro: cuántos son. */}
+          <div className="mt-9 max-w-sm rounded-2xl border border-white/15 bg-paper-100/95 p-4 shadow-card backdrop-blur md:p-5">
+            <Select
+              label="¿Cuántos son?"
+              value={personas}
+              onChange={setPersonas}
+              options={capacidades.map((n) => ({ v: String(n), l: `${n} ${n === 1 ? "persona" : "personas"}` }))}
+              placeholder="Cualquier cantidad"
+            />
           </div>
         </div>
       </header>
@@ -289,30 +268,31 @@ export default function Temporada() {
             <div>
               <p className="eyebrow flex items-center gap-2"><CalendarRange size={15} /> Disponibles esta temporada</p>
               <h2 className="mt-3 font-display text-3xl font-medium tracking-tight text-graph md:text-4xl">
-                {barrio ? `Alquileres en ${barrio}` : "Elegí dónde pasar el verano"}
+                Alquileres en {BARRIO_TEMPORADA}
               </h2>
             </div>
             <p className="text-sm text-graph-500">
               {filtradas.length} {filtradas.length === 1 ? "propiedad" : "propiedades"}
-              {quincena ? ` · ${tramoById(quincena).label}` : ""}
+              {personas ? ` · para ${personas} o más` : ""}
             </p>
           </div>
 
           {filtradas.length === 0 ? (
             <div className="py-16 text-center text-graph-500">
-              <p className="font-display text-2xl text-graph">No hay propiedades con esos filtros</p>
-              <button
-                onClick={() => { setBarrio(""); setAmb(""); }}
-                className="btn-ghost mt-6"
-              >
-                Ver todas
-              </button>
+              <p className="font-display text-2xl text-graph">
+                {personas ? `No hay propiedades para ${personas} personas` : "Todavía no hay propiedades cargadas"}
+              </p>
+              {personas && (
+                <button onClick={() => setPersonas("")} className="btn-ghost mt-6">
+                  Ver todas
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
               {filtradas.map((u) => (
                 <div key={u.id} className="reveal">
-                  <UnidadTempCard u={u} prop={propById(u.propiedadId)} tramoId={quincena} />
+                  <UnidadTempCard u={u} prop={propById(u.propiedadId)} />
                 </div>
               ))}
             </div>
@@ -339,12 +319,16 @@ export default function Temporada() {
               {
                 icon: ShieldCheck,
                 t: "Seña segura y contrato claro",
-                d: "Reservás con el 30% y el saldo lo abonás al ingresar. Contrato de temporada por escrito, sin sorpresas ni intermediarios de dudosa procedencia.",
+                // Mateo, 13-ago: «en vez de 30% pone "reservas con un
+                // porcentaje"» — el porcentaje se acuerda en cada caso, así que
+                // publicar un número fijo era comprometer algo que no es fijo.
+                d: "Reservás con un porcentaje y el saldo lo abonás al ingresar. Contrato de temporada por escrito, sin sorpresas ni intermediarios de dudosa procedencia.",
               },
               {
                 icon: MapPin,
                 t: "Atención local, cara a cara",
-                d: "Dos oficinas en la ciudad, en Punta Mogotes y Chauvín. Ante cualquier consulta durante tu estadía, estamos a la vuelta.",
+                // Temporada la atiende SOLO la oficina de Punta Mogotes.
+                d: "Oficina sobre la costa, cerca de todo. Ante cualquier consulta durante tu estadía, estamos a la vuelta.",
               },
             ].map((c, i) => (
               <div key={c.t} className="reveal card p-8" data-delay={`${i * 90}ms`}>
@@ -357,52 +341,9 @@ export default function Temporada() {
         </div>
       </section>
 
-      {/* ===== BARRIOS ===== */}
-      <section className="py-20">
-        <div className="container-x">
-          <div className="reveal mb-10 max-w-2xl">
-            <p className="eyebrow">Explorá por barrio</p>
-            <h2 className="mt-3 font-display text-3xl font-medium tracking-tight text-graph md:text-4xl">
-              ¿En qué zona querés estar?
-            </h2>
-            <p className="mt-4 text-graph-500">
-              Cada barrio de Mar del Plata tiene su clima. Mirá las propiedades disponibles en cada uno.
-            </p>
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {BARRIOS_TEMPORADA.map((b, i) => {
-              const enBarrio = activas.filter((u) => u.barrio === b);
-              const foto = propById(enBarrio[0]?.propiedadId ?? "")?.fotos?.[0] || NO_IMG;
-              return (
-                <Link
-                  key={b}
-                  to={`/temporada/${slugBarrio(b)}`}
-                  className="reveal group relative h-52 overflow-hidden rounded-2xl"
-                  data-delay={`${i * 60}ms`}
-                >
-                  <img
-                    src={foto}
-                    onError={(e) => { e.currentTarget.src = NO_IMG; }}
-                    alt={`Alquiler temporario en ${b}, Mar del Plata`}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-brand-950 via-brand-950/40 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-6">
-                    <div>
-                      <h3 className="font-display text-xl font-semibold text-white">{b}</h3>
-                      <p className="text-sm text-white/70">
-                        {enBarrio.length} {enBarrio.length === 1 ? "propiedad" : "propiedades"}
-                      </p>
-                    </div>
-                    <ArrowRight size={20} className="text-white transition group-hover:translate-x-1" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      {/* La grilla "Explorá por barrio" se sacó el 13-ago: con temporada en un
+          solo barrio era una sección de una tarjeta que repetía lo de arriba.
+          La página del barrio (/temporada/punta-mogotes) sigue viva por SEO. */}
 
       {/* ===== CTA FINAL ===== */}
       <section className="border-t border-graph/10 bg-paper-100 py-16">

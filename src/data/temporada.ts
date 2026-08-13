@@ -2,6 +2,7 @@
 // La unidad es la quincena. Tarifas en ARS con la curva real del mercado MdP
 // (pico 2ª de enero, cae hacia fin de febrero, hombro en dic/marzo).
 
+import { waDigits } from "@/config/marca";
 import type {
   TemporadaTramo,
   TemporadaTramoId,
@@ -91,6 +92,30 @@ export const unidadesTemporada: UnidadTemporada[] = SEMILLAS.map((s) => ({
 }));
 
 // Precio de un tramo para una unidad (helper compartido con la web).
+/**
+ * La tarifa más baja de la unidad — el "desde $X la quincena".
+ * Vive acá y no en la página de Temporada: también la usa la ficha pública, y
+ * un helper puro no puede obligar a importar una página entera (con su Navbar,
+ * su Footer y su hero) dentro de otro bundle.
+ */
+export function tarifaDesde(u: UnidadTemporada): number {
+  const vals = Object.values(u.tarifas).filter((v): v is number => typeof v === "number");
+  return vals.length ? Math.min(...vals) : 0;
+}
+
+/**
+ * WhatsApp de consulta por una propiedad de temporada. Va DIRECTO al número de
+ * la oficina que la administra (pedido de Mateo, 4-ago: la división por oficina
+ * no puede fallar). Sin oficina cae al central.
+ */
+export function waTemporada(titulo: string, quincenaLabel?: string, oficina?: "chauvin" | "puntamogotes"): string {
+  const txt =
+    `Hola Potente Propiedades, me interesa alquilar para la temporada "${titulo}"` +
+    (quincenaLabel ? ` en la ${quincenaLabel.toLowerCase()}` : "") +
+    `. ¿Tienen disponibilidad?`;
+  return `https://wa.me/${waDigits(oficina)}?text=${encodeURIComponent(txt)}`;
+}
+
 export function tarifaDe(unidad: UnidadTemporada, tramoId: TemporadaTramoId): number | undefined {
   return unidad.tarifas[tramoId];
 }
