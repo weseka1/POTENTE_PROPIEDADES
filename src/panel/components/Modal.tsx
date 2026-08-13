@@ -17,10 +17,26 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
+
     // Sin esto, en el celular el fondo sigue scrolleando detrás del modal.
+    //
+    // 🔴 Se CUENTAN los modales abiertos en vez de pisar el estilo. Desde que
+    // existe el confirmador (12-ago) puede haber DOS a la vez: la confirmación
+    // arriba del detalle de un cliente. Al cerrar el de arriba, el cleanup
+    // devolvía el scroll al fondo mientras el de abajo seguía abierto, y en el
+    // celular la página empezaba a moverse detrás del modal.
+    const abiertos = Number(document.body.dataset.modales ?? "0") + 1;
+    document.body.dataset.modales = String(abiertos);
     document.body.style.overflow = "hidden";
+
     return () => {
-      document.body.style.overflow = "";
+      const quedan = Number(document.body.dataset.modales ?? "1") - 1;
+      if (quedan <= 0) {
+        document.body.style.overflow = "";
+        delete document.body.dataset.modales;
+      } else {
+        document.body.dataset.modales = String(quedan);
+      }
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);

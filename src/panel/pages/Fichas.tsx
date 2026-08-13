@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { FileText, Search, Plus, ArrowLeft, Save, Loader2, X, Trash2, ChevronRight, Sprout, Home as HomeIcon, Download, PenTool } from "lucide-react";
 import { useToast } from "../components/Toast";
+import { useConfirmar } from "../components/Confirmar";
 import { PageHeader } from "../components/PageShell";
 import { supabase } from "@/lib/supabase";
 import { cargarDemo, guardarDemo } from "@/lib/DataProvider";
@@ -21,6 +22,7 @@ const TIPO_OPTS = [{ v: "campo", l: "Campo" }, { v: "urbano", l: "Urbano / Propi
 
 export default function Fichas() {
   const { push } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   // Sin base de datos las fichas viven en el navegador, igual que el resto del panel.
   // Antes solo existían en memoria: se creaba una, se refrescaba y desaparecía.
   const [fichas, setFichas] = useState<FichaRow[]>(() => cargarDemo<FichaRow[]>("fichas", []));
@@ -79,19 +81,50 @@ export default function Fichas() {
     push("Ficha guardada ✓", "success");
     setSel(null);
   };
-  const borrar = async (id: string) => {
-    if (!window.confirm("¿Eliminar esta ficha?")) return;
-    setFichas((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await supabase.from("potente_fichas").delete().eq("id", id).then(() => {}, () => {});
-    setSel(null);
+  const borrar = (id: string) => {
+    const f = fichas.find((x) => x.id === id);
+    confirmar({
+      // El dato concreto va en la PREGUNTA, que es lo que se lee primero.
+      titulo: f?.titulo ? `¿Eliminar la ficha de ${f.titulo}?` : "¿Eliminar la ficha sin referencia?",
+      detalle: `${f?.zona ? `${f.zona}. ` : ""}Se borra del sistema con todo lo cargado, planos incluidos, y no se puede deshacer.`,
+      boton: "Eliminar",
+      peligro: true,
+      // 🔴 Todo el borrado va ADENTRO del onOk: el modal es asíncrono (el window.confirm
+      // que había acá antes bloqueaba). Una línea afuera = ficha borrada sin preguntar.
+      onOk: async () => {
+        setFichas((prev) => prev.filter((x) => x.id !== id));
+        // 🔴 El error de la base NO se traga (regla de la casa; el
+        // `.then(()=>{},()=>{})` que había acá es el anti-patrón que ya nos
+        // costó leads perdidos). Si rechaza: se avisa, se devuelve la ficha a
+        // la lista y NO se canta un éxito que no pasó.
+        if (supabase) {
+          const { error } = await supabase.from("potente_fichas").delete().eq("id", id);
+          if (error) {
+            console.error("No se pudo borrar la ficha:", error.message, error.code);
+            push("No se pudo borrar la ficha. Quedó como estaba.", "error");
+            if (f) setFichas((prev) => (prev.some((x) => x.id === id) ? prev : [f, ...prev]));
+            return;
+          }
+        }
+        setSel(null);
+        push("Ficha eliminada", "success");
+      },
+    });
   };
-
-  if (sel) return <FichaEditor row={sel} onBack={() => setSel(null)} onSave={guardar} onDelete={borrar} />;
 
   // La dirección del borrador también busca (mismo criterio que Cartera).
   const lista = fichas.filter((f) => sinTildes(`${f.titulo} ${f.zona} ${f.datos?.direccion ?? ""} ${f.id}`).includes(sinTildes(q)));
 
+  // ⚠️ UN solo {dialogo}, afuera de las dos ramas. Antes había uno en cada una
+  // y al borrar desde el editor (que hace setSel(null)) React desmontaba un
+  // portal y montaba el otro: el cartel se re-animaba un frame antes de
+  // cerrarse y se perdía el foco. El botón Eliminar vive adentro del editor,
+  // así que el diálogo tiene que existir en las DOS ramas — pero el mismo.
   return (
+    <>
+    {sel ? (
+      <FichaEditor row={sel} onBack={() => setSel(null)} onSave={guardar} onDelete={borrar} />
+    ) : (
     <div>
       <PageHeader
         title="Fichas"
@@ -135,6 +168,9 @@ export default function Fichas() {
         )}
       </div>
     </div>
+    )}
+    {dialogo}
+    </>
   );
 }
 

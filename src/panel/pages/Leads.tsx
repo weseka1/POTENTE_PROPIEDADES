@@ -8,6 +8,7 @@ import { FilterSelect, Segmented } from "../components/Controls";
 import Badge from "../components/Badge";
 import Select from "@/components/Select";
 import ChannelIcon from "../components/ChannelIcon";
+import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { estadoLead, ESTADOS_LEAD, canalLabel } from "../ui/estados";
 import { cn } from "../ui/cn";
@@ -16,6 +17,10 @@ const RESPONSABLES = ["Sin asignar", "Mateo", "Punta Mogotes", "Chauvín"];
 
 export default function Leads() {
   const { push } = useToast();
+  // Confirmar por modal del sistema, nunca con el cartel del navegador
+  // (pedido de Juani, 12-ago). Ojo: esto es ASÍNCRONO — el borrado va DENTRO
+  // del onOk, si algo queda afuera se ejecuta sin preguntar.
+  const { confirmar, dialogo } = useConfirmar();
   const { leads, getProp, updateLead, deleteLead } = useData();
   const [estado, setEstado] = useState("todos");
   const [canal, setCanal] = useState("todos");
@@ -30,12 +35,21 @@ export default function Leads() {
     updateLead(id, { asignado, oficina });
     push(`Consulta asignada a ${asignado}`, "success");
   };
-  const eliminar = (l: Lead) => {
-    if (window.confirm(`¿Eliminar la consulta de ${l.nombre}? No se puede deshacer.`)) {
-      deleteLead(l.id);
-      push("Consulta eliminada", "success");
-    }
-  };
+  const eliminar = (l: Lead) =>
+    confirmar({
+      titulo: `¿Eliminar la consulta de ${l.nombre}?`,
+      // El dato concreto adelante: quién es y por dónde entró, así nadie borra
+      // la consulta equivocada de una lista donde varias se parecen.
+      // `filter(Boolean)`: si falta el contacto o entra por un canal nuevo que
+      // no está en el diccionario, el cartel no muestra huecos ni "undefined".
+      detalle: `${[l.contacto, canalLabel[l.canal] ?? l.canal, desde(l.fechaISO)].filter(Boolean).join(" · ")}. Se borra de la bandeja y no se puede deshacer.`,
+      boton: "Eliminar",
+      peligro: true,
+      onOk: async () => {
+        await deleteLead(l.id);
+        push("Consulta eliminada", "success");
+      },
+    });
 
   const filtrados = useMemo(
     () =>
@@ -161,6 +175,9 @@ export default function Leads() {
           })}
         </div>
       )}
+
+      {/* Confirmación de borrado — del sistema, no del navegador. */}
+      {dialogo}
     </div>
   );
 }

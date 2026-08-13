@@ -10,6 +10,7 @@ import { precioSugerido, nochesEntre, reservaEnConflicto, TRAMOS } from "@/data/
 import CalendarioTemporada from "../components/CalendarioTemporada";
 import { fmtARS } from "@/lib/format";
 import { PageHeader } from "../components/PageShell";
+import { useConfirmar } from "../components/Confirmar";
 import { Btn, Segmented } from "../components/Controls";
 import Select from "@/components/Select";
 import Modal from "../components/Modal";
@@ -73,6 +74,10 @@ const r10k = (n: number) => Math.round(n / 10_000) * 10_000;
 
 export default function Temporada() {
   const { push } = useToast();
+  // Confirmaciones con el modal del sistema (chau cuadro gris del navegador).
+  // Acá hay plata en juego: cancelar y eliminar una reserva NO son lo mismo, y
+  // el cartel tiene que dejarlo clarísimo.
+  const { confirmar, dialogo } = useConfirmar();
   const {
     unidadesTemporada, reservasTemporada, propiedades,
     addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada,
@@ -163,10 +168,17 @@ export default function Temporada() {
   };
   const cancelarReserva = () => {
     if (!detalle) return;
-    if (!window.confirm("¿Cancelar la reserva? Las fechas vuelven a quedar disponibles.")) return;
-    updateReservaTemporada(detalle.id, { estado: "cancelada" });
-    setDetalleId(null);
-    push("Reserva cancelada — cupo liberado", "info");
+    const r = detalle;
+    confirmar({
+      titulo: "¿Cancelar la reserva?",
+      detalle: `${r.inquilino} queda como cancelada y las fechas vuelven a estar disponibles. El registro se conserva.`,
+      boton: "Cancelar la reserva",
+      onOk: () => {
+        updateReservaTemporada(r.id, { estado: "cancelada" });
+        setDetalleId(null);
+        push("Reserva cancelada — cupo liberado", "info");
+      },
+    });
   };
 
   // ── Tarifario: tarifa por noche editable por unidad ──
@@ -266,21 +278,41 @@ export default function Temporada() {
     setEditId(null);
     push("Unidad actualizada ✓", "success");
   };
-  const quitarUnidad = async () => {
+  const quitarUnidad = () => {
     if (!editId) return;
-    if (!window.confirm("¿Quitar esta propiedad de la temporada? También se borran todas sus reservas. Esta acción no se puede deshacer.")) return;
-    await deleteUnidadTemporada(editId);
-    setEditId(null);
-    push("Propiedad quitada de la temporada", "info");
+    const id = editId;
+    const cuantas = reservasTemporada.filter((r) => r.unidadId === id).length;
+    confirmar({
+      titulo: "¿Quitar la propiedad de la temporada?",
+      detalle: cuantas
+        ? `Se borran también sus ${cuantas} reserva${cuantas === 1 ? "" : "s"}. No se puede deshacer.`
+        : "Deja de estar disponible para alquiler temporario. No se puede deshacer.",
+      boton: "Quitar de temporada",
+      peligro: true,
+      onOk: async () => {
+        await deleteUnidadTemporada(id);
+        setEditId(null);
+        push("Propiedad quitada de la temporada", "info");
+      },
+    });
   };
 
   // Eliminar una reserva definitivamente (distinto de cancelar, que deja el registro).
-  const eliminarReserva = async () => {
+  const eliminarReserva = () => {
     if (!detalle) return;
-    if (!window.confirm("¿Eliminar la reserva definitivamente? Se borra del sistema y no queda registro. Si sólo querés liberar la quincena, usá Cancelar.")) return;
-    await deleteReservaTemporada(detalle.id);
-    setDetalleId(null);
-    push("Reserva eliminada", "info");
+    const r = detalle;
+    confirmar({
+      titulo: "¿Eliminar la reserva del sistema?",
+      // La diferencia con Cancelar se dice acá, que es donde se decide.
+      detalle: `La reserva de ${r.inquilino} se borra y no queda registro. Si solo querés liberar las fechas, usá Cancelar.`,
+      boton: "Eliminar",
+      peligro: true,
+      onOk: async () => {
+        await deleteReservaTemporada(r.id);
+        setDetalleId(null);
+        push("Reserva eliminada", "info");
+      },
+    });
   };
 
   // ── Rendición al propietario ──
@@ -854,6 +886,9 @@ export default function Temporada() {
           </p>
         </div>
       </Modal>
+
+      {/* Las confirmaciones, por portal al body (ver Confirmar.tsx). */}
+      {dialogo}
     </div>
   );
 }

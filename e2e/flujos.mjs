@@ -20,7 +20,13 @@ window.__esperar = (ms=400) => new Promise(r=>setTimeout(r,ms));
 window.__btn = (t, raiz) => [...(raiz||document).querySelectorAll('button')].find(b => (b.innerText||'').trim().toLowerCase().includes(t.toLowerCase()));
 window.__click = (t, raiz) => { const b = window.__btn(t, raiz); if(!b) throw new Error('sin boton: '+t); b.click(); return true; };
 window.__clickSuave = (t, raiz) => { const b = window.__btn(t, raiz); if(!b) return false; b.click(); return true; };
-window.__modal = () => document.querySelector('[role=dialog]');
+// El ÚLTIMO [role=dialog] del DOM, que es el que ve y toca una persona.
+// 🔴 Desde el 12-ago puede haber DOS a la vez: la confirmación de borrado sale
+// por portal al final del <body>, encima del modal de detalle (que vive en
+// #root). Con `querySelector` esta suite agarraba el de ABAJO y volvía a
+// clickear "Eliminar" del detalle en vez de confirmar: el borrado nunca pasaba
+// y el chequeo quedaba rojo sin que hubiera un bug en la app.
+window.__modal = () => [...document.querySelectorAll('[role=dialog]')].pop() || null;
 window.__escribir = (el, v) => {
   const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement : window.HTMLInputElement;
   Object.getOwnPropertyDescriptor(proto.prototype,'value').set.call(el, v);

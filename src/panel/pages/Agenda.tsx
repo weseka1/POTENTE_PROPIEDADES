@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageShell";
 import { Btn } from "../components/Controls";
 import Select from "@/components/Select";
 import Modal from "../components/Modal";
+import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { cn } from "../ui/cn";
 import { hoyISO } from "@/lib/fechas";
@@ -37,6 +38,9 @@ const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "
 export default function Agenda() {
   const { visitas: allVisitas, getProp, propiedades, addVisita, updateVisita, deleteVisita } = useData();
   const { push } = useToast();
+  // Eliminar una visita se pregunta con el modal del sistema, no con el cartel del
+  // navegador (pedido de Juani, 12-ago: todo tiene que pasar por la herramienta).
+  const { confirmar, dialogo } = useConfirmar();
 
   const [view, setView] = useState<"semana" | "lista">("semana");
   const [weekStart, setWeekStart] = useState<Date>(() => mondayOf(parseISO(HOY)));
@@ -87,10 +91,24 @@ export default function Agenda() {
   const cambiar = (v: Visita, estado: Visita["estado"], msg: string) => { updateVisita(v.id, { estado }); push(msg, "success"); };
   // Cancelar deja registro; eliminar borra la visita del todo (queda disponible en cualquier estado).
   const eliminar = (v: Visita) => {
-    if (window.confirm(`¿Eliminar la visita de ${v.clienteNombre}? No se puede deshacer.`)) {
-      deleteVisita(v.id);
-      push("Visita eliminada", "success");
-    }
+    // es-AR mete coma después del día de semana ("jueves, 13 de agosto"): la sacamos
+    // y arrancamos en mayúscula porque el detalle abre la oración.
+    const f = parseISO(v.fechaISO).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", "");
+    const cuando = f.charAt(0).toUpperCase() + f.slice(1);
+    const campo = getProp(v.campoId);
+    confirmar({
+      titulo: `¿Eliminar la visita de ${v.clienteNombre}?`,
+      detalle: `${cuando} a las ${v.hora}${campo?.titulo ? ` · ${campo.titulo}` : ""}. Se borra del sistema y no se puede deshacer.`,
+      boton: "Eliminar",
+      peligro: true,
+      // 🔴 El confirm del navegador BLOQUEABA: lo de abajo corría solo con el "sí".
+      // El modal no bloquea, así que el borrado y el aviso viven acá adentro; si
+      // quedaran afuera, la visita se borraría sin preguntar nada.
+      onOk: async () => {
+        await deleteVisita(v.id);
+        push("Visita eliminada", "success");
+      },
+    });
   };
 
   const rango = `${weekStart.getDate()} ${MESES[weekStart.getMonth()].slice(0, 3)} — ${addDays(weekStart, 6).getDate()} ${MESES[addDays(weekStart, 6).getMonth()].slice(0, 3)}`;
@@ -231,6 +249,9 @@ export default function Agenda() {
           </label>
         </form>
       </Modal>
+
+      {/* Confirmación de eliminar visita — también del sistema. */}
+      {dialogo}
     </div>
   );
 }

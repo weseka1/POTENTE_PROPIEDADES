@@ -8,6 +8,7 @@ import Select from "@/components/Select";
 import Badge from "../components/Badge";
 import KpiCard from "../components/KpiCard";
 import Modal from "../components/Modal";
+import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { estadoArrendamiento } from "../ui/estados";
 import { cn } from "../ui/cn";
@@ -24,6 +25,8 @@ const mensualDe = (anualUSD: number) => Math.round(anualUSD / 12);
 
 export default function Arrendamientos() {
   const { push } = useToast();
+  // Confirmar por modal del sistema, cero `window.confirm` (pedido de Juani, 12-ago).
+  const { confirmar, dialogo } = useConfirmar();
   const { arrendamientos: allArr, getProp, propiedades, addArrendamiento, updateArrendamiento, deleteArrendamiento } = useData();
   const [open, setOpen] = useState(false);
 
@@ -57,12 +60,19 @@ export default function Arrendamientos() {
     push(`Contrato movido a “${estadoArrendamiento[estado].label}”`, "info");
   };
 
-  const eliminar = (a: Arrendamiento) => {
-    if (window.confirm(`¿Eliminar el contrato de ${a.arrendatario}? No se puede deshacer.`)) {
-      deleteArrendamiento(a.id);
-      push("Contrato eliminado", "success");
-    }
-  };
+  // El borrado y el aviso viven DENTRO de onOk: el modal es asíncrono, si algo
+  // queda afuera se borraría el contrato sin preguntar.
+  const eliminar = (a: Arrendamiento) =>
+    confirmar({
+      titulo: `¿Eliminar el contrato de ${a.arrendatario}?`,
+      detalle: `${fmtUSD(mensualDe(a.valorAnualUSD))}/mes, con vencimiento el ${fmtFecha(a.vencimientoISO)}. Se borra del sistema y no se puede deshacer.`,
+      boton: "Eliminar",
+      peligro: true,
+      onOk: async () => {
+        await deleteArrendamiento(a.id);
+        push("Contrato eliminado", "success");
+      },
+    });
 
   const renovar = async (a: Arrendamiento) => {
     const inicio = new Date();
@@ -239,6 +249,9 @@ export default function Arrendamientos() {
           </label>
         </form>
       </Modal>
+
+      {/* Confirmación de borrado — también del sistema, no del navegador. */}
+      {dialogo}
     </div>
   );
 }

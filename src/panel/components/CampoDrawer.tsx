@@ -6,6 +6,7 @@ import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
 import { SITIO, SITIO_LEGIBLE } from "@/config/marca";
 import Drawer from "./Drawer";
+import { useConfirmar } from "./Confirmar";
 import Badge from "./Badge";
 import CampoThumb from "./CampoThumb";
 import { Btn } from "./Controls";
@@ -27,6 +28,10 @@ export default function CampoDrawer({
   onDelete: (id: string) => void;
 }) {
   const navigate = useNavigate();
+  // Borrar una propiedad se confirma con el modal del sistema, no con el cuadro
+  // del navegador. Acá importa doble: es la cartera VIVA (Mateo la edita todos
+  // los días) y el botón está a un click del de "Plano".
+  const { confirmar, dialogo } = useConfirmar();
   const [activeFoto, setActiveFoto] = useState(0);
   // edición local de los campos editables (se sincroniza al abrir)
   const [titulo, setTitulo] = useState("");
@@ -293,12 +298,21 @@ export default function CampoDrawer({
               <Btn
                 variant="ghost"
                 className="text-red-700 hover:border-red-400/40 hover:text-red-200"
-                onClick={() => {
-                  if (window.confirm(`¿Eliminar “${prop.titulo}” de la cartera?`)) {
-                    onDelete(prop.id);
-                    onClose();
-                  }
-                }}
+                onClick={() =>
+                  confirmar({
+                    titulo: "¿Eliminar la propiedad de la cartera?",
+                    // El título de la propiedad va en el detalle, no en la
+                    // pregunta: algunos son larguísimos y romperían el encabezado.
+                    detalle: `“${prop.titulo}” sale del sistema y de la web pública. No se puede deshacer.`,
+                    boton: "Eliminar",
+                    peligro: true,
+                    // 🔴 Las DOS cosas van adentro: con el confirm del navegador
+                    // el código quedaba bloqueado hasta la respuesta; acá, si
+                    // `onClose()` quedara afuera, el drawer se cerraría antes de
+                    // que la persona decida.
+                    onOk: () => { onDelete(prop.id); onClose(); },
+                  })
+                }
               >
                 <Trash2 size={15} /> Eliminar
               </Btn>
@@ -306,6 +320,9 @@ export default function CampoDrawer({
           </div>
         </div>
       )}
+      {/* El confirmador sale por portal al body: adentro del Drawer (que se
+          desliza con transform) un modal fixed quedaría atrapado. */}
+      {dialogo}
     </Drawer>
   );
 }

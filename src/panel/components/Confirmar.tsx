@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Modal from "./Modal";
 import { Btn } from "./Controls";
 
@@ -41,6 +42,22 @@ export function useConfirmar() {
   const confirmar = useCallback((p: Pedido) => setPedido(p), []);
   const cerrar = useCallback(() => { if (!trabajando) setPedido(null); }, [trabajando]);
 
+  // 🔴 Con la confirmación abierta, Escape la cierra SOLO A ELLA. Sin esto,
+  // cuando la confirmación está encima de otro modal (borrar desde el detalle
+  // de un cliente), los dos escuchan `keydown` en window y un Escape cerraba
+  // los DOS: cancelabas y de paso perdías la ficha que estabas mirando.
+  // Fase de captura + stopImmediatePropagation = el de arriba gana.
+  useEffect(() => {
+    if (!pedido) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      if (!trabajando) setPedido(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [pedido, trabajando]);
+
   const ejecutar = async () => {
     if (!pedido || trabajando) return;
     setTrabajando(true);
@@ -52,7 +69,13 @@ export function useConfirmar() {
     }
   };
 
-  const dialogo = (
+  // 🔴 Va por PORTAL al <body>. Sin esto, un `{dialogo}` puesto adentro de algo
+  // con `transform` (el Drawer de Cartera se desliza con transform, los
+  // `reveal` de la web también) queda ATRAPADO en ese ancestro: `position:
+  // fixed` deja de ser relativo a la ventana y el cartel aparece corrido o
+  // recortado. Con el portal, el confirmador se puede usar en cualquier lugar
+  // del panel sin pensar dónde está montado.
+  const dialogo = createPortal(
     <Modal
       open={Boolean(pedido)}
       onClose={cerrar}
@@ -71,7 +94,8 @@ export function useConfirmar() {
       }
     >
       <p className="text-sm text-graph-500">{pedido?.detalle ?? "Esta acción no se puede deshacer."}</p>
-    </Modal>
+    </Modal>,
+    document.body,
   );
 
   return { confirmar, dialogo };

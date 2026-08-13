@@ -10,6 +10,7 @@ import Select from "@/components/Select";
 import Badge from "../components/Badge";
 import KpiCard from "../components/KpiCard";
 import Modal from "../components/Modal";
+import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { estadoTasacion } from "../ui/estados";
 import { cn } from "../ui/cn";
@@ -22,6 +23,9 @@ const ESTADOS_TAS: Tasacion["estado"][] = ["solicitada", "en_proceso", "entregad
 
 export default function Tasaciones() {
   const { push } = useToast();
+  // Las confirmaciones salen por el modal del sistema, cero `window.confirm`
+  // (pedido de Juani, 12-ago: el cartel del navegador no es nuestra herramienta).
+  const { confirmar, dialogo } = useConfirmar();
   const { tasaciones: allTas, addTasacion, updateTasacion, deleteTasacion } = useData();
   const [open, setOpen] = useState(false);
 
@@ -57,12 +61,21 @@ export default function Tasaciones() {
     push(`Tasación movida a “${estadoTasacion[estado].label}”`, "info");
   };
 
-  const eliminar = (t: Tasacion) => {
-    if (window.confirm(`¿Eliminar la tasación de ${t.solicitante}? No se puede deshacer.`)) {
-      deleteTasacion(t.id);
-      push("Tasación eliminada", "success");
-    }
-  };
+  // El borrado y el aviso van ADENTRO de onOk: el modal es asíncrono, así que
+  // cualquier línea que quede afuera se ejecutaría sin que nadie confirme nada.
+  const eliminar = (t: Tasacion) =>
+    confirmar({
+      titulo: `¿Eliminar la tasación de ${t.solicitante}?`,
+      // El alta solo exige el solicitante: sin zona, el detalle no puede
+      // arrancar con " · ".
+      detalle: `${[t.zona, `pedida el ${fmtFecha(t.fechaISO)}`].filter(Boolean).join(" · ")}. Se borra del sistema con su valuación y no se puede deshacer.`,
+      boton: "Eliminar",
+      peligro: true,
+      onOk: async () => {
+        await deleteTasacion(t.id);
+        push("Tasación eliminada", "success");
+      },
+    });
 
   const abrirEdicion = (t: Tasacion) => {
     setEditId(t.id);
@@ -216,6 +229,9 @@ export default function Tasaciones() {
           </label>
         </form>
       </Modal>
+
+      {/* Confirmación de borrado — también del sistema, no del navegador. */}
+      {dialogo}
     </div>
   );
 }

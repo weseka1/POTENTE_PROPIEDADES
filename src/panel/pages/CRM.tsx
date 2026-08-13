@@ -8,6 +8,7 @@ import { SearchInput, Segmented, Btn } from "../components/Controls";
 import Select from "@/components/Select";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
+import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { tipoCliente } from "../ui/estados";
 
@@ -70,6 +71,9 @@ function datosDesdeForm(form: FormState) {
 
 export default function CRM() {
   const { push } = useToast();
+  // Borrar un cliente se pregunta con el modal del sistema, no con el cartel gris
+  // del navegador (pedido de Juani, 12-ago: «debe pasar todo por el sistema»).
+  const { confirmar, dialogo } = useConfirmar();
   const { clientes: allClientes, addCliente, updateCliente, deleteCliente } = useData();
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState("todos");
@@ -113,10 +117,26 @@ export default function CRM() {
 
   const borrarCliente = () => {
     if (!sel) return;
-    if (!window.confirm(`¿Eliminar a ${sel.nombre} de la cartera de clientes?`)) return;
-    deleteCliente(sel.id);
-    push("Cliente eliminado", "success");
-    cerrarDetalle();
+    // Se copia el cliente ANTES de abrir el modal: el borrado ya no es sincrónico y
+    // `sel` puede quedar en null (cerrar el detalle) mientras la pregunta está abierta.
+    const c = sel;
+    confirmar({
+      titulo: `¿Eliminar a ${c.nombre} de la cartera?`,
+      // `?.` obligatorio: un tipo desconocido en la base tiraba TypeError ACÁ,
+      // antes de abrir el modal — y el botón Eliminar quedaba muerto.
+      detalle: `${tipoCliente[c.tipo]?.label ?? "Cliente"}${c.localidad ? ` de ${c.localidad}` : ""} · cliente desde ${fmtFecha(c.desdeISO)}. Se borra con sus notas y lo que busca, y no se puede deshacer.`,
+      boton: "Eliminar",
+      peligro: true,
+      // Todo lo que antes venía después del `window.confirm` vive acá adentro: si algo
+      // quedara afuera, el cliente se borraría sin preguntar.
+      // `await`: mientras la base responde el botón queda deshabilitado, así
+      // nadie borra dos veces por doble click impaciente.
+      onOk: async () => {
+        await deleteCliente(c.id);
+        push("Cliente eliminado", "success");
+        cerrarDetalle();
+      },
+    });
   };
 
   const counts = useMemo(() => {
@@ -291,6 +311,10 @@ export default function CRM() {
       >
         <ClienteForm form={form} setF={setF} />
       </Modal>
+
+      {/* Va último a propósito: se pregunta sobre el detalle abierto y los dos modales
+          comparten z-50, así que el que manda es el que se pinta después. */}
+      {dialogo}
     </div>
   );
 }

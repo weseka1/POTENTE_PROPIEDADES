@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import Plan3D from "./Plan3D";
 import Select from "@/components/Select";
+import { useConfirmar } from "./Confirmar";
+import { useToast } from "./Toast";
 
 type Pt = { x: number; y: number };
 type Shape = {
@@ -708,6 +710,11 @@ const TOOLS = [
 ];
 
 export default function PlanEditor({ propId, propName, propImg, onUsar }: { propId: string; propName: string; propImg?: string; onUsar?: (dataUrl: string) => void }) {
+  // Confirmaciones y avisos por el sistema: borrar un piso se pierde el dibujo,
+  // y los errores de guardado iban por `alert()` del navegador (feo y fuera de
+  // lugar en un editor a pantalla completa).
+  const { confirmar, dialogo } = useConfirmar();
+  const { push } = useToast();
   const wrapRef = useRef<HTMLDivElement>(null);
   const cvRef = useRef<HTMLCanvasElement>(null);
   const eng = useRef<ReturnType<typeof makeEngine> | null>(null);
@@ -770,8 +777,11 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
 
   const doSave = () => {
     const r = eng.current?.save(propId);
-    if (r === false) { alert("No se pudo guardar: el almacenamiento del navegador está lleno. Quitá la imagen de fondo o liberá espacio e intentá de nuevo."); return; }
-    if (r === "sin-fondo") alert("Plano guardado. La imagen de fondo era demasiado pesada y no se pudo guardar (el dibujo sí quedó). Para conservar el calco, usá una imagen más liviana.");
+    if (r === false) {
+      push("No se pudo guardar: el navegador se quedó sin espacio. Quitá la imagen de fondo y probá de nuevo.", "error");
+      return;
+    }
+    if (r === "sin-fondo") push("Plano guardado. La imagen de fondo era muy pesada y no entró (el dibujo sí).", "info");
     setSaved(true); setTimeout(() => setSaved(false), 1600);
   };
   const go3d = () => { setStack3d((eng.current as any)?.getStack() || []); setFloor3d(-1); setView3d(true); };
@@ -786,8 +796,20 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
   const addFloor = (copy: boolean) => { const f = (eng.current as any)?.addFloor(copy); if (f) { setFloors(f); setActive(f.length - 1); } };
   const delFloor = () => {
     if (floors.length <= 1) return;
-    if (!window.confirm(`¿Eliminar "${floors[active]}"?\nSe borra todo lo dibujado en ese piso y no se puede deshacer.`)) return;
-    const f = (eng.current as any)?.removeFloor(active); if (f) { setFloors(f); setActive((eng.current as any)?.activeFloor?.() ?? 0); }
+    // El piso y el índice se capturan ACÁ: el modal es asíncrono y para cuando
+    // la persona confirma, `active` pudo cambiar (se puede tocar otro piso).
+    const piso = floors[active];
+    const i = active;
+    confirmar({
+      titulo: `¿Eliminar “${piso}”?`,
+      detalle: "Se borra todo lo dibujado en ese piso y no se puede deshacer.",
+      boton: "Eliminar el piso",
+      peligro: true,
+      onOk: () => {
+        const f = (eng.current as any)?.removeFloor(i);
+        if (f) { setFloors(f); setActive((eng.current as any)?.activeFloor?.() ?? 0); }
+      },
+    });
   };
   const copyBelow = () => { (eng.current as any)?.copyFromBelow?.(); };
 
@@ -1047,6 +1069,8 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
           </div>
         )}
       </div>
+      {/* Por portal al body: el editor tiene capas con transform. */}
+      {dialogo}
     </div>
   );
 }
