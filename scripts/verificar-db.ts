@@ -242,7 +242,7 @@ async function main() {
   // públicas (la comisión y la tarifa por noche quedan adentro).
   const temporada = await anon
     .from("potente_unidades_temporada")
-    .select('id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,tarifas,activa');
+    .select('id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,activa');
   chequear(
     "Lee las unidades de temporada activas",
     !temporada.error && (temporada.data?.length ?? 0) > 0,
@@ -505,14 +505,25 @@ async function main() {
   chequear(
     "🔒 El visitante NO ve la comisión de las unidades de temporada",
     Boolean(tempCruda.error) || tempCruda.data?.[0]?.comisionPct === undefined,
-    tempCruda.error ? `bloqueado (${tempCruda.error.code})` : "🔴 EXPUESTA · correr la parte B de la migración 012",
+    tempCruda.error ? `bloqueado (${tempCruda.error.code})` : "🔴 EXPUESTA · correr 012_ficha_cerrada.sql",
+  );
+
+  /* 🔴 «Los precios de temporada deben decir todos a consultar. No debemos dar
+   * referencia de precios» (Mateo, 13-ago). La web dice "A consultar", pero si
+   * la tarifa igual viajara en la respuesta el precio se leería en la pestaña de
+   * red. Lo corta la migración 013. */
+  const tarifas = await anon.from("potente_unidades_temporada").select("id,tarifas").limit(1);
+  chequear(
+    "🔒 …ni las TARIFAS de temporada (no se publican precios)",
+    Boolean(tarifas.error) || tarifas.data?.[0]?.tarifas === undefined,
+    tarifas.error ? `bloqueado (${tarifas.error.code})` : "🔴 EXPUESTAS · correr 013_tarifas_no_se_publican.sql",
   );
 
   /* …pero lo que la web SÍ necesita de temporada tiene que seguir llegando, o
    * la página queda vacía. Es la otra mitad del candado. */
   const tempPublica = await anon
     .from("potente_unidades_temporada")
-    .select('id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,tarifas,activa')
+    .select('id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,activa')
     .limit(1);
   chequear(
     "…y la web sigue leyendo lo que necesita de temporada",
