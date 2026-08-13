@@ -39,13 +39,22 @@ import Modal from "../components/Modal";
 import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { ESTADOS_LLAVE, verEstadoLlave, verMovimientoLlave } from "../ui/estados";
+import { useProfiles } from "../profiles";
 import { sinTildes } from "@/site/lib/parseBusqueda";
 import { cn } from "../ui/cn";
 
 const inputCls =
   "h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60 focus:ring-2 focus:ring-brand/15";
 
-const BLANCO = { numero: "", propietario: "", direccion: "", notas: "" };
+/** Los dos llaveros físicos. Una llave vive en UNO: no existe un llavero central. */
+const LLAVEROS = [
+  { value: "chauvin", label: "Chauvín" },
+  { value: "puntamogotes", label: "Punta Mogotes" },
+] as const;
+type Llavero = (typeof LLAVEROS)[number]["value"];
+const nombreLlavero = (o?: string) => LLAVEROS.find((l) => l.value === o)?.label ?? "Sin llavero";
+
+const BLANCO = { numero: "", propietario: "", direccion: "", notas: "", oficina: "" };
 type FormLlave = typeof BLANCO;
 
 export default function Llaves() {
@@ -54,6 +63,16 @@ export default function Llaves() {
   // `window.confirm` / `window.prompt` (pedido de Juani, 12-ago).
   const { confirmar, dialogo } = useConfirmar();
   const { llaves, movimientosLlave, addLlave, updateLlave, deleteLlave, addMovimientoLlave } = useData();
+  // 🔴 De qué llavero es la llave que se está cargando. Sale del PERFIL ACTIVO
+  // —el mismo que usa `DataScope` para filtrar—, no del token: Mateo entra como
+  // dirección y después elige perfil, así que el token diría "sin oficina"
+  // aunque esté parado en Punta Mogotes.
+  // Cicatriz del 13-ago: el alta no mandaba `oficina`, la llave nacía en NULL
+  // ("central"), la oficina NO la veía (DataScope filtra por igualdad) y el
+  // número chocaba contra el índice único de central. Un dato faltante, dos
+  // síntomas: la llave invisible y el error al registrar.
+  const { activo } = useProfiles();
+  const oficinaPerfil = activo?.oficina as Llavero | undefined;
 
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState<"todos" | EstadoLlave>("todos");
@@ -120,18 +139,29 @@ export default function Llaves() {
       push("Poné al menos el apellido del dueño o la dirección", "error");
       return;
     }
+    // El llavero destino: el del perfil activo, o el que eligió la dirección.
+    // Sin llavero NO se guarda: una llave sin oficina no la ve ninguna oficina.
+    const destino = (oficinaPerfil ?? (form.oficina || undefined)) as Llavero | undefined;
+    if (!destino) {
+      push("Elegí a qué llavero entra la llave", "error");
+      return;
+    }
     const numero = form.numero.trim() ? Number(form.numero) : undefined;
     if (numero !== undefined && (!Number.isInteger(numero) || numero <= 0)) {
       push("El número de llave tiene que ser un entero mayor a cero", "error");
       return;
     }
-    if (numero !== undefined && llaves.some((l) => l.numero === numero)) {
-      push(`El número ${numero} ya está usado en este llavero`, "error");
+    // El número es único POR LLAVERO (así lo exige el índice de la base), así que
+    // se compara contra ese llavero. Antes miraba la lista visible: para la
+    // dirección —que las ve todas— eso daba falsos choques entre oficinas.
+    if (numero !== undefined && llaves.some((l) => l.oficina === destino && l.numero === numero)) {
+      push(`El número ${numero} ya está usado en el llavero de ${nombreLlavero(destino)}`, "error");
       return;
     }
     const id = "LLV-" + Date.now().toString(36);
     const nueva: Llave = {
       id,
+      oficina: destino,
       numero,
       propietario: form.propietario.trim() || undefined,
       direccion: form.direccion.trim() || undefined,
@@ -206,6 +236,29 @@ export default function Llaves() {
     if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
     await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "devolucion", fechaISO: hoyISO(), persona: quien });
     push("Anotado: volvió al llavero ✓", "success");
+  };
+
+  /* ── Llaves sin llavero ────────────────────────────────────────────────────
+   * Las que se cargaron antes del fix del 13-ago quedaron con `oficina` vacía:
+   * las ve la dirección y NINGUNA oficina. No se les adivina el llavero —el dato
+   * es del cliente—, así que se marcan y las asigna quien sabe. */
+  const asignarLlavero = async (l: Llave, destino: Llavero) => {
+    // El número es único por llavero: si en el destino ya está ocupado, se avisa
+    // acá en vez de dejar que la base rechace con un error de índice.
+    if (l.numero !== undefined && llaves.some((o) => o.id !== l.id && o.oficina === destino && o.numero === l.numero)) {
+      push(`En ${nombreLlavero(destino)} el número ${l.numero} ya está usado`, "error");
+      return;
+    }
+    const r = await updateLlave(l.id, { oficina: destino });
+    if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
+    await addMovimientoLlave({
+      id: "MOV-" + Date.now().toString(36),
+      llaveId: l.id,
+      tipo: "nota",
+      fechaISO: hoyISO(),
+      nota: `Asignada al llavero de ${nombreLlavero(destino)}`,
+    });
+    push(`Quedó en el llavero de ${nombreLlavero(destino)} ✓`, "success");
   };
 
   const marcarSinUbicar = (l: Llave) =>
@@ -331,9 +384,18 @@ export default function Llaves() {
                         ) : (
                           "—"
                         )}
+                        {/* La dirección ve los dos llaveros juntos: sin esto no
+                            sabe de cuál es cada llave. Una oficina ya lo sabe. */}
+                        {!oficinaPerfil && l.oficina && (
+                          <span className="mt-0.5 block text-[11px] text-graph-400">{nombreLlavero(l.oficina)}</span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <Badge tone={e.tone} dot>{e.label}</Badge>
+                        {/* Sin llavero = invisible para las oficinas. Se canta. */}
+                        {!l.oficina && (
+                          <span className="mt-1 block text-[12px] font-medium text-amber-600">Sin llavero asignado</span>
+                        )}
                         {l.estado === "entregada" && l.enPoderDe && (
                           <span className="mt-1 block text-[12px] text-graph-400">
                             {l.enPoderDe}
@@ -383,6 +445,21 @@ export default function Llaves() {
                             {l.estado !== "perdida" && <Btn variant="ghost" onClick={() => marcarSinUbicar(l)}>Sin ubicar</Btn>}
                             <Btn variant="ghost" onClick={() => alternarAbierta(l.id)} className="ml-auto"><ChevronUp size={15} /> Cerrar</Btn>
                           </div>
+
+                          {/* Reparación de las llaves viejas sin llavero: se
+                              asigna acá, con el dato de quien sabe. */}
+                          {!l.oficina && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2.5">
+                              <p className="text-[13px] text-graph-500">
+                                Esta llave no está en ningún llavero, así que <b className="text-graph">no la ve ninguna oficina</b>. ¿A cuál va?
+                              </p>
+                              <div className="ml-auto flex gap-2">
+                                {LLAVEROS.map((o) => (
+                                  <Btn key={o.value} variant="soft" onClick={() => asignarLlavero(l, o.value)}>{o.label}</Btn>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {l.notas && (
                             <p className="mt-3 max-w-prose rounded-xl bg-graph/[0.04] px-3 py-2 text-[13px] text-graph-500">{l.notas}</p>
@@ -467,6 +544,37 @@ export default function Llaves() {
             <span className="mb-1 block text-xs font-semibold text-graph-400">Notas (opcional)</span>
             <textarea className={cn(inputCls, "h-auto resize-y py-2.5")} rows={2} placeholder="Juego completo: portón, puerta y reja…" value={form.notas} onChange={(ev) => set("notas", ev.target.value)} />
           </label>
+
+          {/* El llavero. Una oficina no elige: la llave es del llavero donde está
+              parada. La dirección SÍ elige, porque no tiene uno propio — y si no
+              eligiera, la llave quedaría sin oficina y no la vería nadie. */}
+          {oficinaPerfil ? (
+            <p className="text-[12px] text-graph-400 sm:col-span-2">
+              Entra al llavero de <b className="text-graph-500">{nombreLlavero(oficinaPerfil)}</b>.
+            </p>
+          ) : (
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">¿A qué llavero entra?</span>
+              <div className="flex flex-wrap gap-2">
+                {LLAVEROS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => set("oficina", o.value)}
+                    className={cn(
+                      "h-10 rounded-xl border px-4 text-sm font-medium transition",
+                      form.oficina === o.value
+                        ? "border-brand/60 bg-brand/10 text-brand-700"
+                        : "border-graph/10 bg-graph/[0.04] text-graph-500 hover:bg-graph/[0.07]",
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </label>
+          )}
+
           <p className="text-[12px] text-graph-400 sm:col-span-2">
             La llave entra al llavero como <b className="text-graph-500">en la oficina</b>. No hace falta que el inmueble esté cargado en el sistema.
           </p>

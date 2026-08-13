@@ -114,12 +114,32 @@ chequear("El alta pide número, apellido del dueño y dirección", campos.numero
 await escribir("12", String(NUM));
 await escribir("Gutiérrez", APELLIDO);
 await escribir("Córdoba 3712, Chauvín", "Calle de prueba 123");
+
+/* 🔴 EL BUG DEL 13-ago. El alta no mandaba `oficina`: la llave nacía "sin
+ * llavero", NINGUNA oficina la veía (el scope filtra por igualdad) y el número
+ * chocaba contra el índice único de la central. Mateo lo grabó: «me tira este
+ * error… en admin me aparece, pero no en la oficina donde la cargué».
+ * Estas tres pruebas cierran esa puerta. La sesión es de DIRECCIÓN, que no
+ * tiene llavero propio y por eso tiene que elegir uno. */
+await clickBoton("Registrar");
+await new Promise((r) => setTimeout(r, 1200));
+const sinElegir = await evaluar(`
+  return JSON.stringify({
+    sigueAbierto: Boolean(document.querySelector('[role="dialog"]')),
+    aviso: (document.body.innerText || "").includes("Elegí a qué llavero"),
+  });
+`);
+const se = JSON.parse(sinElegir);
+chequear("🔑 Sin elegir llavero NO guarda, y lo dice", se.sigueAbierto && se.aviso, sinElegir);
+
+await clickBoton("Punta Mogotes");
 await clickBoton("Registrar");
 await new Promise((r) => setTimeout(r, 2500));
 
 const trasAlta = await filaSonda();
 chequear("La llave nueva aparece en la lista con su número", trasAlta.includes(String(NUM)), trasAlta.slice(0, 60));
 chequear("…y nace EN LA OFICINA", trasAlta.includes("En la oficina"));
+chequear("🔑 …y queda en el llavero elegido, no huérfana", trasAlta.includes("Punta Mogotes") && !trasAlta.includes("Sin llavero"), trasAlta.slice(0, 90));
 
 /* ── El historial de ESA llave se abre y se cierra (pedido 12-ago) ─────────── */
 await clickFilaSonda();
