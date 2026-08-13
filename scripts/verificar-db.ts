@@ -224,11 +224,30 @@ async function main() {
 
   const anon = createClient(URL, KEY, { auth: { persistSession: false } });
 
-  const catalogo = await contar(anon, "potente_propiedades");
-  chequear("Lee el catálogo publicado", catalogo > 0, `${catalogo} propiedades`);
+  // 🔴 Desde la migración 012 el visitante NO puede leer la tabla cruda: lee la
+  // VISTA, que es lo que hace la web. Antes esto contaba sobre la tabla y por
+  // eso pasaba en verde mientras la ficha se filtraba — la prueba medía el
+  // permiso equivocado.
+  const catalogo = await contar(anon, "potente_propiedades_web");
+  chequear("Lee el catálogo publicado (por la vista)", catalogo > 0, `${catalogo} propiedades`);
 
-  const temporada = await contar(anon, "potente_unidades_temporada");
-  chequear("Lee las unidades de temporada activas", temporada > 0, `${temporada} unidades`);
+  const crudo = await contar(anon, "potente_propiedades");
+  chequear(
+    "🔒 …y NO puede leer la tabla cruda con `*`",
+    crudo === -1,
+    crudo === -1 ? "bloqueado" : `🔴 ${crudo} filas · correr 012_ficha_cerrada.sql`,
+  );
+
+  // Temporada no tiene vista: el visitante lee la tabla, pero SOLO las columnas
+  // públicas (la comisión y la tarifa por noche quedan adentro).
+  const temporada = await anon
+    .from("potente_unidades_temporada")
+    .select('id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,tarifas,activa');
+  chequear(
+    "Lee las unidades de temporada activas",
+    !temporada.error && (temporada.data?.length ?? 0) > 0,
+    temporada.error?.message?.slice(0, 60) ?? `${temporada.data?.length} unidades`,
+  );
 
   // La web tiene que leer la VISTA, no la tabla: la ficha interna (propietario,
   // llaves, observaciones) no puede viajar al navegador de un desconocido.
@@ -236,8 +255,9 @@ async function main() {
   chequear("La vista pública existe y responde", !vista.error && (vista.data?.length ?? 0) > 0, vista.error?.message ?? "");
   chequear("La vista NO trae la ficha interna", !("ficha" in (vista.data?.[0] ?? { ficha: 1 })));
 
+  // La vista es la única puerta del visitante, así que su cuenta ES el catálogo.
   const catalogoVista = await contar(anon, "potente_propiedades_web");
-  chequear("La vista muestra el mismo catálogo que la web", catalogoVista === catalogo, `${catalogoVista} propiedades`);
+  chequear("La vista muestra el catálogo completo", catalogoVista === catalogo && catalogoVista > 0, `${catalogoVista} propiedades`);
 
   for (const tabla of [
     "potente_clientes", "potente_leads", "potente_conversaciones",
