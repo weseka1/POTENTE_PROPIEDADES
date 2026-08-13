@@ -26,8 +26,8 @@
 // es un solo botón que crea el movimiento y mueve la llave. Si se separan, la
 // lista miente — y la lista es todo el valor de esta pantalla.
 // ═════════════════════════════════════════════════════════════════════════════
-import { useMemo, useState } from "react";
-import { KeyRound, Plus, Trash2, ArrowRightLeft, Undo2, StickyNote, X, MapPin } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Plus, Trash2, ArrowRightLeft, Undo2, StickyNote, MapPin, ChevronRight, ChevronLeft, ChevronUp } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { hoyISO } from "@/lib/fechas";
 import { fmtFechaCorta } from "@/lib/format";
@@ -36,6 +36,7 @@ import { PageHeader, EmptyState } from "../components/PageShell";
 import { SearchInput, FilterSelect, Btn } from "../components/Controls";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
+import { useConfirmar } from "../components/Confirmar";
 import { useToast } from "../components/Toast";
 import { ESTADOS_LLAVE, verEstadoLlave, verMovimientoLlave } from "../ui/estados";
 import { sinTildes } from "@/site/lib/parseBusqueda";
@@ -49,6 +50,9 @@ type FormLlave = typeof BLANCO;
 
 export default function Llaves() {
   const { push } = useToast();
+  // Confirmaciones y pedidos de dato: TODO por modales del sistema, cero
+  // `window.confirm` / `window.prompt` (pedido de Juani, 12-ago).
+  const { confirmar, dialogo } = useConfirmar();
   const { llaves, movimientosLlave, addLlave, updateLlave, deleteLlave, addMovimientoLlave } = useData();
 
   const [q, setQ] = useState("");
@@ -57,10 +61,21 @@ export default function Llaves() {
   const [alta, setAlta] = useState(false);
   const [form, setForm] = useState<FormLlave>(BLANCO);
   const set = (k: keyof FormLlave, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  // La llave abierta en el panel lateral. Se guarda el ID y se resuelve EN VIVO
-  // del contexto, así el historial refleja cada movimiento al instante.
-  const [selId, setSelId] = useState<string | null>(null);
-  const sel = selId ? llaves.find((l) => l.id === selId) ?? null : null;
+  // El historial de CADA llave se abre y se cierra por separado (pedido de
+  // Juani, 12-ago: «que cada menú se pueda agrandar y achicar de cada llave»).
+  // Se guardan los IDS abiertos, no las llaves: así el detalle se resuelve EN
+  // VIVO del contexto y refleja cada movimiento al instante.
+  const [abiertas, setAbiertas] = useState<Set<string>>(new Set());
+  const alternarAbierta = (id: string) =>
+    setAbiertas((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  // Paginado: el llavero de Mateo va a tener ~300 números («que vaya por
+  // página»). 20 por hoja entra en una pantalla sin scroll infinito.
+  const POR_PAGINA = 20;
+  const [pagina, setPagina] = useState(1);
 
   const porEstado = useMemo(
     () => llaves.reduce<Record<string, number>>((a, l) => ({ ...a, [l.estado]: (a[l.estado] ?? 0) + 1 }), {}),
@@ -83,6 +98,16 @@ export default function Llaves() {
         : (a.propietario ?? "").localeCompare(b.propietario ?? "", "es", { sensitivity: "base" }),
     );
   }, [llaves, q, estado, orden]);
+
+  // Cualquier cambio de filtro vuelve a la hoja 1: si no, se filtra estando en
+  // la página 7 y la lista aparece vacía sin motivo aparente.
+  useEffect(() => { setPagina(1); }, [q, estado, orden]);
+
+  const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+  // Si se borran llaves y la hoja actual se queda sin nada, se retrocede sola.
+  const paginaSegura = Math.min(pagina, paginas);
+  const desde = (paginaSegura - 1) * POR_PAGINA;
+  const enPantalla = lista.slice(desde, desde + POR_PAGINA);
 
   const movimientosDe = (llaveId: string) =>
     movimientosLlave
@@ -134,14 +159,45 @@ export default function Llaves() {
   };
 
   /* ── Movimientos: el estado y su explicación viajan juntos ─────────────── */
-  const entregar = async (l: Llave) => {
-    const persona = window.prompt(`¿A quién le entregás la llave ${l.numero ? `Nº ${l.numero}` : ""}?\n(propietario, albañil, inquilino…)`);
-    if (persona === null) return;
-    if (!persona.trim()) { push("Hace falta el nombre de quien se la lleva", "error"); return; }
-    const r = await updateLlave(l.id, { estado: "entregada", enPoderDe: persona.trim(), entregadaISO: hoyISO() });
+  // 🔴 Los datos se piden con un modal NUESTRO, nunca con `window.prompt`: el
+  // cuadro gris del navegador ("potente-propiedades.onrender.com dice…") es
+  // exactamente el look que el estándar de la casa no permite, y encima no deja
+  // pedir la fecha ni una nota. Lo cazó Juani probando el módulo (12-ago).
+  const [accion, setAccion] = useState<{ llave: Llave; tipo: "entrega" | "nota" } | null>(null);
+  const [aQuien, setAQuien] = useState("");
+  const [cuando, setCuando] = useState(hoyISO());
+  const [detalle, setDetalle] = useState("");
+
+  const abrirAccion = (llave: Llave, tipo: "entrega" | "nota") => {
+    setAQuien("");
+    setCuando(hoyISO());
+    setDetalle("");
+    setAccion({ llave, tipo });
+  };
+
+  const confirmarAccion = async () => {
+    if (!accion) return;
+    const { llave: l, tipo } = accion;
+    const quien = aQuien.trim();
+    const nota = detalle.trim();
+    const fecha = cuando || hoyISO();
+
+    if (tipo === "entrega") {
+      if (!quien) { push("Poné a quién se la llevás", "error"); return; }
+      const r = await updateLlave(l.id, { estado: "entregada", enPoderDe: quien, entregadaISO: fecha });
+      if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
+      const rm = await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "entrega", fechaISO: fecha, persona: quien, nota: nota || undefined });
+      if (!rm.ok) { push(`La llave se movió pero el movimiento no se guardó: ${rm.error ?? "error de la base"}`, "error"); return; }
+      setAccion(null);
+      push(`Anotado: se la llevó ${quien}`, "success");
+      return;
+    }
+
+    if (!nota) { push("Escribí la anotación", "error"); return; }
+    const r = await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "nota", fechaISO: fecha, nota });
     if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
-    await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "entrega", fechaISO: hoyISO(), persona: persona.trim() });
-    push(`Anotado: se la llevó ${persona.trim()}`, "success");
+    setAccion(null);
+    push("Anotación guardada ✓", "success");
   };
 
   const devolver = async (l: Llave) => {
@@ -152,29 +208,33 @@ export default function Llaves() {
     push("Anotado: volvió al llavero ✓", "success");
   };
 
-  const marcarSinUbicar = async (l: Llave) => {
-    if (!window.confirm(`¿Marcar la llave ${l.numero ? `Nº ${l.numero}` : ""} como SIN UBICAR?`)) return;
-    const r = await updateLlave(l.id, { estado: "perdida" });
-    if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
-    await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "nota", fechaISO: hoyISO(), nota: "Marcada como sin ubicar" });
-    push("Marcada como sin ubicar", "info");
-  };
+  const marcarSinUbicar = (l: Llave) =>
+    confirmar({
+      titulo: `¿Marcar como sin ubicar?`,
+      detalle: `La llave ${l.numero ? `Nº ${l.numero} ` : ""}de ${l.propietario || l.direccion || "—"} queda marcada para buscarla. Se anota en su historial y se puede revertir cuando aparezca.`,
+      boton: "Marcar sin ubicar",
+      onOk: async () => {
+        const r = await updateLlave(l.id, { estado: "perdida" });
+        if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
+        await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "nota", fechaISO: hoyISO(), nota: "Marcada como sin ubicar" });
+        push("Marcada como sin ubicar", "info");
+      },
+    });
 
-  const anotar = async (l: Llave) => {
-    const nota = window.prompt("Anotación (queda en el historial de esta llave):");
-    if (nota === null || !nota.trim()) return;
-    const r = await addMovimientoLlave({ id: "MOV-" + Date.now().toString(36), llaveId: l.id, tipo: "nota", fechaISO: hoyISO(), nota: nota.trim() });
-    if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
-    push("Anotación guardada ✓", "success");
-  };
-
-  const borrar = async (l: Llave) => {
-    if (!window.confirm(`¿Borrar la llave ${l.numero ? `Nº ${l.numero} ` : ""}de ${l.propietario || l.direccion || "—"}?\nSe borra también su historial. No se puede deshacer.`)) return;
-    const r = await deleteLlave(l.id);
-    if (!r.ok) { push(`No se pudo borrar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
-    if (selId === l.id) setSelId(null);
-    push("Llave borrada", "success");
-  };
+  const borrar = (l: Llave) =>
+    confirmar({
+      titulo: "¿Borrar la llave del registro?",
+      detalle: `${l.numero ? `Nº ${l.numero} · ` : ""}${l.propietario || l.direccion || "—"}. Se borra también todo su historial y no se puede deshacer.`,
+      boton: "Borrar",
+      peligro: true,
+      onOk: async () => {
+        const r = await deleteLlave(l.id);
+        if (!r.ok) { push(`No se pudo borrar: ${r.error ?? "la base rechazó el cambio"}`, "error"); return; }
+        // Si su historial estaba abierto, se cierra con ella.
+        setAbiertas((prev) => { const s = new Set(prev); s.delete(l.id); return s; });
+        push("Llave borrada", "success");
+      },
+    });
 
   return (
     <div>
@@ -229,6 +289,7 @@ export default function Llaves() {
             <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b border-graph/[0.07] bg-graph/[0.03] text-left text-xs font-semibold uppercase tracking-wide text-graph-400">
+                  <th className="w-10 px-2 py-3"><span className="sr-only">Abrir historial</span></th>
                   <th className="px-5 py-3">Nº</th>
                   <th className="px-5 py-3">Propietario</th>
                   <th className="px-5 py-3">Dirección</th>
@@ -237,15 +298,25 @@ export default function Llaves() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-graph/[0.07]">
-                {lista.map((l) => {
+                {enPantalla.map((l) => {
                   const e = verEstadoLlave(l.estado);
                   const historial = movimientosDe(l.id);
+                  const abierta = abiertas.has(l.id);
                   return (
+                    <Fragment key={l.id}>
                     <tr
-                      key={l.id}
-                      onClick={() => setSelId(l.id)}
-                      className={cn("cursor-pointer transition hover:bg-graph/[0.03]", selId === l.id && "bg-brand/[0.04]")}
+                      onClick={() => alternarAbierta(l.id)}
+                      className={cn("cursor-pointer transition hover:bg-graph/[0.03]", abierta && "bg-brand/[0.04]")}
                     >
+                      <td className="px-2 py-3.5 text-center">
+                        {/* El chevron dice si el historial está abierto. La fila
+                            entera es el botón, así que acá no hace falta otro. */}
+                        <ChevronRight
+                          size={16}
+                          className={cn("mx-auto text-graph-400 transition-transform", abierta && "rotate-90 text-brand")}
+                          aria-hidden
+                        />
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className="inline-grid h-9 min-w-9 place-items-center rounded-xl bg-brand/10 px-2 font-display text-sm font-semibold text-brand-700">
                           {l.numero ?? "—"}
@@ -279,7 +350,7 @@ export default function Llaves() {
                       <td className="px-5 py-3.5 text-right" onClick={(ev) => ev.stopPropagation()}>
                         <div className="inline-flex items-center gap-1">
                           {l.estado === "en_oficina" ? (
-                            <IconBtn title="Se la lleva alguien" onClick={() => entregar(l)}>
+                            <IconBtn title="Se la lleva alguien" onClick={() => abrirAccion(l, "entrega")}>
                               <ArrowRightLeft size={15} />
                             </IconBtn>
                           ) : (
@@ -287,7 +358,7 @@ export default function Llaves() {
                               <Undo2 size={15} />
                             </IconBtn>
                           )}
-                          <IconBtn title="Anotar algo" onClick={() => anotar(l)}>
+                          <IconBtn title="Anotar algo" onClick={() => abrirAccion(l, "nota")}>
                             <StickyNote size={15} />
                           </IconBtn>
                           <IconBtn title="Borrar la llave y su historial" peligro onClick={() => borrar(l)}>
@@ -296,25 +367,74 @@ export default function Llaves() {
                         </div>
                       </td>
                     </tr>
+
+                    {/* El historial de ESTA llave, adentro de la lista. Se abre y
+                        se cierra sin tocar las demás. */}
+                    {abierta && (
+                      <tr className="bg-brand/[0.02]">
+                        <td colSpan={6} className="px-5 pb-5 pt-1">
+                          <div className="flex flex-wrap items-center gap-2 border-t border-graph/[0.07] pt-4">
+                            {l.estado === "en_oficina" ? (
+                              <Btn variant="soft" onClick={() => abrirAccion(l, "entrega")}><ArrowRightLeft size={15} /> Se la lleva alguien</Btn>
+                            ) : (
+                              <Btn variant="soft" onClick={() => devolver(l)}><Undo2 size={15} /> Volvió al llavero</Btn>
+                            )}
+                            <Btn variant="ghost" onClick={() => abrirAccion(l, "nota")}><StickyNote size={15} /> Anotar</Btn>
+                            {l.estado !== "perdida" && <Btn variant="ghost" onClick={() => marcarSinUbicar(l)}>Sin ubicar</Btn>}
+                            <Btn variant="ghost" onClick={() => alternarAbierta(l.id)} className="ml-auto"><ChevronUp size={15} /> Cerrar</Btn>
+                          </div>
+
+                          {l.notas && (
+                            <p className="mt-3 max-w-prose rounded-xl bg-graph/[0.04] px-3 py-2 text-[13px] text-graph-500">{l.notas}</p>
+                          )}
+
+                          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-graph-400">Historial</p>
+                          <ol className="mt-2 space-y-2.5">
+                            {historial.length === 0 && <li className="text-sm text-graph-400">Todavía no hay movimientos anotados.</li>}
+                            {historial.map((m) => {
+                              const t = verMovimientoLlave(m.tipo);
+                              return (
+                                <li key={m.id} className="border-l-2 border-graph/10 pl-4">
+                                  <p className="flex flex-wrap items-center gap-2 text-sm">
+                                    <Badge tone={t.tone}>{t.label}</Badge>
+                                    {m.persona && <span className="font-medium text-graph">{m.persona}</span>}
+                                    <span className="text-[12px] text-graph-400">{m.fechaISO ? fmtFechaCorta(m.fechaISO) : ""}</span>
+                                  </p>
+                                  {m.nota && m.nota !== t.label && <p className="mt-1 text-[13px] text-graph-500">{m.nota}</p>}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
 
-      {/* ── El historial de UNA llave ──────────────────────────────────────── */}
-      {sel && (
-        <PanelHistorial
-          llave={sel}
-          movimientos={movimientosDe(sel.id)}
-          onCerrar={() => setSelId(null)}
-          onEntregar={() => entregar(sel)}
-          onDevolver={() => devolver(sel)}
-          onAnotar={() => anotar(sel)}
-          onSinUbicar={() => marcarSinUbicar(sel)}
-        />
+          {/* ── Paginado ─────────────────────────────────────────────────────
+              «que vaya por página»: con 300 llaves una lista sola es inusable.
+              Solo aparece si hay más de una hoja: con 12 llaves no molesta. */}
+          {paginas > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-graph/[0.07] px-5 py-3">
+              <p className="text-[13px] text-graph-400">
+                Llaves {desde + 1}–{Math.min(desde + POR_PAGINA, lista.length)} de {lista.length}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <Btn variant="ghost" onClick={() => setPagina(Math.max(1, paginaSegura - 1))}>
+                  <ChevronLeft size={15} /> Anterior
+                </Btn>
+                <span className="px-2 text-sm font-semibold tabular-nums text-graph">{paginaSegura} / {paginas}</span>
+                <Btn variant="ghost" onClick={() => setPagina(Math.min(paginas, paginaSegura + 1))}>
+                  Siguiente <ChevronRight size={15} />
+                </Btn>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Alta ──────────────────────────────────────────────────────────── */}
@@ -352,6 +472,60 @@ export default function Llaves() {
           </p>
         </form>
       </Modal>
+
+      {/* ── Entregar / anotar: el modal del sistema, no el del navegador ────── */}
+      <Modal
+        open={Boolean(accion)}
+        onClose={() => setAccion(null)}
+        title={accion?.tipo === "entrega" ? "¿Quién se lleva la llave?" : "Anotar en el historial"}
+        subtitle={
+          accion
+            ? `${accion.llave.numero ? `Nº ${accion.llave.numero} · ` : ""}${accion.llave.propietario || accion.llave.direccion || "—"}`
+            : undefined
+        }
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setAccion(null)}>Cancelar</Btn>
+            <Btn variant="primary" onClick={confirmarAccion}>
+              {accion?.tipo === "entrega" ? "Anotar la entrega" : "Guardar"}
+            </Btn>
+          </>
+        }
+      >
+        <form className="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={(ev) => { ev.preventDefault(); void confirmarAccion(); }}>
+          {accion?.tipo === "entrega" && (
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-xs font-semibold text-graph-400">Se la lleva</span>
+              <input
+                className={inputCls}
+                placeholder="Propietario, albañil, inquilino, otra inmobiliaria…"
+                value={aQuien}
+                onChange={(ev) => setAQuien(ev.target.value)}
+                autoFocus
+              />
+            </label>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-graph-400">Fecha</span>
+            <input type="date" className={inputCls} value={cuando} onChange={(ev) => setCuando(ev.target.value)} />
+          </label>
+          <label className={cn("block", accion?.tipo === "entrega" ? "" : "sm:col-span-2")}>
+            <span className="mb-1 block text-xs font-semibold text-graph-400">
+              {accion?.tipo === "entrega" ? "Nota (opcional)" : "Anotación"}
+            </span>
+            <input
+              className={inputCls}
+              placeholder={accion?.tipo === "entrega" ? "Refacción del baño, avisa cuando termina…" : "Lo que quieras dejar asentado"}
+              value={detalle}
+              onChange={(ev) => setDetalle(ev.target.value)}
+              autoFocus={accion?.tipo === "nota"}
+            />
+          </label>
+        </form>
+      </Modal>
+
+      {/* Confirmaciones (borrar, marcar sin ubicar) — también del sistema. */}
+      {dialogo}
     </div>
   );
 }
@@ -372,71 +546,6 @@ function IconBtn({ children, title, onClick, peligro }: { children: React.ReactN
     >
       {children}
     </button>
-  );
-}
-
-function PanelHistorial({
-  llave, movimientos, onCerrar, onEntregar, onDevolver, onAnotar, onSinUbicar,
-}: {
-  llave: Llave;
-  movimientos: MovimientoLlave[];
-  onCerrar: () => void;
-  onEntregar: () => void;
-  onDevolver: () => void;
-  onAnotar: () => void;
-  onSinUbicar: () => void;
-}) {
-  const e = verEstadoLlave(llave.estado);
-  return (
-    <div className="pcard mt-5 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-graph-400">
-            <KeyRound size={14} className="text-brand" /> Historial de la llave
-          </p>
-          <h2 className="mt-1 font-display text-xl font-semibold text-graph">
-            {llave.numero ? `Nº ${llave.numero} · ` : ""}{llave.propietario || "Sin propietario"}
-          </h2>
-          {llave.direccion && <p className="mt-0.5 text-sm text-graph-500">{llave.direccion}</p>}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Badge tone={e.tone} dot>{e.label}</Badge>
-            {llave.estado === "entregada" && llave.enPoderDe && <span className="text-[13px] text-graph-500">en poder de <b className="text-graph">{llave.enPoderDe}</b></span>}
-          </div>
-          {llave.notas && <p className="mt-3 max-w-prose rounded-xl bg-graph/[0.04] px-3 py-2 text-[13px] text-graph-500">{llave.notas}</p>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {llave.estado === "en_oficina" ? (
-            <Btn variant="soft" onClick={onEntregar}><ArrowRightLeft size={15} /> Se la lleva alguien</Btn>
-          ) : (
-            <Btn variant="soft" onClick={onDevolver}><Undo2 size={15} /> Volvió al llavero</Btn>
-          )}
-          <Btn variant="ghost" onClick={onAnotar}><StickyNote size={15} /> Anotar</Btn>
-          {llave.estado !== "perdida" && <Btn variant="ghost" onClick={onSinUbicar}>Sin ubicar</Btn>}
-          <IconBtn title="Cerrar el historial" onClick={onCerrar}><X size={16} /></IconBtn>
-        </div>
-      </div>
-
-      <ol className="mt-6 space-y-3">
-        {movimientos.length === 0 && <li className="text-sm text-graph-400">Todavía no hay movimientos anotados.</li>}
-        {movimientos.map((m) => {
-          const t = verMovimientoLlave(m.tipo);
-          return (
-            <li key={m.id} className="flex gap-3 border-l-2 border-graph/10 pl-4">
-              <div className="min-w-0">
-                <p className="flex flex-wrap items-center gap-2 text-sm">
-                  <Badge tone={t.tone}>{t.label}</Badge>
-                  {m.persona && <span className="font-medium text-graph">{m.persona}</span>}
-                  <span className="text-[12px] text-graph-400">{m.fechaISO ? fmtFechaCorta(m.fechaISO) : ""}</span>
-                </p>
-                {/* La nota solo si dice algo MÁS que la chapita: el alta escribe
-                    "Ingresó al llavero", que ya es el label del tipo. */}
-                {m.nota && m.nota !== t.label && <p className="mt-1 text-[13px] text-graph-500">{m.nota}</p>}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
   );
 }
 

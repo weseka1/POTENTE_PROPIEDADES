@@ -4,9 +4,15 @@
  * Existe porque este módulo salió de un problema REAL de la oficina (audios de
  * Mateo, 12-ago-2026: un juego de llaves que estuvo un año sin ubicar). Lo que
  * se prueba es el recorrido de verdad, con clicks reales:
- *   cargar una llave → verla en la lista → entregarla a alguien → que la lista
- *   diga a quién y desde cuándo → que el historial tenga los dos movimientos →
- *   devolverla → borrarla.
+ *   cargar una llave → verla en la lista → abrir SU historial (acordeón) →
+ *   entregarla a alguien por el modal → que la lista diga a quién →
+ *   devolverla → borrarla confirmando en el modal.
+ *
+ * ⚠️ TODOS los diálogos son del sistema: no hay `window.prompt` ni
+ * `window.confirm` que interceptar (se sacaron el 12-ago a pedido de Juani:
+ * *"¿por qué salen anotaciones desde Google? debe pasar todo por el sistema"*).
+ * Si una prueba de acá vuelve a necesitar `window.confirm = () => true`, es que
+ * alguien reintrodujo un diálogo del navegador.
  *
  * ⚠️ Deja la base como la encontró: la llave de sonda usa un número alto
  * (8801) y al final se borra. Si el script se corta a mitad, borrarla a mano:
@@ -31,18 +37,23 @@ const sesion = await pedirSesion("mateo");
 await evaluar(guionSesion(sesion));
 await ir(URL_APP + "/panel/llaves", 7000);
 
-const clickBoton = async (texto) => {
+/** Click REAL sobre un botón por su texto. `.click()` da verde sobre botones
+ *  muertos (cicatriz de la galería), así que siempre eventos de mouse. */
+const clickBoton = async (texto, dentroDelModal = false) => {
   const p = JSON.parse(await evaluar(`
-    const b = [...document.querySelectorAll("button")].find(x => (x.textContent||"").includes(${JSON.stringify(texto)}));
+    const raiz = ${dentroDelModal} ? document.querySelector('[role="dialog"]') : document;
+    if (!raiz) return JSON.stringify({ falta: true });
+    const b = [...raiz.querySelectorAll("button")].find(x => (x.textContent||"").includes(${JSON.stringify(texto)}));
     if (!b) return JSON.stringify({ falta: true });
+    b.scrollIntoView({ block: "center" });
+    await new Promise(r => setTimeout(r, 400));
     const r = b.getBoundingClientRect();
     return JSON.stringify({ x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2) });
   `));
   if (p.falta) return false;
-  // Eventos REALES: `.click()` da verde sobre botones muertos (cicatriz de la galería).
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x: p.x, y: p.y, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: p.x, y: p.y, button: "left", clickCount: 1 });
-  await new Promise((r) => setTimeout(r, 1300));
+  await new Promise((r) => setTimeout(r, 1500));
   return true;
 };
 
@@ -59,6 +70,23 @@ const filaSonda = () => evaluar(`
   const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
   return tr ? (tr.innerText || "") : "";
 `);
+
+/** Click en la fila de la llave de sonda: abre/cierra SU historial. */
+const clickFilaSonda = async () => {
+  const p = JSON.parse(await evaluar(`
+    const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
+    if (!tr) return JSON.stringify({ falta: true });
+    tr.scrollIntoView({ block: "center" });
+    await new Promise(r => setTimeout(r, 400));
+    const r = tr.getBoundingClientRect();
+    return JSON.stringify({ x: Math.round(r.x + 300), y: Math.round(r.y + r.height/2) });
+  `));
+  if (p.falta) return false;
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: p.x, y: p.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: p.x, y: p.y, button: "left", clickCount: 1 });
+  await new Promise((r) => setTimeout(r, 1200));
+  return true;
+};
 
 /* ── La pantalla existe y está en el menú ──────────────────────────────────── */
 const base = JSON.parse(await evaluar(`
@@ -93,51 +121,69 @@ const trasAlta = await filaSonda();
 chequear("La llave nueva aparece en la lista con su número", trasAlta.includes(String(NUM)), trasAlta.slice(0, 60));
 chequear("…y nace EN LA OFICINA", trasAlta.includes("En la oficina"));
 
+/* ── El historial de ESA llave se abre y se cierra (pedido 12-ago) ─────────── */
+await clickFilaSonda();
+const abierto = JSON.parse(await evaluar(`
+  const t = document.body.innerText || "";
+  return JSON.stringify({
+    acciones: t.includes("Se la lleva alguien"),
+    ingreso: t.includes("Ingresó al llavero"),
+    cerrar: t.includes("Cerrar"),
+  });
+`));
+chequear("🔑 Al tocar la llave se abre SU historial", abierto.acciones && abierto.cerrar, JSON.stringify(abierto));
+chequear("El historial guarda el ingreso al llavero", abierto.ingreso);
+
+await clickFilaSonda(); // se cierra con el mismo click
+chequear(
+  "…y se cierra volviendo a tocarla",
+  (await evaluar(`return (document.body.innerText||"").includes("Se la lleva alguien") ? "abierto" : "cerrado"`)) === "cerrado",
+);
+
 /* ── Entregarla: el pedido central («a quién se las entregamos») ───────────── */
-await evaluar(`window.prompt = () => "Albanil de prueba"; return 1;`);
-const clickPrimerBotonDeLaFila = async (indice) => {
+// Botón de la fila (el primero de Acciones), sin abrir el acordeón.
+const clickBotonDeLaFila = async (indice) => {
   const p = JSON.parse(await evaluar(`
     const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
     if (!tr) return JSON.stringify({ falta: true });
     const bs = [...tr.querySelectorAll("button")];
     const b = ${indice} < 0 ? bs[bs.length + ${indice}] : bs[${indice}];
     if (!b) return JSON.stringify({ falta: true });
+    b.scrollIntoView({ block: "center" });
+    await new Promise(r => setTimeout(r, 400));
     const r = b.getBoundingClientRect();
     return JSON.stringify({ x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2) });
   `));
   if (p.falta) return false;
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x: p.x, y: p.y, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: p.x, y: p.y, button: "left", clickCount: 1 });
-  await new Promise((r) => setTimeout(r, 2500));
+  await new Promise((r) => setTimeout(r, 1500));
   return true;
 };
-await clickPrimerBotonDeLaFila(0); // "Se la lleva alguien"
-const trasEntrega = await filaSonda();
-chequear("Entregada: la lista dice el estado", trasEntrega.includes("Entregada"));
-chequear("🔑 …y DICE A QUIÉN (el corazón del pedido)", trasEntrega.includes("Albanil de prueba"), trasEntrega.slice(0, 80));
 
-/* ── El historial de esa llave ─────────────────────────────────────────────── */
-const abrir = JSON.parse(await evaluar(`
-  const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
-  const r = tr.getBoundingClientRect();
-  return JSON.stringify({ x: Math.round(r.x + 250), y: Math.round(r.y + r.height/2) });
+await clickBotonDeLaFila(0);
+const modalEntrega = JSON.parse(await evaluar(`
+  const d = document.querySelector('[role="dialog"]');
+  const t = d ? (d.innerText || "") : "";
+  return JSON.stringify({ abrio: t.includes("¿Quién se lleva la llave?"), pideNombre: Boolean(d && [...d.querySelectorAll("input")].some(i => (i.placeholder||"").includes("albañil"))), tieneFecha: Boolean(d && d.querySelector('input[type="date"]')) });
 `));
-await send("Input.dispatchMouseEvent", { type: "mousePressed", x: abrir.x, y: abrir.y, button: "left", clickCount: 1 });
-await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: abrir.x, y: abrir.y, button: "left", clickCount: 1 });
-await new Promise((r) => setTimeout(r, 1500));
-const hist = JSON.parse(await evaluar(`
-  const t = document.body.innerText || "";
-  return JSON.stringify({
-    ingreso: t.includes("Ingresó al llavero"),
-    entrega: t.includes("Se la llevó"),
-    enPoderDe: t.includes("en poder de"),
-    ofreceDevolver: t.includes("Volvió al llavero"),
-  });
-`));
-chequear("El historial guarda el ingreso al llavero", hist.ingreso);
-chequear("El historial guarda la entrega", hist.entrega);
-chequear("El panel dice en poder de quién está", hist.enPoderDe);
-chequear("Ofrece devolverla al llavero", hist.ofreceDevolver);
+chequear("🚫 Pide el dato con un modal NUESTRO, no con el cuadro del navegador", modalEntrega.abrio && modalEntrega.pideNombre, JSON.stringify(modalEntrega));
+chequear("…y de paso deja elegir la fecha (el prompt del navegador no podía)", modalEntrega.tieneFecha);
+
+await escribir("Propietario, albañil, inquilino, otra inmobiliaria…", "Albanil de prueba");
+await clickBoton("Anotar la entrega", true);
+await new Promise((r) => setTimeout(r, 2000));
+
+const trasEntrega = await filaSonda();
+chequear("Entregada: la lista dice el estado", trasEntrega.includes("Entregada"), trasEntrega.slice(0, 70));
+chequear("🔑 …y DICE A QUIÉN (el corazón del pedido)", trasEntrega.includes("Albanil de prueba"), trasEntrega.slice(0, 90));
+
+/* ── El movimiento quedó en el historial ───────────────────────────────────── */
+await clickFilaSonda();
+chequear(
+  "El historial guarda la entrega con su nombre",
+  (await evaluar(`return (document.body.innerText||"").includes("Se la llevó") ? "si" : "no"`)) === "si",
+);
 
 /* ── Devolverla ────────────────────────────────────────────────────────────── */
 await clickBoton("Volvió al llavero");
@@ -146,9 +192,15 @@ const trasDevolver = await filaSonda();
 chequear("Al devolverla vuelve a EN LA OFICINA", trasDevolver.includes("En la oficina"), trasDevolver.slice(0, 60));
 chequear("…y ya no figura en poder de nadie", !trasDevolver.includes("Albanil de prueba"));
 
-/* ── Limpieza: la sonda no queda en el llavero del cliente ─────────────────── */
-await evaluar(`window.confirm = () => true; return 1;`);
-await clickPrimerBotonDeLaFila(-1); // el último botón de la fila es borrar
+/* ── Borrar: confirmación del sistema, no del navegador ────────────────────── */
+await clickBotonDeLaFila(-1); // el último botón de la fila es borrar
+const modalBorrar = await evaluar(`
+  const d = document.querySelector('[role="dialog"]');
+  return d ? (d.innerText || "") : "";
+`);
+chequear("🚫 Borrar pide confirmación en un modal del sistema", modalBorrar.includes("¿Borrar la llave del registro?"), modalBorrar.slice(0, 60));
+await clickBoton("Borrar", true);
+await new Promise((r) => setTimeout(r, 2000));
 const limpio = await evaluar(`return (document.body.innerText || "").includes(${JSON.stringify(APELLIDO)}) ? "queda" : "limpio"`);
 chequear("La llave de prueba se borró (la base queda como estaba)", limpio === "limpio", limpio);
 

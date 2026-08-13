@@ -48,14 +48,45 @@ const ACCIONES = [
   { key: "pedirDatos", label: "Pedir y guardar datos de contacto", icon: UserCheck },
   { key: "responderPrecios", label: "Responder precios cuando estén cargados", icon: Zap },
 ];
-const CANALES = [
-  { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Conectá tu agente IA a WhatsApp Business con la función nueva de Meta.", Icon: MessageCircle, color: "#25D366", meta: true, destacado: true },
-  { key: "instagram", nombre: "Instagram", via: "Meta", desc: "Respondé los mensajes directos de Instagram automáticamente.", Icon: Instagram, color: "#E1306C", meta: true },
-  { key: "messenger", nombre: "Messenger", via: "Meta", desc: "Atendé Facebook Messenger sin estar encima.", Icon: MessageSquare, color: "#0084FF", meta: true },
-  { key: "web", nombre: "Chat en tu web", via: "Widget", desc: "Un asistente en tu web propia que responde solo, 24/7.", Icon: Globe, color: "#0C4DA2" },
-  { key: "mail", nombre: "Email", via: "Casilla", desc: "Responde y ordena los mails de consultas.", Icon: Mail, color: "#C9A24E" },
-  { key: "telefono", nombre: "Teléfono", via: "Registro", desc: "Toma el dato de las llamadas y las deriva.", Icon: Phone, color: "#9C6B3C" },
+/* ── LOS CANALES DE MARINA ────────────────────────────────────────────────────
+ * 🔴 `andando: true` significa QUE FUNCIONA DE VERDAD, hoy, en producción. Todo
+ * lo demás se muestra como lo que es: algo que hay que activar, con lo que hace
+ * falta escrito.
+ *
+ * Por qué existe esta bandera: hasta el 12-ago estos botones marcaban un flag
+ * local y cantaban «¡Instagram conectado! Tu IA ya responde ahí ✓» sin que
+ * hubiera NADA atrás. Lo vio Juani probando el panel: *"nada que ver, debe pasar
+ * todo por el sistema"*. Un cartel así es peor que no tener la función: Mateo
+ * podía creer que la IA contestaba sus DMs y perder consultas de verdad.
+ * Regla de la casa: en el panel de un cliente que paga NO se finge una
+ * capacidad. Cuando la integración esté hecha, se pone `andando: true` acá.
+ */
+type Canal = {
+  key: string;
+  nombre: string;
+  via: string;
+  desc: string;
+  Icon: typeof Globe;
+  color: string;
+  /** true = FUNCIONA HOY en producción. Ver la nota de arriba. */
+  andando?: boolean;
+  destacado?: boolean;
+  meta?: boolean;
+  /** Lo que hace falta del lado del cliente para poder activarlo. */
+  requisitos?: string[];
+};
+
+const CANALES: Canal[] = [
+  { key: "web", nombre: "Chat en tu web", via: "Widget", desc: "Marina atiende en potenteprop.com.ar las 24 horas: responde, ordena y te deja la consulta cargada.", Icon: Globe, color: "#0C4DA2", andando: true, destacado: true },
+  { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Que Marina conteste los WhatsApp del negocio. Necesita WhatsApp Business API y la cuenta verificada por Meta.", Icon: MessageCircle, color: "#25D366", meta: true, requisitos: ["Una cuenta de WhatsApp Business API (no el WhatsApp común del celular)", "El número verificado por Meta y liberado de la app", "Nosotros conectamos el número al asistente y lo probamos con vos"] },
+  { key: "instagram", nombre: "Instagram", via: "Meta", desc: "Que Marina responda los mensajes directos de Instagram.", Icon: Instagram, color: "#E1306C", meta: true, requisitos: ["La cuenta de Instagram en modo Empresa/Profesional", "Vinculada a una página de Facebook", "Nosotros pedimos el permiso de mensajería y lo dejamos andando"] },
+  { key: "messenger", nombre: "Messenger", via: "Meta", desc: "Que Marina atienda el Messenger de la página.", Icon: MessageSquare, color: "#0084FF", meta: true, requisitos: ["La página de Facebook de la inmobiliaria", "Permiso de administrador para conectar el asistente"] },
+  { key: "mail", nombre: "Email", via: "Casilla", desc: "Que Marina lea y responda las consultas que entran por mail.", Icon: Mail, color: "#C9A24E", requisitos: ["Acceso a la casilla (o un reenvío a una casilla nuestra)", "Definir qué contesta sola y qué te deriva"] },
+  { key: "telefono", nombre: "Teléfono", via: "Registro", desc: "Registrar las llamadas y derivarlas a la oficina que corresponde.", Icon: Phone, color: "#9C6B3C", requisitos: ["Una línea que podamos integrar (voz sobre IP)", "Definir el árbol de derivación por oficina"] },
 ];
+
+/** El WhatsApp de WESEKA: activar un canal es un laburo nuestro, no un toggle. */
+const WA_WESEKA = "5492915512515";
 
 const DEFAULT_IA: IAConfig = {
   activa: true, modo: "auto",
@@ -82,7 +113,14 @@ function useIAConfig() {
           k.id === "k2" && k.texto.includes("en cualquiera de las dos oficinas") ? DEFAULT_IA.conocimiento[1] : k
         );
       }
-      return { ...DEFAULT_IA, ...saved };
+      const cfg = { ...DEFAULT_IA, ...saved };
+      // 🔴 Saneamiento (12-ago): los botones viejos marcaban canales como
+      // conectados sin integración detrás. Cualquier canal que no esté ANDANDO
+      // vuelve a false, así el panel no arrastra una mentira guardada.
+      cfg.canales = Object.fromEntries(
+        Object.entries(cfg.canales ?? {}).map(([k, v]) => [k, Boolean(v) && Boolean(CANALES.find((c) => c.key === k)?.andando)]),
+      );
+      return cfg;
     } catch { return DEFAULT_IA; }
   });
   useEffect(() => { try { localStorage.setItem("potente_ia_config", JSON.stringify(cfg)); } catch { /* noop */ } }, [cfg]);
@@ -214,10 +252,18 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
   };
   const entren = Math.min(100, Math.round((cfg.contexto.trim().length / 600) * 40 + cfg.conocimiento.filter((k) => k.texto.trim()).length * 12));
   const desconectar = (key: string) => { setCfg((c) => ({ ...c, canales: { ...c.canales, [key]: false } })); push("Canal desconectado", "info"); };
-  const confirmarConexion = () => {
-    if (!conn) return;
-    setCfg((c) => ({ ...c, canales: { ...c.canales, [conn.key]: true } }));
-    push(conn.meta ? `¡${conn.nombre} conectado! Tu IA ya responde ahí ✓` : `${conn.nombre} conectado ✓`, "success");
+  /** El único canal que se prende y apaga desde acá es el de la web: es el que
+   *  está andando de verdad. Los demás se activan con nosotros (ver CANALES). */
+  const conectarWeb = () => {
+    setCfg((c) => ({ ...c, canales: { ...c.canales, web: true } }));
+    push("Marina quedó atendiendo en tu web ✓", "success");
+    setConn(null);
+  };
+  /** Pedir la activación de un canal: abre WhatsApp con el mensaje escrito. No
+   *  finge nada — el trabajo real lo hacemos nosotros. */
+  const pedirActivacion = (nombre: string) => {
+    const texto = `Hola! Soy de Potente Propiedades. Queremos activar a Marina en ${nombre}. ¿Qué necesitan de nuestro lado?`;
+    window.open(`https://wa.me/${WA_WESEKA}?text=${encodeURIComponent(texto)}`, "_blank", "noopener");
     setConn(null);
   };
 
@@ -226,7 +272,14 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
   const totalConv = Math.max(conversaciones.length, 1);
   const sinIntervencion = conversaciones.filter((c) => !c.mensajes.some((m) => m.de === "humano")).length;
   const sinHumano = Math.round((sinIntervencion / totalConv) * 100);
-  const conectados = CANALES.filter((c) => cfg.canales[c.key]).length;
+  // 🔴 Solo cuenta lo que ANDA de verdad: un canal sin integración no suma al
+  // contador aunque haya quedado en `true` de antes (ver la nota en CANALES).
+  const canalAndando = (key: string) => {
+    const c = CANALES.find((x) => x.key === key);
+    return Boolean(c?.andando && cfg.canales[key]);
+  };
+  const canalesReales = CANALES.filter((c) => c.andando);
+  const conectados = canalesReales.filter((c) => cfg.canales[c.key]).length;
   const porCanal = leads.reduce<Record<string, number>>((a, l) => ((a[l.canal] = (a[l.canal] || 0) + 1), a), {});
   const intereses: Record<string, number> = {};
   leads.forEach((l) => { const p = propiedades.find((x) => x.id === l.campoId); if (p) intereses[p.zona] = (intereses[p.zona] || 0) + 1; });
@@ -238,7 +291,10 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
   const metricas = [
     { icon: Inbox, label: "Conversaciones en la bandeja", value: conversaciones.length },
     { icon: UserCheck, label: "Te esperan a vos", value: teEsperan },
-    { icon: Link2, label: "Canales conectados", value: `${conectados}/${CANALES.length}` },
+    // Sobre los canales DISPONIBLES, no sobre los 6 de la carta: "1/6" daba a
+    // entender que faltan cinco toggles cuando en realidad hay integraciones
+    // por hacer.
+    { icon: Link2, label: "Canales atendidos por Marina", value: `${conectados}/${canalesReales.length}` },
     { icon: ShieldCheck, label: "Resueltas sin que intervengas", value: sinHumano + "%" },
   ];
 
@@ -331,8 +387,10 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
               <div className="flex items-start gap-4">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand/15 text-brand ring-1 ring-inset ring-brand/25"><Sparkles size={22} /></span>
                 <div className="max-w-xl">
-                  <p className="font-display text-lg font-semibold text-graph">Conectá tu agente IA por Meta</p>
-                  <p className="mt-1 text-sm text-graph-500">Con la función nueva de Meta, enchufás tu IA directo a <b className="text-graph">WhatsApp, Instagram y Messenger</b> en un toque. La IA empieza a responder sola en esos canales.</p>
+                  <p className="font-display text-lg font-semibold text-graph">Marina atiende hoy en tu web</p>
+                  <p className="mt-1 text-sm text-graph-500">
+                    Responde sola las 24 horas y te deja cada consulta cargada en el panel. <b className="text-graph">WhatsApp, Instagram y Messenger</b> se pueden sumar: son integraciones que hacemos nosotros — abajo está lo que necesita cada una.
+                  </p>
                 </div>
               </div>
             </div>
@@ -341,15 +399,25 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
           {/* grilla de canales */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {CANALES.map((c) => {
-              const on = !!cfg.canales[c.key];
+              const disponible = Boolean(c.andando);
+              const on = canalAndando(c.key);
               return (
                 <div key={c.key} className={`pcard p-5 ${c.destacado ? "ring-1 ring-brand/25" : ""}`}>
                   <div className="flex items-start justify-between">
-                    <span className="grid h-11 w-11 place-items-center rounded-xl text-white" style={{ background: c.color }}><c.Icon size={20} /></span>
+                    <span
+                      className={`grid h-11 w-11 place-items-center rounded-xl text-white ${disponible ? "" : "opacity-60"}`}
+                      style={{ background: c.color }}
+                    >
+                      <c.Icon size={20} />
+                    </span>
+                    {/* La chapita dice la VERDAD: atendiendo / listo para prender /
+                        a activar con nosotros. Nunca "conectado" sin integración. */}
                     {on ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-inset ring-brand/20"><span className="h-1.5 w-1.5 rounded-full bg-brand" /> Conectado</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-inset ring-brand/20"><span className="h-1.5 w-1.5 rounded-full bg-brand" /> Atendiendo</span>
+                    ) : disponible ? (
+                      <span className="rounded-full bg-graph/[0.05] px-2.5 py-1 text-[11px] font-semibold text-graph-400 ring-1 ring-inset ring-graph/10">Apagado</span>
                     ) : (
-                      <span className="rounded-full bg-graph/[0.05] px-2.5 py-1 text-[11px] font-semibold text-graph-400 ring-1 ring-inset ring-graph/10">Sin conectar</span>
+                      <span className="rounded-full bg-wheat/15 px-2.5 py-1 text-[11px] font-semibold text-wheat-600 ring-1 ring-inset ring-wheat/30">A activar</span>
                     )}
                   </div>
                   <p className="mt-3 flex items-center gap-2 font-display text-base font-semibold text-graph">
@@ -357,9 +425,17 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
                     {c.via && <span className="rounded-md bg-graph/[0.06] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-graph-400">{c.via}</span>}
                   </p>
                   <p className="mt-1 min-h-[40px] text-[13px] leading-snug text-graph-500">{c.desc}</p>
-                  <button onClick={() => (on ? desconectar(c.key) : setConn(c))}
-                    className={`mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${on ? "border border-graph/15 text-graph-500 hover:bg-graph/5" : "bg-brand text-white hover:bg-brand-600"}`}>
-                    {on ? "Desconectar" : <>{c.meta ? <Sparkles size={15} /> : <Link2 size={15} />} {c.meta ? "Conectar agente IA" : "Conectar"}</>}
+                  <button
+                    onClick={() => (disponible ? (on ? desconectar(c.key) : conectarWeb()) : setConn(c))}
+                    className={`mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${
+                      on
+                        ? "border border-graph/15 text-graph-500 hover:bg-graph/5"
+                        : disponible
+                          ? "bg-brand text-white hover:bg-brand-600"
+                          : "border border-graph/15 text-graph-600 hover:border-brand/40 hover:text-brand"
+                    }`}
+                  >
+                    {on ? "Apagar en la web" : disponible ? <><Link2 size={15} /> Prender en la web</> : <>Qué hace falta</>}
                   </button>
                 </div>
               );
@@ -562,14 +638,18 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
         </div>
       )}
 
-      {/* paso a paso de conexión — lo hacen ellos solos */}
+      {/* Qué hace falta para activar un canal. Dice la verdad: el trabajo lo
+          hacemos nosotros y hay requisitos del lado del cliente. Antes acá había
+          un "Ir a Meta y autorizar" que no iba a ninguna parte (12-ago). */}
       <Modal open={!!conn} onClose={() => setConn(null)}
-        title={conn ? `Conectar ${conn.nombre}` : ""}
-        subtitle={conn?.meta ? "Con la función nueva de Meta — lo hacés vos, en 3 pasos" : "Lo dejás andando en un par de pasos"}
+        title={conn ? `Activar Marina en ${conn.nombre}` : ""}
+        subtitle="Todavía no está andando. Esto es lo que hace falta."
         footer={
           <>
-            <button onClick={() => setConn(null)} className="inline-flex h-9 items-center rounded-lg border border-graph/15 px-4 text-sm font-medium text-graph-500 transition hover:text-graph">Cancelar</button>
-            <button onClick={confirmarConexion} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-600">{conn?.meta ? <><Sparkles size={15} /> Ir a Meta y autorizar</> : <><Link2 size={15} /> Conectar</>}</button>
+            <button onClick={() => setConn(null)} className="inline-flex h-9 items-center rounded-lg border border-graph/15 px-4 text-sm font-medium text-graph-500 transition hover:text-graph">Cerrar</button>
+            <button onClick={() => conn && pedirActivacion(conn.nombre)} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-600">
+              <MessageCircle size={15} /> Pedirlo por WhatsApp
+            </button>
           </>
         }>
         {conn && (
@@ -581,20 +661,20 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
                 <p className="text-xs text-graph-400">{conn.desc}</p>
               </div>
             </div>
-            <ol className="space-y-2.5">
-              {(conn.meta
-                ? ["Te llevamos a Meta (Facebook / WhatsApp Business).", `Elegís tu cuenta de ${conn.nombre} Business.`, "Autorizás a tu agente IA. Listo, responde solo."]
-                : conn.key === "web" ? ["Copiás un código que te damos.", "Lo pegás en tu web (o lo hace tu técnico).", "El chat queda andando 24/7."]
-                : conn.key === "mail" ? ["Conectás tu casilla de correo.", "La IA lee y responde las consultas que entran por mail."]
-                : ["Registrás tu número de teléfono.", "La IA toma el dato de las llamadas y las deriva."]
-              ).map((paso, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">{i + 1}</span>
-                  <span className="text-sm text-graph">{paso}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="rounded-xl bg-brand/[0.06] px-3 py-2.5 text-[12px] text-brand-700">Lo hacés vos, sin depender de nadie. Cuando quieras lo desconectás con un click.</p>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-graph-400">Lo que hace falta</p>
+              <ul className="space-y-2.5">
+                {(conn.requisitos ?? []).map((paso, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">{i + 1}</span>
+                    <span className="text-sm text-graph">{paso}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="rounded-xl bg-wheat/[0.12] px-3 py-2.5 text-[12px] text-graph-600">
+              <b className="text-graph">Hoy Marina atiende en tu web.</b> Sumar {conn.nombre} es un trabajo de integración: lo hacemos nosotros y te avisamos cuando esté probado. Mientras no lo diga esta pantalla, no está activo.
+            </p>
           </div>
         )}
       </Modal>
