@@ -465,6 +465,40 @@ async function main() {
     `expensas ${filaVista?.expensasARS} · piso ${filaVista?.piso}`,
   );
   chequear("La vista sigue SIN exponer la ficha interna", !("ficha" in (filaVista ?? { ficha: 1 })));
+
+  /* 🔴 …Y TAMPOCO PIDIÉNDOLA DIRECTO EN LA TABLA CRUDA.
+   * Hasta el 13-ago esto no se probaba, y ahí estaba el agujero: la vista
+   * escondía la ficha, pero `anon` conserva el SELECT sobre la tabla base (lo
+   * necesita `security_invoker`) y ese permiso llegaba a TODAS las columnas.
+   * Un `select=id,ficha` devolvía la ficha interna de la cartera entera.
+   * Lo cierra la migración 012. Esta prueba es la que no lo deja volver. */
+  const fichaCruda = await anon.from("potente_propiedades").select("id,ficha").limit(1);
+  chequear(
+    "🔒 El visitante NO puede leer la ficha ni pidiendo la tabla cruda",
+    Boolean(fichaCruda.error) || !(fichaCruda.data?.[0] && "ficha" in fichaCruda.data[0]),
+    fichaCruda.error ? `bloqueado (${fichaCruda.error.code})` : "🔴 EXPUESTA · correr 02_INFRA/supabase/012_ficha_cerrada.sql",
+  );
+
+  /* Temporada no tiene vista pública: el visitante lee la tabla. Lo interno de
+   * esa tabla (la comisión de Potente sobre todo) tampoco puede salir. */
+  const tempCruda = await anon.from("potente_unidades_temporada").select('id,"comisionPct"').limit(1);
+  chequear(
+    "🔒 El visitante NO ve la comisión de las unidades de temporada",
+    Boolean(tempCruda.error) || tempCruda.data?.[0]?.comisionPct === undefined,
+    tempCruda.error ? `bloqueado (${tempCruda.error.code})` : "🔴 EXPUESTA · correr la parte B de la migración 012",
+  );
+
+  /* …pero lo que la web SÍ necesita de temporada tiene que seguir llegando, o
+   * la página queda vacía. Es la otra mitad del candado. */
+  const tempPublica = await anon
+    .from("potente_unidades_temporada")
+    .select('id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,tarifas,activa')
+    .limit(1);
+  chequear(
+    "…y la web sigue leyendo lo que necesita de temporada",
+    !tempPublica.error,
+    tempPublica.error?.message?.slice(0, 70) ?? "",
+  );
   // 010: el catálogo ordena "más recientes primero" con esta columna. Si la
   // vista no la expone, el orden del visitante degrada al del archivo en mudo.
   chequear(

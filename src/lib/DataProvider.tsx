@@ -313,17 +313,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // el candado, es no pedir de más.
         const fuentePropiedades = haySesion ? "potente_propiedades" : "potente_propiedades_web";
 
+        // 🔴 Temporada no tiene vista pública: el visitante lee la tabla. Por eso
+        // pide COLUMNAS EXPLÍCITAS y no `*` — así la comisión de Potente, la
+        // tarifa por noche, la estadía mínima y el estado de limpieza no salen
+        // de la oficina. Es lo mismo que hace la línea de arriba con la ficha,
+        // pero por columna en vez de por vista.
+        // ⚠️ Este cambio va A PRODUCCIÓN ANTES que la migración 012: PostgREST
+        // falla la consulta ENTERA si el cliente pide `*` y le falta una sola
+        // columna. Revocar primero dejaría la página de temporada en blanco.
+        const columnasTemporada = haySesion
+          ? "*"
+          : 'id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,tarifas,activa';
+
         // El visitante solo necesita catálogo y temporada. Las otras ocho tablas
         // son del panel: pedírselas era un viaje a São Paulo por cada una para que
         // el RLS devolviera vacío. Ocho idas y vueltas menos en cada visita.
         const [p, ut] = await Promise.all([
           supabase.from(fuentePropiedades).select("*"),
-          supabase.from("potente_unidades_temporada").select("*"),
+          supabase.from("potente_unidades_temporada").select(columnasTemporada),
         ]);
         if (cancel) return;
         if (p.data?.length) setPropiedades(p.data as Propiedad[]);
         // Temporada: si la tabla existe y responde, manda la base (aunque esté vacía).
-        if (!ut.error && ut.data) setUnidadesTemporada(ut.data as UnidadTemporada[]);
+        // El doble cast es por la lista de columnas variable: supabase-js deduce
+        // la forma del resultado leyendo el string del `select` en tiempo de
+        // compilación, y con una variable no puede. El visitante recibe un
+        // subconjunto (sin comisión ni tarifa por noche) y la web solo usa lo
+        // que sí pide — ver `columnasTemporada` arriba.
+        if (!ut.error && ut.data) setUnidadesTemporada(ut.data as unknown as UnidadTemporada[]);
         if (!p.error) setOnline(true);
 
         if (haySesion) {
