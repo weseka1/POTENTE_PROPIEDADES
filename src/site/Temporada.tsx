@@ -17,7 +17,6 @@ import { tramoById, tarifaDe, tarifaDesde, waTemporada } from "@/data/temporada"
 export { tarifaDesde, waTemporada };
 import type { TemporadaTramoId, UnidadTemporada } from "@/data/types";
 import type { Propiedad } from "@/data/propiedadTypes";
-import { fmtARS } from "@/lib/format";
 
 import { waDigits, SITIO } from "@/config/marca";
 import WhatsAppCTA from "./components/WhatsAppCTA";
@@ -55,8 +54,6 @@ export function UnidadTempCard({
   const titulo = prop?.titulo ?? `Alquiler temporario en ${u.barrio}`;
   const foto = prop?.fotos?.[0] || NO_IMG;
   const quincena = tramoId ? tramoById(tramoId) : undefined;
-  const precioTramo = tramoId ? tarifaDe(u, tramoId) : undefined;
-  const precio = precioTramo ?? tarifaDesde(u);
   const wa = waTemporada(titulo, quincena?.label, u.oficina);
   // 🔴 13-ago, Mateo: «que me mande directamente a la ficha que yo cargué en
   // temporada, con las fotos y la descripción». Antes la tarjeta llevaba a la
@@ -120,10 +117,13 @@ export function UnidadTempCard({
 
         <div className="mt-5 flex items-end justify-between border-t border-graph/10 pt-4">
           <div>
-            <p className="font-display text-xl font-semibold text-brand">
-              {quincena ? fmtARS(precio) : `desde ${fmtARS(precio)}`}
-            </p>
-            <p className="text-xs text-graph-400">{quincena ? quincena.label : "la quincena"}</p>
+            {/* 🔴 13-ago, Mateo: «los precios de temporada deben decir todos "a
+                consultar", no "desde". No debemos dar referencia de precios».
+                La tarifa existe en el panel para cotizar; a la web no sale ni
+                como referencia — y tampoco viaja al navegador (ver
+                `columnasTemporada` en DataProvider). */}
+            <p className="font-display text-xl font-semibold text-brand">A consultar</p>
+            <p className="text-xs text-graph-400">por WhatsApp, según tus fechas</p>
           </div>
           {fichaUrl && (
             <Link

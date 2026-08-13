@@ -255,15 +255,15 @@ export default function PropiedadDetalle() {
                 distintas, y sumarlas o pisarlas sería mentir.
                 La consulta sale al WhatsApp de la oficina que administra la
                 unidad, no al central. */}
-            {unidadTemp && tarifaTemp > 0 && (
+            {unidadTemp && (
               <div className="mt-6 rounded-xl border border-sea/30 bg-sea/[0.06] p-4">
                 <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest2 text-sea">
                   <Sun size={14} /> Alquiler de temporada
                 </p>
-                <p className="mt-2 font-display text-2xl font-semibold text-graph">
-                  desde {fmtARS(tarifaTemp)}
-                </p>
-                <p className="text-xs text-graph-400">la quincena · hasta {unidadTemp.capacidad} personas</p>
+                {/* Sin precio ni "desde": la tarifa de temporada no se publica
+                    (Mateo, 13-ago). Se cotiza por WhatsApp según las fechas. */}
+                <p className="mt-2 font-display text-2xl font-semibold text-graph">A consultar</p>
+                <p className="text-xs text-graph-400">por quincena · hasta {unidadTemp.capacidad} personas</p>
                 <a
                   href={waTemporada(p.titulo, undefined, unidadTemp.oficina)}
                   target="_blank"

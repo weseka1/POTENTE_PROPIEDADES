@@ -321,9 +321,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // ⚠️ Este cambio va A PRODUCCIÓN ANTES que la migración 012: PostgREST
         // falla la consulta ENTERA si el cliente pide `*` y le falta una sola
         // columna. Revocar primero dejaría la página de temporada en blanco.
+        // 🔴 13-ago, Mateo: «no debemos dar referencia de precios». Por eso
+        // `tarifas` TAMPOCO está acá: si la web dice "A consultar" pero la
+        // tarifa igual viaja en la respuesta, el precio se lee en la pestaña de
+        // red. No mostrar y no mandar son la misma decisión.
         const columnasTemporada = haySesion
           ? "*"
-          : 'id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,tarifas,activa';
+          : 'id,"propiedadId",oficina,ambientes,capacidad,barrio,"frenteAlMar",comodidades,activa';
 
         // El visitante solo necesita catálogo y temporada. Las otras ocho tablas
         // son del panel: pedírselas era un viaje a São Paulo por cada una para que

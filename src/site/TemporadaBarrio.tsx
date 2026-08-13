@@ -7,13 +7,10 @@ import { useLenis } from "./lib/useLenis";
 import { useSEO } from "./lib/seo";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
-import { tarifaDe } from "@/data/temporada";
-import { fmtARS } from "@/lib/format";
 import {
   BARRIOS_TEMPORADA,
   slugBarrio,
   barrioBySlug,
-  tarifaDesde,
   waTemporada,
   UnidadTempCard,
 } from "./Temporada";
@@ -73,32 +70,26 @@ export default function TemporadaBarrio() {
     [unidadesTemporada, barrio]
   );
 
-  // Rangos de precio para la FAQ (dinámicos y honestos, salen del tarifario real).
-  const { desdeEne2, desdeEne1 } = useMemo(() => {
-    const min = (tramo: "ene-1" | "ene-2") => {
-      const vals = unidades
-        .map((u) => tarifaDe(u, tramo))
-        .filter((v): v is number => typeof v === "number");
-      return vals.length ? Math.min(...vals) : 0;
-    };
-    return { desdeEne2: min("ene-2"), desdeEne1: min("ene-1") };
-  }, [unidades]);
-
-  const desdeGeneral = useMemo(
-    () => (unidades.length ? Math.min(...unidades.map(tarifaDesde)) : 0),
-    [unidades]
-  );
+  // 🔴 13-ago, Mateo: «los precios de temporada deben decir todos "a consultar",
+  // no "desde". No debemos dar referencia de precios».
+  // Acá vivían tres cálculos de mínimos que alimentaban la FAQ, la meta
+  // description y el hero. Eran los peores de todos: la meta description y el
+  // FAQPage van a Google, así que el precio quedaba INDEXADO. Se fueron enteros
+  // —no se ocultan por CSS— y la tarifa ya ni llega al navegador.
 
   // FAQ (con JSON-LD FAQPage). Debe ir antes de cualquier return condicional.
   const faqs = useMemo(
     () => [
       {
         q: `¿Cuánto sale la quincena de enero en ${barrio ?? "el barrio"}?`,
+        // Sin cifras: el valor depende de la propiedad y las fechas, y se pasa
+        // por WhatsApp. La respuesta sigue siendo útil (explica de qué depende)
+        // sin publicar un número que después hay que sostener.
         a:
-          `En ${barrio ?? "la zona"}, la segunda quincena de enero (la más pedida) arranca en ` +
-          `${fmtARS(desdeEne2)} y la primera quincena desde ${fmtARS(desdeEne1)}. El valor final ` +
-          `depende del departamento o la casa, la cantidad de ambientes y las personas. Escribinos por ` +
-          `WhatsApp y te pasamos la disponibilidad exacta para tus fechas.`,
+          `El valor depende de la propiedad, la cantidad de ambientes, cuántas personas son y la ` +
+          `quincena que elijas: la segunda de enero es la más pedida y no vale lo mismo que marzo. ` +
+          `Escribinos por WhatsApp con tus fechas y te pasamos la disponibilidad y el precio exacto ` +
+          `en el día.`,
       },
       {
         q: "¿Piden seña para reservar?",
@@ -121,7 +112,7 @@ export default function TemporadaBarrio() {
           "Mogotes y Chauvín.",
       },
     ],
-    [barrio, desdeEne2, desdeEne1]
+    [barrio]
   );
 
   useSEO({
@@ -129,9 +120,8 @@ export default function TemporadaBarrio() {
       ? `Alquiler temporario ${barrio} Mar del Plata | Verano 2027`
       : "Alquiler temporario en Mar del Plata | Verano 2027",
     descripcion: barrio
-      ? `Alquiler temporario en ${barrio}, Mar del Plata para el verano 2027. Departamentos y casas por quincena${
-          desdeGeneral ? ` desde ${fmtARS(desdeGeneral)}` : ""
-        }. Reservá con seña por WhatsApp con Potente Propiedades.`
+      ? `Alquiler temporario en ${barrio}, Mar del Plata para el verano 2027. Departamentos y casas ` +
+        `por quincena. Consultá disponibilidad y precios por WhatsApp con Potente Propiedades.`
       : undefined,
     path: barrio ? `/temporada/${slugBarrio(barrio)}` : undefined,
     jsonLd: barrio
@@ -185,7 +175,7 @@ export default function TemporadaBarrio() {
           </h1>
           <p className="mt-5 max-w-xl text-lg text-white/75">
             {unidades.length > 0
-              ? `${unidades.length} ${unidades.length === 1 ? "propiedad disponible" : "propiedades disponibles"} para esta temporada${desdeGeneral ? `, desde ${fmtARS(desdeGeneral)} la quincena` : ""}. Reservá con seña por WhatsApp.`
+              ? `${unidades.length} ${unidades.length === 1 ? "propiedad disponible" : "propiedades disponibles"} para esta temporada. Consultá disponibilidad y precios por WhatsApp.`
               : "La disponibilidad se publica a medida que se libera. Escribinos por tus fechas y te pasamos opciones en el día."}
           </p>
           <a href={wa} target="_blank" rel="noreferrer" className="btn-primary mt-8">
