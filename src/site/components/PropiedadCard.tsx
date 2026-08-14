@@ -4,7 +4,7 @@ import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler, Che
 import type { Propiedad } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa, fmtARS } from "@/lib/format";
 import { useFavorites } from "../context/FavoritesContext";
-import { ESTADO_LABEL, type EstadoPropiedad } from "@/data/propiedadTypes";
+import { ESTADO_LABEL, type EstadoPropiedad, type OperacionProp } from "@/data/propiedadTypes";
 
 // Los 5 estados. Record COMPLETO tipado: si mañana entra un sexto, no compila
 // hasta que alguien le dé color (con Record<string,…> quedaba undefined y la
@@ -17,10 +17,16 @@ const estadoStyle: Record<EstadoPropiedad, string> = {
   suspendida: "bg-graph/5 text-graph-400",
 };
 
-const opLabel: Record<string, string> = {
+// ⚠️ Tipado por OperacionProp, NO por `Record<string, …>`.
+// Con `string` el compilador no exige las tres y una operación sin entrada sale
+// como texto VACÍO en la tarjeta del catálogo — sin romper nada, sin avisar.
+// Así fue como `arrendamiento` sobrevivió acá meses después de que ninguna
+// propiedad lo usara: nada lo reclamaba. Misma regla que `opLabel` de
+// PropiedadDetalle y que `estadoCampo` en panel/ui/estados.ts.
+const opLabel: Record<OperacionProp, string> = {
   venta: "Venta",
   alquiler: "Alquiler",
-  arrendamiento: "Arrendamiento",
+  temporada: "Temporada",
 };
 
 

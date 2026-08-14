@@ -16,14 +16,30 @@ import { useData } from "@/lib/DataProvider";
 import { fmtPrecio, fmtARS } from "@/lib/format";
 import { tarifaDesde, waTemporada } from "@/data/temporada";
 import { datosPublicos } from "@/data/esquemaPropiedad";
-import { ESTADO_LABEL, type EstadoPropiedad } from "@/data/propiedadTypes";
+import { ESTADO_LABEL, type EstadoPropiedad, type OperacionProp } from "@/data/propiedadTypes";
 import { useFavorites } from "./context/FavoritesContext";
 import { esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 
 import { waDigits, OFICINAS } from "@/config/marca";
 
 const WA = waDigits();
-const opLabel: Record<string, string> = { venta: "Venta", alquiler: "Alquiler", arrendamiento: "Arrendamiento" };
+// Cómo se nombra cada operación en la ficha (el badge sobre la foto, la línea de
+// datos y el bloque de precio: los tres leen de acá).
+// ⚠️ Va tipado por OperacionProp y NO por `Record<string, …>`, que es lo que era
+// hasta el 14-ago. Con `string` el compilador no exige las tres, y una operación
+// sin entrada devuelve undefined → el badge sale VACÍO en la ficha pública. Es
+// exactamente lo que pasó con `arrendamiento`: quedó acá meses después de que
+// ninguna propiedad lo usara, y nadie se enteró porque nada lo reclamaba. Misma
+// regla que `estadoCampo` en panel/ui/estados.ts (donde casi cuesta una pantalla
+// blanca en la Cartera).
+// Mateo, 14-ago-2026: «tienen que quedar 3 tipos de operaciones: Venta, Alquiler,
+// Temporada». Si mañana aparece una cuarta, TypeScript la pide acá antes de que
+// llegue a la web.
+const opLabel: Record<OperacionProp, string> = {
+  venta: "Venta",
+  alquiler: "Alquiler",
+  temporada: "Temporada",
+};
 // El color de cada estado. El NOMBRE sale de ESTADO_LABEL (propiedadTypes), que
 // es la misma fuente que usa la tarjeta del catálogo: al comprador se le dice
 // "Disponible", no "Activa".

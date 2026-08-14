@@ -14,7 +14,18 @@ import { fmtUSD, fmtARS } from "@/lib/format";
 import WhatsAppCTA from "./components/WhatsAppCTA";
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
-import { CATEGORIAS, ESTADOS_CERRADOS } from "@/data/propiedadTypes";
+import { CATEGORIAS, ESTADOS_CERRADOS, type OperacionProp } from "@/data/propiedadTypes";
+
+/* ── Las operaciones que ofrece el catálogo general ──────────────────────────
+   UNA sola lista, leída por el desplegable de escritorio Y por el del celular.
+   Estaban escritas dos veces, y por eso `arrendamiento` —una operación que no
+   usaba ninguna propiedad— sobrevivió en las DOS hasta el 14-ago: una lista
+   duplicada es una lista que alguien va a actualizar a medias.
+
+   Temporada NO está acá, y es una decisión de producto, no un olvido: ver el
+   filtro de `propiedades` abajo. Tipada como OperacionProp para que un valor
+   inventado no compile. */
+const OPERACIONES_CATALOGO: OperacionProp[] = ["venta", "alquiler"];
 
 export default function Catalogo() {
   useLenis();
@@ -24,7 +35,25 @@ export default function Catalogo() {
       "Catálogo completo de Potente Propiedades: casas, departamentos, PH, locales y lotes en Mar del Plata. Filtrá por zona, tipo y operación.",
     path: "/propiedades",
   });
-  const { propiedades } = useData();
+  const { propiedades: cartera } = useData();
+
+  /* ── El catálogo general muestra VENTA y ALQUILER. Temporada queda afuera ───
+     Mateo, 14-ago-2026: «cuando yo entro a venta, que aparezcan solo las que
+     tengo en venta; cuando entro a alquiler, solo las de alquiler; cuando entro
+     a temporada, solo las de temporada». Temporada es una operación con vida
+     propia —ficha propia, tarifas por quincena, disponibilidad, y se da de baja
+     entera cuando pasa el verano— y por eso tiene su propia página (/temporada)
+     con su propio flujo. Mezclarlas acá rompe las dos puntas: el que entra a
+     comprar se topa con un departamento que solo se alquila en enero, y el que
+     busca verano ve una tarjeta con precio de venta y sin una sola tarifa.
+
+     Se filtra UNA vez, acá arriba, y no adentro de `resultados`: de esta lista
+     salen TAMBIÉN los contadores de las pestañas de categoría, las zonas del
+     desplegable, el tope del slider de precio y los chips de características.
+     Filtrando solo abajo quedaba el pecado clásico de contador mentiroso — la
+     pestaña "Departamentos (12)" abriendo una lista de 9. */
+  const propiedades = useMemo(() => cartera.filter((p) => p.operacion !== "temporada"), [cartera]);
+
   const zonas = [...new Set(propiedades.map((p) => p.zona))].sort();
   const cuenta = (cat: string) => propiedades.filter((p) => p.categoria === cat).length;
   const tabs = [
@@ -185,6 +214,8 @@ export default function Catalogo() {
     const min = Number(f.min) || 0;
     const max = Number(f.max) || 0;
     const tokens = norm(f.q).split(/\s+/).filter(Boolean);
+    // Ojo: `propiedades` ya viene SIN las de temporada (se filtran una sola vez
+    // arriba, con el porqué escrito ahí). Acá no se vuelve a chequear a propósito.
     let r = propiedades.filter((p) => {
       const blob = blobs.get(p.id) || "";
       const precio = precioDe(p);
@@ -473,7 +504,7 @@ export default function Catalogo() {
               <span className="flex items-center gap-2 text-xs font-medium text-graph-400">
                 <SlidersHorizontal size={14} /> Filtros
               </span>
-              <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={["venta", "alquiler", "arrendamiento"]} ph="Operación" />
+              <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={OPERACIONES_CATALOGO} ph="Operación" />
               <FSelect value={f.zona} onChange={(v) => set("zona", v)} options={zonas} ph="Zona" />
               <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
               <FSelect value={f.dorm} onChange={(v) => set("dorm", v)} options={[{ v: "1", l: "1 dormitorio" }, { v: "2", l: "2 dormitorios" }, { v: "3", l: "3 dormitorios" }, { v: "4+", l: "4 o más" }]} ph="Dormitorios" />
@@ -559,7 +590,7 @@ export default function Catalogo() {
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-4">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-                <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={["venta", "alquiler", "arrendamiento"]} ph="Operación" />
+                <FSelect value={f.operacion} onChange={(v) => set("operacion", v)} options={OPERACIONES_CATALOGO} ph="Operación" />
                 <FSelect value={f.zona} onChange={(v) => set("zona", v)} options={zonas} ph="Zona" />
                 <FSelect value={f.amb} onChange={(v) => set("amb", v)} options={[{ v: "1", l: "1 ambiente" }, { v: "2", l: "2 ambientes" }, { v: "3", l: "3 ambientes" }, { v: "4", l: "4 ambientes" }, { v: "5+", l: "5 o más" }]} ph="Ambientes" />
                 <FSelect value={f.dorm} onChange={(v) => set("dorm", v)} options={[{ v: "1", l: "1 dormitorio" }, { v: "2", l: "2 dormitorios" }, { v: "3", l: "3 dormitorios" }, { v: "4+", l: "4 o más" }]} ph="Dormitorios" />

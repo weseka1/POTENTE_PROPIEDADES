@@ -86,7 +86,17 @@ export function descargarFichaPDF(row: FichaRowPDF) {
 
   // ── Datos principales ──
   section("Datos principales");
-  const dp: [string, string][] = [["Operación", esCampo ? cap(d.operacion) : cap(row.tipo)], ["Precio", money(d.precioUSD)]];
+  // El rótulo aclara "del campo" porque venta/arrendamiento es el vocabulario RURAL de
+  // la ficha de papel (`ficha.operacionCampo`), no las tres operaciones con las que se
+  // publica una propiedad —venta, alquiler y temporada, las que pidió Mateo el
+  // 14-ago-2026—. Y este PDF nunca puede imprimir esa otra: una ficha de papel existe
+  // suelta, sin propiedad cargada detrás, así que no tiene de dónde sacarla ni debe
+  // inventarla. En la ficha urbana, de hecho, acá jamás hubo una operación: lo que se
+  // imprimía bajo ese rótulo era `row.tipo`, o sea el tipo de ficha. Ahora lo dice.
+  const dp: [string, string][] = [
+    esCampo ? ["Operación del campo", cap(d.operacionCampo)] : ["Tipo de ficha", cap(row.tipo)],
+    ["Precio", money(d.precioUSD)],
+  ];
   if (esCampo) { dp.push(["Hectáreas", d.hectareas ? d.hectareas + " ha" : "—"], ["Aptitud", cap(d.tipoCampo)]); }
   else { dp.push(["Tipo", cap(d.subtipo)], ["Dirección", d.direccion || "—"]); }
   kv(dp);

@@ -116,11 +116,19 @@ export default function Cartera() {
         <FilterSelect
           value={op}
           onChange={setOp}
+          // Las TRES operaciones que pidió Mateo el 14-ago: «tienen que quedar 3
+          // tipos de operaciones: Venta, Alquiler, Temporada». Acá van las tres
+          // —y no dos como en el catálogo público— porque la Cartera es la vista
+          // interna: el equipo necesita poder pararse en todo lo que administra,
+          // temporada incluida. La que separa por operación de cara al visitante
+          // es la web (catálogo = venta y alquiler · /temporada = temporada).
+          // `arrendamiento` salió de la lista: era una operación fantasma que no
+          // usaba NINGUNA propiedad, así que el filtro nunca devolvía nada.
           options={[
             { value: "todas", label: "Operación: todas" },
             { value: "venta", label: "Venta" },
             { value: "alquiler", label: "Alquiler" },
-            { value: "arrendamiento", label: "Arrendamiento" },
+            { value: "temporada", label: "Temporada" },
           ]}
         />
         <FilterSelect

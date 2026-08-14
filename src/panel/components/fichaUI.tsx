@@ -127,7 +127,14 @@ export function FichaSecciones({
           {esCampo && <Campo label="Hectáreas"><Inp type="number" value={ficha.hectareas} onChange={(v) => setFicha("hectareas", num(v))} ph="800" /></Campo>}
         </div>
         {esCampo && (
-          <div className="mt-4"><SubLabel>Operación</SubLabel><Seg opts={[{ v: "venta", l: "Venta" }, { v: "arrendamiento", l: "Arrendamiento" }]} value={ficha.operacion} onChange={(v) => setFicha("operacion", v)} /></div>
+          // Dice "Operación del campo" y no "Operación" a secas por una razón: este par
+          // —venta / arrendamiento— es el vocabulario RURAL de la ficha de papel, no las
+          // tres operaciones con las que se publica una propiedad (venta, alquiler y
+          // temporada, las que pidió Mateo el 14-ago-2026). Aquella vive en la columna
+          // `operacion`; ésta en `ficha.operacionCampo`. Con el rótulo pelado, el que
+          // carga la ficha creería que acá decide cómo sale publicado el campo, y le
+          // estaría tocando otra cosa.
+          <div className="mt-4"><SubLabel>Operación del campo</SubLabel><Seg opts={[{ v: "venta", l: "Venta" }, { v: "arrendamiento", l: "Arrendamiento" }]} value={ficha.operacionCampo} onChange={(v) => setFicha("operacionCampo", v)} /></div>
         )}
       </section>
 

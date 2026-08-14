@@ -38,7 +38,11 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // abierto la app tiene propiedades guardadas con el vocabulario viejo, y
 // `estadoCampo["disponible"]` ahora es undefined → pantalla blanca. Subir la
 // versión invalida ese caché y se rehidrata del seed nuevo.
-const SEED_VERSION = "2026-08-08-ficha-completa-5-estados";
+// 14-ago: `arrendamiento` salió del vocabulario y entró `temporada` como
+// OPERACIÓN. Todo navegador que ya abrió la demo tiene propiedades guardadas
+// con el vocabulario viejo; sin subir esto seguiría mostrándolas y la
+// temporada aparecería vacía. Es la misma regla del 8-ago.
+const SEED_VERSION = "2026-08-14-temporada-es-operacion";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 /** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */
@@ -164,8 +168,8 @@ interface DataCtx {
   // temporada (alquiler temporario)
   unidadesTemporada: UnidadTemporada[];
   reservasTemporada: ReservaTemporada[];
-  addUnidadTemporada: (u: UnidadTemporada) => Promise<void>;
-  updateUnidadTemporada: (id: string, patch: Partial<UnidadTemporada>) => Promise<void>;
+  addUnidadTemporada: (u: UnidadTemporada) => Promise<Resultado>;
+  updateUnidadTemporada: (id: string, patch: Partial<UnidadTemporada>) => Promise<Resultado>;
   deleteUnidadTemporada: (id: string) => Promise<void>;
   addReservaTemporada: (r: ReservaTemporada) => Promise<void>;
   updateReservaTemporada: (id: string, patch: Partial<ReservaTemporada>) => Promise<void>;
@@ -472,13 +476,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await aviso("update en potente_arrendamientos", supabase.from("potente_arrendamientos").update(patch).eq("id", id));
   };
-  const addUnidadTemporada = async (u: UnidadTemporada) => {
+  /* ── TEMPORADA ─────────────────────────────────────────────────────────────
+   * 🔴 Estas mutaciones DEVUELVEN `Resultado`, como las de propiedades y llaves.
+   * Hasta el 14-ago no devolvían nada: el error de la base moría en la consola.
+   * Eso dejó de ser aceptable cuando temporada pasó a ser una OPERACIÓN y la
+   * unidad se crea junto con la propiedad — si la propiedad se guarda y la
+   * unidad no, Mateo ve "publicada ✓" y esa ficha NO aparece en temporada. Es
+   * exactamente la cicatriz de los errores silenciosos, que ya costó leads dos
+   * veces (IAGRO 14-jul, Potente 6/7-ago). */
+  const addUnidadTemporada = async (u: UnidadTemporada): Promise<Resultado> => {
     setUnidadesTemporada((prev) => [u, ...prev]);
-    if (supabase) await aviso("upsert en potente_unidades_temporada", supabase.from("potente_unidades_temporada").upsert(u));
+    if (!supabase) return SIN_BASE;
+    return aviso("upsert en potente_unidades_temporada", supabase.from("potente_unidades_temporada").upsert(u));
   };
-  const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>) => {
+  const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>): Promise<Resultado> => {
     setUnidadesTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_unidades_temporada", supabase.from("potente_unidades_temporada").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    return aviso("update en potente_unidades_temporada", supabase.from("potente_unidades_temporada").update(patch).eq("id", id));
   };
   // Sacar una unidad de temporada también borra sus reservas (no dejamos huérfanas).
   const deleteUnidadTemporada = async (id: string) => {

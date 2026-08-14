@@ -207,12 +207,27 @@ export default function Temporada() {
 
   // ── Sumar propiedad a la temporada ──
   // Candidatas: las de la cartera que todavía no son unidad. Las urbanas (depto/casa) van primero.
+  /* 🔴 14-ago, Mateo: «actualmente para cargar una propiedad en temporada tengo
+   * que seleccionar una que ya esté cargada en alquiler o venta. Yo necesito que
+   * sean fichas distintas».
+   *
+   * Desde el cambio de modelo, una propiedad de temporada es una FICHA PROPIA
+   * (`operacion === "temporada"`), y al guardarla el formulario de carga le crea
+   * su unidad sola. O sea: por el camino normal esta lista queda VACÍA, y está
+   * bien que así sea — el botón de abajo lleva a cargar la ficha.
+   *
+   * Se conserva por una sola razón concreta: recuperar una ficha de temporada
+   * que quedó sin unidad (si la base rechazó el alta, o quedó de una carga
+   * vieja). Sin esto esa ficha sería invisible y no habría forma de repararla
+   * desde el panel.
+   *
+   * ⚠️ Ya NO ofrece propiedades de venta ni de alquiler: ese era exactamente el
+   * flujo que Mateo pidió eliminar. */
   const disponibles = useMemo(() => {
     const yaUnidad = new Set(unidadesTemporada.map((u) => u.propiedadId));
-    const rank = (c: string) => (c === "departamento" || c === "casa" ? 0 : 1);
     return propiedades
-      .filter((p) => !yaUnidad.has(p.id))
-      .sort((a, b) => rank(a.categoria) - rank(b.categoria) || a.titulo.localeCompare(b.titulo));
+      .filter((p) => p.operacion === "temporada" && !yaUnidad.has(p.id))
+      .sort((a, b) => a.titulo.localeCompare(b.titulo));
   }, [propiedades, unidadesTemporada]);
   // Tarifa por noche que quedaría pre-cargada según los ambientes elegidos (preview antes de guardar).
   const previewNoche = useMemo(() => Math.round(picoPorAmbientes(Number(nueva.ambientes) || 1) / 15 / 1000) * 1000, [nueva.ambientes]);

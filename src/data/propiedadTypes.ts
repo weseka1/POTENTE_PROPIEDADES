@@ -23,7 +23,22 @@ export type Categoria =
   | "lote"
   | "terreno";
 
-export type OperacionProp = "venta" | "alquiler" | "arrendamiento";
+/**
+ * Las TRES operaciones. Mateo, 14-ago-2026: «tienen que quedar 3 tipos de
+ * operaciones: Venta, Alquiler, Temporada. Cada una con sus respectivas fichas».
+ *
+ * 🔴 `temporada` reemplaza a `arrendamiento` (que no usaba NINGUNA propiedad —
+ * verificado contra la base antes de tocarlo). Y es una operación de verdad, no
+ * una etiqueta: una propiedad de temporada es una FICHA PROPIA, independiente de
+ * la de venta o alquiler. La razón la dio él y es la que manda el diseño:
+ * «la ficha de temporada, cuando no es verano, la damos de baja» — si colgara de
+ * la ficha de venta, no se podría dar de baja sin tocar la otra.
+ *
+ * Es un enum de Postgres (`potente_operacion`, migración 014): la base rechaza
+ * cualquier otro valor, así que esta lista y la de la base no se pueden
+ * desincronizar en silencio.
+ */
+export type OperacionProp = "venta" | "alquiler" | "temporada";
 
 /* ── Vocabularios cerrados ────────────────────────────────────────────────────
    Son enums de Postgres, no texto libre: la base rechaza un valor inventado, así
@@ -107,7 +122,10 @@ export interface Ficha {
   cancha?: string[]; // fútbol, básquet, tenis
   plantacion?: string[]; // olivos, almendras, nogales
   mejorasCampo?: string[]; // molinos, tanques, aguadas, casas, manga y corrales, etc.
-  operacion?: "venta" | "arrendamiento";
+  /** Ficha rural: el campo se vende o se arrienda. NO es la `operacion` de la
+   *  propiedad (esa ahora es venta/alquiler/temporada) — es un dato interno del
+   *  campo, y por eso vive en la ficha y no en la columna. */
+  operacionCampo?: "venta" | "arrendamiento";
   hectareas?: number;
 
   // ── Ficha URBANA ──
