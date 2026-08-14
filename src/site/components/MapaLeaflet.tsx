@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAPA, SOMBRAS_KEY } from "../../config/mapa";
+import { tilesDeLaVista3D, urlTile } from "../lib/tilesEdificios";
 import { EPOCAS_SOMBRA, fechaSombras, horaLegible, ventanaSolar, TERRENO_SHADEMAP, type EpocaSombra } from "../lib/sombras";
 
 // La ciudad en 3D (MapLibre, ~230 KB gzip): SU PROPIO chunk, baja recién si
@@ -74,6 +75,30 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
   useEffect(() => { setHora((h) => ventana.clamp(h)); }, [epoca, ventana.min, ventana.max]);
   // La ciudad en 3D (pantalla completa). Solo el flag: el componente es lazy.
   const [ver3D, setVer3D] = useState(false);
+
+  /* ── Precarga del 3D, por intención ────────────────────────────────────────
+   * Medido el 14-ago contra producción, con el navegador SIN caché: el mapa
+   * monta a 1,2 s y la primera sombra aparece a 4,4 s, de los cuales 1,5 s son
+   * los 6 tiles de edificios. Adelantándolos al momento en que el visitante se
+   * acerca al botón, el clic encuentra todo en el caché del navegador (los
+   * tiles se sirven con `max-age` de 30 días) y el server ya tiene el suyo
+   * caliente.
+   *
+   * ⚠️ Solo se CALIENTAN URLs: nada de importar `edificiosMlt` acá. Ese módulo
+   * trae el decodificador (~80 kB) y entraría al bundle principal, que es la
+   * cicatriz del 12-ago. Por eso la aritmética vive en `tilesEdificios.ts`.
+   *
+   * El que no se acerca al botón no baja NADA: sigue valiendo la regla de que
+   * el 3D no le cuesta un byte a quien no lo usa. */
+  const yaPrecargado = useRef(false);
+  const precargar3D = () => {
+    if (yaPrecargado.current || !SOMBRAS_KEY) return;
+    yaPrecargado.current = true;
+    import("./Mapa3DSombras").catch(() => {});
+    for (const [x, y] of tilesDeLaVista3D(lat, lng)) {
+      fetch(urlTile(x, y), { cache: "force-cache" }).catch(() => {});
+    }
+  };
 
   useEffect(() => {
     const nodo = caja.current;
@@ -250,6 +275,14 @@ export default function MapaLeaflet({ lat, lng, titulo }: { lat: number; lng: nu
           <button
             type="button"
             onClick={() => setVer3D(true)}
+            // Precarga por INTENCIÓN: apenas el visitante se acerca al botón
+            // (mouse encima, foco por teclado, o el primer toque en el celu)
+            // arrancan a bajar el chunk de MapLibre y los tiles de edificios.
+            // Cuando termina de tocar, ya están: medido en frío, el 3D pasaba
+            // de ~4,4 s a poco más que el montaje del mapa.
+            onPointerEnter={precargar3D}
+            onFocus={precargar3D}
+            onTouchStart={precargar3D}
             className={`${pill} bg-white/85 text-graph ring-graph/10 hover:ring-brand/40`}
           >
             🏙 Ver en 3D

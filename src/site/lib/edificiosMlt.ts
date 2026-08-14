@@ -26,6 +26,7 @@
 // dinámico anidado, Vite lo subía al bundle principal — medido: +80 kB para
 // todo visitante.)
 import { decodeTile } from "@maplibre/mlt";
+import { tileX, tileY, Z_EDIFICIOS } from "./tilesEdificios";
 
 /**
  * 🔴 Los tiles van por NUESTRO server (`/api/edificios`), no directo al CDN:
@@ -35,7 +36,7 @@ import { decodeTile } from "@maplibre/mlt";
  */
 const ARCHIVO_MLT = "/api/edificios/{x}/{y}";
 /** Los tiles de edificios existen SOLO en z14 (igual que los .mvt viejos). */
-const Z = 14;
+const Z = Z_EDIFICIOS;
 /** Default para huellas sin altura: dos plantas. Ver nota de arriba. */
 const ALTURA_DEFAULT_M = 6;
 
@@ -105,14 +106,11 @@ async function tileDecodificado(x: number, y: number): Promise<EdificioGeoJSON[]
  * 1 a 4; el tope 9 es un fusible por si alguien lo llama con un bbox gigante).
  */
 export async function edificiosEnBbox(sur: number, oeste: number, norte: number, este: number): Promise<EdificioGeoJSON[]> {
-  const n = 2 ** Z;
-  const xDe = (lng: number) => Math.floor(((lng + 180) / 360) * n);
-  const yDe = (lat: number) => {
-    const rad = (lat * Math.PI) / 180;
-    return Math.floor(((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * n);
-  };
+  // La aritmética de tiles vive en `tilesEdificios.ts` — módulo aparte y sin
+  // decodificador, para que la ficha pueda PRECARGAR los tiles sin arrastrar
+  // `@maplibre/mlt` al bundle principal.
   const tiles: Array<[number, number]> = [];
-  for (let x = xDe(oeste); x <= xDe(este); x++) for (let y = yDe(norte); y <= yDe(sur); y++) tiles.push([x, y]);
+  for (let x = tileX(oeste); x <= tileX(este); x++) for (let y = tileY(norte); y <= tileY(sur); y++) tiles.push([x, y]);
   if (tiles.length === 0 || tiles.length > 9) return [];
   const porTile = await Promise.all(tiles.map(([x, y]) => tileDecodificado(x, y)));
   return porTile.flat();
