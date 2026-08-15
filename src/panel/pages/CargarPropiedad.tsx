@@ -9,10 +9,11 @@ import { supabase } from "@/lib/supabase";
 import { aDataUrlComprimida, aArchivoWeb } from "@/lib/imagenes";
 import { guardarVideo, borrarVideo, esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
 import { OFICINAS, getOficina, SITIO_LEGIBLE } from "@/config/marca";
-import type { Propiedad, Categoria, Ficha, Orientacion } from "@/data/propiedadTypes";
+import type { Propiedad, Categoria, Ficha, Orientacion, OperacionProp } from "@/data/propiedadTypes";
 import { camposDe, camposDelGrupo, CAMPOS, type CampoProp } from "@/data/esquemaPropiedad";
 import { ESTADOS_PROPIEDAD, estadoCampo } from "../ui/estados";
 import MapaUbicacion from "../components/MapaUbicacion";
+import { esBarrioTemporada, BARRIOS_TEMPORADA } from "@/config/temporada";
 
 const categorias: { v: Categoria; l: string }[] = [
   { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "chalet", l: "Chalet" },
@@ -21,6 +22,17 @@ const categorias: { v: Categoria; l: string }[] = [
   { v: "cochera", l: "Cochera" }, { v: "deposito", l: "Depósito" }, { v: "galpon", l: "Galpón" },
   { v: "edificio", l: "Edificio" }, { v: "hotel", l: "Hotel" }, { v: "fondocomercio", l: "Fondo de comercio" },
   { v: "lote", l: "Lote" }, { v: "terreno", l: "Terreno" }, { v: "chacra", l: "Chacra" }, { v: "campo", l: "Campo" },
+];
+
+/**
+ * Las tres operaciones, en el orden del desplegable.
+ * Tipada con `OperacionProp` para que agregar una cuarta a `propiedadTypes.ts`
+ * sin ponerla acá NO compile: el selector y el tipo no se pueden desincronizar.
+ */
+const OPERACIONES: { v: OperacionProp; l: string }[] = [
+  { v: "venta", l: "Venta" },
+  { v: "alquiler", l: "Alquiler" },
+  { v: "temporada", l: "Temporada" },
 ];
 
 // ── Opciones de la ficha (réplica del papel Potente) ──
@@ -120,7 +132,7 @@ function aFormulario(p: Propiedad) {
  * Así editar una propiedad tiene exactamente las mismas posibilidades que crearla.
  */
 export default function CargarPropiedad() {
-  const { addPropiedad, updatePropiedad, propiedades } = useData();
+  const { addPropiedad, updatePropiedad, propiedades, unidadesTemporada, addUnidadTemporada } = useData();
   const { push } = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -325,6 +337,71 @@ export default function CargarPropiedad() {
       return; // se queda en el formulario, con todo lo cargado a la vista
     }
 
+    /* ── La ficha de temporada nace con su unidad ──────────────────────────
+     * Mateo, 14-ago: «necesito que sean fichas distintas… una propiedad nueva,
+     * propia, que yo cargue específicamente como temporada».
+     *
+     * Los datos que la web de temporada necesita (capacidad, comodidades,
+     * tarifas) viven en `potente_unidades_temporada`, no en la propiedad. Si el
+     * usuario carga una ficha de temporada y esa fila no existe, la propiedad
+     * queda invisible en /temporada y en el panel de Temporada: cargó todo y no
+     * aparece en ningún lado. Por eso se crea acá, en el mismo guardado.
+     *
+     * Arranca con valores mínimos y editables desde el panel de Temporada, que
+     * es donde se afinan tarifas y comodidades. NO se inventan datos: capacidad
+     * y ambientes salen de lo que ya cargó, y si no los cargó quedan en el
+     * mínimo, visible y corregible.
+     *
+     * ⚠️ Solo si NO existe: al editar una ficha de temporada no se pisan las
+     * tarifas ni las comodidades que Mateo haya ajustado después. */
+    if (p.operacion === "temporada" && !unidadesTemporada.some((u) => u.propiedadId === p.id)) {
+      const amb = Number(p.ambientes) || 1;
+      const ru = await addUnidadTemporada({
+        id: "TMP-" + Date.now().toString(36),
+        propiedadId: p.id,
+        oficina: p.oficina,
+        barrio: p.zona,
+        ambientes: amb,
+        capacidad: Number(p.dormitorios) ? Number(p.dormitorios) * 2 : amb,
+        frenteAlMar: false,
+        comodidades: [],
+        tarifas: {},
+        tarifaNocheARS: 0,
+        comisionPct: 15,
+        activa: true,
+        enLimpieza: false,
+      });
+      // Mismo criterio que el guardado de arriba: si la base la rechaza, se
+      // dice. Una propiedad de temporada sin unidad no se publica, y el usuario
+      // tiene que enterarse ACÁ y no cuando la busque y no esté.
+      if (!ru.ok) {
+        push(
+          `La ficha se guardó, pero no se pudo darla de alta en temporada: ${ru.error ?? "la base rechazó el cambio"}. Avisale a WESEKA.`,
+          "error",
+        );
+        return;
+      }
+    }
+
+    /* 🔴 14-ago · La ZONA decide si una ficha de temporada se publica, y lo decide
+     * en silencio. El barrio de la unidad se copia de `zona` (texto libre), y la
+     * landing de temporada solo muestra los barrios de config/temporada.js. Una
+     * ficha de temporada con la zona en "Varese" queda invisible en /temporada, en
+     * /temporada/<barrio> Y en el catálogo general (que excluye temporada): las
+     * tres puntas mudas, mientras el panel canta "publicada ✓ — ya está en la web".
+     * `esBarrioTemporada` ya perdona cómo se escribe (mayúsculas, acentos,
+     * espacios); lo que no puede adivinar es un barrio que no es. De eso se avisa
+     * ACÁ, que es el único momento en que se puede corregir, y NO se navega para
+     * que el mensaje se lea. */
+    if (p.operacion === "temporada" && !esBarrioTemporada(p.zona)) {
+      push(
+        `Guardada ✓, pero la zona “${p.zona || "(vacía)"}” no es un barrio de temporada, así que NO va a salir en la sección Temporada de la web. ` +
+          `Hoy la temporada se publica en: ${BARRIOS_TEMPORADA.join(", ")}.`,
+        "error",
+      );
+      return;
+    }
+
     push(
       editando ? "Cambios guardados ✓ — ya se ven en la web" : "Propiedad publicada ✓ — ya está en la web",
       "success",
@@ -380,7 +457,10 @@ export default function CargarPropiedad() {
                 />
               </Campo>
               <Campo label="Tipo de propiedad"><Sel value={f.categoria} onChange={(v) => set("categoria", v)} opts={categorias.map((c) => ({ v: c.v, l: c.l }))} /></Campo>
-              <Campo label="Operación"><Sel value={f.operacion} onChange={(v) => set("operacion", v)} opts={[{ v: "venta", l: "Venta" }, { v: "alquiler", l: "Alquiler" }, { v: "arrendamiento", l: "Arrendamiento" }]} /></Campo>
+              {/* Las TRES operaciones (Mateo, 14-ago). `temporada` no es una
+                  etiqueta: elegirla acá crea una FICHA PROPIA de temporada, con
+                  su unidad. Textual: «necesito que sean fichas distintas». */}
+              <Campo label="Operación"><Sel value={f.operacion} onChange={(v) => set("operacion", v)} opts={OPERACIONES} /></Campo>
               <Campo label="Título" full><Inp value={f.titulo} onChange={(v) => set("titulo", v)} ph="Ej: Departamento 3 ambientes — Playa Grande" /></Campo>
               <Campo label="Zona / Localidad"><Inp value={f.zona} onChange={(v) => set("zona", v)} ph="Punta Mogotes" /></Campo>
               <Campo label="Dirección / Ubicación"><Inp value={f.direccion} onChange={(v) => set("direccion", v)} ph="Córdoba 3719" /></Campo>
@@ -937,3 +1017,4 @@ function Seg({ opts, value, onChange }: { opts: { v: string; l: string }[]; valu
     </div>
   );
 }
+

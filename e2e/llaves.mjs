@@ -26,6 +26,10 @@
  */
 import { nuevaPestania, chequear, resumen } from "./cdp.mjs";
 import { pedirSesion, guionSesion } from "./login.mjs";
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
 const NUM = 8801; // alto a propósito: no choca con el llavero real
 const APELLIDO = "SondaVerificacion";
@@ -34,6 +38,42 @@ const { send, evaluar, ir, cerrar, URL_APP } = await nuevaPestania();
 await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
 await ir(URL_APP + "/", 3000);
 const sesion = await pedirSesion("mateo");
+
+/* ── Barrida de arranque ─────────────────────────────────────────────────────
+ * 🔴 14-ago · SIN ESTO, UNA SOLA CORRIDA CORTADA ROMPE EL TEST PARA SIEMPRE.
+ * Pasó de verdad: quedó `LLV-msty4658` (nº 8801, llavero de Mogotes) de una
+ * corrida interrumpida, y a partir de ahí el alta chocaba contra el índice único
+ * (nº + llavero) y CATORCE aserciones salían en rojo — no por un bug del panel,
+ * sino por basura de una prueba anterior. Doce horas de "está roto el módulo de
+ * llaves" que no era.
+ *
+ * El archivo limpiaba solo POR LA INTERFAZ (borrando la llave con el modal, que
+ * además es una de las aserciones). Limpieza por interfaz = limpieza que no
+ * ocurre cuando el guion se corta. Va una barrida por API ANTES de empezar: la
+ * de la interfaz se queda porque prueba el modal de confirmación, ésta garantiza
+ * el punto de partida. Es el mismo `finally` que ya tienen `verificar-db` y
+ * `temporada-mogotes`, movido al arranque porque acá el borrado ES una prueba. */
+const AQUI = dirname(fileURLToPath(import.meta.url));
+const env = Object.fromEntries(
+  readFileSync(resolve(AQUI, "..", ".env.local"), "utf8")
+    .split("\n").map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && l.includes("="))
+    .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }),
+);
+const sbAdmin = createClient(
+  process.env.VITE_SUPABASE_URL ?? env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY,
+  { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${sesion.access_token}` } } },
+);
+{
+  const { data: residuos } = await sbAdmin.from("potente_llaves").select("id").eq("propietario", APELLIDO);
+  for (const k of residuos ?? []) {
+    await sbAdmin.from("potente_movimientos_llave").delete().eq("llaveId", k.id);
+    await sbAdmin.from("potente_llaves").delete().eq("id", k.id);
+  }
+  if (residuos?.length) console.log(`  (barridos ${residuos.length} residuos de una corrida anterior)`);
+}
+
 await evaluar(guionSesion(sesion));
 await ir(URL_APP + "/panel/llaves", 7000);
 
@@ -66,13 +106,37 @@ const escribir = (ph, valor) => evaluar(`
   return "ok";
 `);
 
-const filaSonda = () => evaluar(`
-  const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
-  return tr ? (tr.innerText || "") : "";
-`);
+/* 🔴 14-ago · SE BUSCA ANTES DE MIRAR, y no es un adorno.
+ * La lista pagina de a 20 y el llavero real de Mateo ya tiene 67 llaves. La de
+ * sonda usa el número 8801 —alto a propósito para no chocar con las reales—, así
+ * que al ordenar por número cae en la ÚLTIMA página. Este test miraba las filas
+ * visibles de la PRIMERA: la llave se creaba bien en la base y catorce
+ * aserciones salían en rojo igual, acusando a un módulo que funcionaba.
+ * Y va a empeorar solo: cada llave que carga Mateo empuja la sonda más lejos.
+ * Filtrando por el apellido de sonda, la fila es la única que queda y el test
+ * deja de depender de cuántas llaves tenga el cliente. */
+const buscarSonda = async () => {
+  await evaluar(`
+    const i = [...document.querySelectorAll("input")].find(x => (x.placeholder||"").startsWith("Buscar por número"));
+    if (!i) return "falta";
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(APELLIDO)});
+    i.dispatchEvent(new Event("input", { bubbles: true }));
+    return "ok";
+  `);
+  await new Promise((r) => setTimeout(r, 900));
+};
+
+const filaSonda = async () => {
+  await buscarSonda();
+  return evaluar(`
+    const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
+    return tr ? (tr.innerText || "") : "";
+  `);
+};
 
 /** Click en la fila de la llave de sonda: abre/cierra SU historial. */
 const clickFilaSonda = async () => {
+  await buscarSonda(); // misma razón que en filaSonda: sin filtrar, la fila está en otra página
   const p = JSON.parse(await evaluar(`
     const tr = [...document.querySelectorAll("tbody tr")].find(x => (x.innerText||"").includes(${JSON.stringify(APELLIDO)}));
     if (!tr) return JSON.stringify({ falta: true });

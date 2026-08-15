@@ -583,6 +583,69 @@ async function main() {
   const huerfanos = (sinMigrar ?? []).filter((p: any) => p.ficha?.dormitorios != null).length;
   chequear("Ningún duplicado de la ficha quedó sin migrar", huerfanos === 0, `${huerfanos} sin migrar`);
 
+  console.log("\n═══ 3c · LAS TRES OPERACIONES (Mateo, 14-ago) ═══\n");
+
+  /* Mateo, 14-ago-2026, textual: «tienen que quedar 3 tipos de operaciones:
+   * Venta, Alquiler, Temporada». Y Juani, el mismo día: «arrendamiento cambia
+   * por temporada» — se verificó antes de escribir la migración 014 que CERO
+   * propiedades usaban 'arrendamiento', así que el valor se reemplaza sin
+   * migrar ni un dato.
+   *
+   * Este bloque es el gemelo del vocabulario de estados de acá arriba, y existe
+   * por la misma razón: el enum es del lado de la BASE. El front puede tener el
+   * union de TypeScript impecable y la base seguir aceptando el valor viejo —
+   * esa es la mitad que se olvida y la que nadie ve hasta que un dato entra mal.
+   *
+   * ⚠️ Acá tampoco se cuentan filas: NO se afirma "hay N propiedades en
+   * temporada". La cartera es viva (Mateo carga y borra todos los días) y un
+   * contador se pondría rojo solo, sin que haya ningún problema real — ya pasó
+   * con las expensas y con apta crédito (ver el comentario del relleno, arriba).
+   * Lo que se prueba es el VOCABULARIO, que es lo que la migración prometió y no
+   * se mueve con el trabajo del día.
+   */
+  const { data: operaciones } = await mateo.rpc("potente_operaciones_propiedad");
+  chequear(
+    "Las operaciones son EXACTAMENTE las 3 que nombró Mateo",
+    JSON.stringify(operaciones) === JSON.stringify(["venta", "alquiler", "temporada"]),
+    (operaciones ?? []).join(" · "),
+  );
+
+  /* La sonda de escritura. El id lleva el prefijo PROP-VERIF- a propósito: es lo
+   * que barre `limpiar()` en el `finally`. Esta es una base de PRODUCCIÓN de un
+   * cliente que la usa a diario y una fila de prueba huérfana deja una prueba en
+   * rojo para siempre (ver el comentario de limpiar()). */
+  const conOperacion = async (operacion: string) => {
+    const id = `PROP-VERIF-OP-${operacion}-${Date.now()}`;
+    const { error } = await mateo.from("potente_propiedades").insert({
+      id, categoria: "casa", titulo: "Verificación", operacion,
+      zona: "Verificación", provincia: "Mar del Plata",
+    });
+    return { id, error };
+  };
+
+  // (se llama opTemporada y no `temporada`: ese nombre ya lo usa la sonda de
+  //  unidades de temporada del bloque 2, y son cosas distintas)
+  const opTemporada = await conOperacion("temporada");
+  chequear("Acepta la operación 'temporada'", !opTemporada.error, opTemporada.error?.message ?? "");
+
+  /* 🔴 LA PRUEBA QUE MÁS IMPORTA DE LAS CUATRO. `ALTER TYPE ... ADD VALUE` no
+   * sirve para esto (el valor nuevo no se puede usar en la misma transacción, y
+   * el editor de Supabase manda todo como una), así que la 014 hace el
+   * INTERCAMBIO de tipo completo. Una migración a medias —alguien que agrega
+   * 'temporada' de la manera fácil— deja 'arrendamiento' VIVO y las otras tres
+   * pruebas pasan igual, en verde, mintiendo. Esta es la única que la caza. */
+  const arrendamiento = await conOperacion("arrendamiento");
+  chequear(
+    "RECHAZA el vocabulario viejo ('arrendamiento')",
+    Boolean(arrendamiento.error),
+    "el enum se intercambió de verdad",
+  );
+
+  // Y que la puerta siga cerrada para cualquier otra cosa: sin esto, un enum con
+  // un cuarto valor de más pasaría la prueba de arriba sin despeinarse.
+  const opInventada = await conOperacion("permuta");
+  chequear("Rechaza una operación inventada", Boolean(opInventada.error));
+
   console.log("\n═══ 4 · AUDITORÍA ═══\n");
 
   // Cambiar algo y ver si quedó registrado quién lo hizo.

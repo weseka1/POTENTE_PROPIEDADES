@@ -48,7 +48,15 @@ function tarifasDesde(amb: number, factor = 1): UnidadTemporada["tarifas"] {
   return out;
 }
 
-// Unidades en temporada: se apoyan en propiedades urbanas de la cartera (propiedadId).
+// Unidades en temporada: se apoyan en una propiedad DEDICADA de la cartera.
+// 🔴 14-ago-2026: desde que temporada es una operación propia, la unidad tiene
+// que apuntar a una ficha con `operacion: "temporada"` — si apunta a una de
+// venta o alquiler, la web NO la publica (lo filtra `unidadesPublicables`).
+// Por eso las cuatro de Punta Mogotes en `urbanas.ts` pasaron a temporada: son
+// exactamente el caso que describió Mateo, «propiedades que están vacías
+// durante el año, no están ni en venta ni en alquiler».
+// Las semillas de otros barrios quedan como estaban: no salen a la web igual,
+// porque temporada se hace solo en Punta Mogotes (config/temporada.js).
 // factor: ajuste fino por ubicación/calidad (frente al mar y Playa Grande valen más).
 type Semilla = { id: string; propiedadId: string; amb: number; cap: number; barrio: string; oficina?: "chauvin" | "puntamogotes"; mar?: boolean; com: string[]; factor?: number; limpieza?: boolean };
 // Las unidades apuntan a propiedades REALES de la cartera (ids POT-*). El barrio

@@ -75,12 +75,20 @@ export default function Cartera() {
     });
   }, [propiedades, q, cat, op, est]);
 
-  const handleUpdate = (id: string, patch: Partial<Propiedad>) => {
-    updatePropiedad(id, patch);
+  /* 🔴 14-ago · Se ESPERA el resultado y se mira antes de cantar el ✓.
+   * `updatePropiedad`/`deletePropiedad` devuelven `Resultado` desde hace rato,
+   * pero acá se descartaba: la base rechazaba y el panel decía "actualizada ✓"
+   * igual. Cartera es la pantalla que Mateo usa TODOS LOS DÍAS (el 10-ago editó
+   * unas 20 propiedades desde acá), así que era el lugar más caro del sistema
+   * para tener un tilde verde que miente. */
+  const handleUpdate = async (id: string, patch: Partial<Propiedad>) => {
+    const r = await updatePropiedad(id, patch);
+    if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push("Propiedad actualizada ✓", "success");
   };
-  const handleDelete = (id: string) => {
-    deletePropiedad(id);
+  const handleDelete = async (id: string) => {
+    const r = await deletePropiedad(id);
+    if (!r.ok) { push(`No se pudo eliminar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     setSelId(null);
     push("Propiedad eliminada de la cartera", "info");
   };
@@ -116,11 +124,19 @@ export default function Cartera() {
         <FilterSelect
           value={op}
           onChange={setOp}
+          // Las TRES operaciones que pidió Mateo el 14-ago: «tienen que quedar 3
+          // tipos de operaciones: Venta, Alquiler, Temporada». Acá van las tres
+          // —y no dos como en el catálogo público— porque la Cartera es la vista
+          // interna: el equipo necesita poder pararse en todo lo que administra,
+          // temporada incluida. La que separa por operación de cara al visitante
+          // es la web (catálogo = venta y alquiler · /temporada = temporada).
+          // `arrendamiento` salió de la lista: era una operación fantasma que no
+          // usaba NINGUNA propiedad, así que el filtro nunca devolvía nada.
           options={[
             { value: "todas", label: "Operación: todas" },
             { value: "venta", label: "Venta" },
             { value: "alquiler", label: "Alquiler" },
-            { value: "arrendamiento", label: "Arrendamiento" },
+            { value: "temporada", label: "Temporada" },
           ]}
         />
         <FilterSelect

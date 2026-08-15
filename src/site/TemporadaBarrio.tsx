@@ -13,6 +13,7 @@ import {
   barrioBySlug,
   waTemporada,
   UnidadTempCard,
+  unidadesPublicables,
 } from "./Temporada";
 
 // Texto local real por barrio (250-400 palabras). Es la pieza SEO clave: cada uno
@@ -64,10 +65,21 @@ export default function TemporadaBarrio() {
   const barrio = slug ? barrioBySlug(slug) : undefined;
 
   const { unidadesTemporada, propiedades } = useData();
-  const propById = (id: string) => propiedades.find((p) => p.id === id);
+  // La regla de qué se publica (unidad activa + ficha con `operacion` de
+  // temporada) es la MISMA que la de la landing y sale de un solo lado: acá
+  // solo se recorta por barrio, que es lo único propio de esta página. Si esta
+  // página filtrara por su cuenta, un día una de las dos publicaría una ficha
+  // de venta y la otra no.
   const unidades = useMemo(
-    () => unidadesTemporada.filter((u) => u.activa && u.barrio === barrio),
-    [unidadesTemporada, barrio]
+    /* Compara por SLUG y no por igualdad de string: `u.barrio` se copia de `zona`,
+     * que es texto libre del panel, y `barrio` acá viene canónico de la config.
+     * "punta mogotes" tiene que caer en la misma página que "Punta Mogotes".
+     * Misma razón que `esBarrioTemporada()` en config/temporada.js. */
+    () =>
+      unidadesPublicables(unidadesTemporada, propiedades).filter(
+        ({ u }) => slugBarrio(String(u.barrio ?? "").trim()) === slugBarrio(barrio),
+      ),
+    [unidadesTemporada, propiedades, barrio]
   );
 
   // 🔴 13-ago, Mateo: «los precios de temporada deben decir todos "a consultar",
@@ -142,7 +154,7 @@ export default function TemporadaBarrio() {
 
   const parrafos = TEXTO_BARRIO[barrio] ?? [];
   const otros = BARRIOS_TEMPORADA.filter((b) => b !== barrio);
-  const wa = waTemporada(`una propiedad de temporada en ${barrio}`, undefined, unidades[0]?.oficina);
+  const wa = waTemporada(`una propiedad de temporada en ${barrio}`, undefined, unidades[0]?.u.oficina);
 
   return (
     <div className="min-h-screen bg-paper text-graph">
@@ -152,8 +164,11 @@ export default function TemporadaBarrio() {
       {/* ===== HERO ===== */}
       <header className="relative overflow-hidden pt-32 pb-14">
         <div className="absolute inset-0">
+          {/* La foto del hero es la de la primera ficha de temporada del barrio.
+              Sale del par ya resuelto: si no hay ninguna publicada, cae en la
+              imagen genérica del sitio y nunca en la foto de un aviso de venta. */}
           <img
-            src={propById(unidades[0]?.propiedadId ?? "")?.fotos?.[0] || "/img/props/depto2.jpg"}
+            src={unidades[0]?.prop.fotos?.[0] || "/img/props/depto2.jpg"}
             alt=""
             className="h-full w-full object-cover"
           />
@@ -224,9 +239,9 @@ export default function TemporadaBarrio() {
             </div>
           ) : (
             <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
-              {unidades.map((u) => (
+              {unidades.map(({ u, prop }) => (
                 <div key={u.id} className="reveal">
-                  <UnidadTempCard u={u} prop={propById(u.propiedadId)} />
+                  <UnidadTempCard u={u} prop={prop} />
                 </div>
               ))}
             </div>

@@ -38,7 +38,11 @@ const seedArrR = seedArr.map((a) => ({ ...a, inicioISO: rebaseISO(a.inicioISO), 
 // abierto la app tiene propiedades guardadas con el vocabulario viejo, y
 // `estadoCampo["disponible"]` ahora es undefined → pantalla blanca. Subir la
 // versión invalida ese caché y se rehidrata del seed nuevo.
-const SEED_VERSION = "2026-08-08-ficha-completa-5-estados";
+// 14-ago: `arrendamiento` salió del vocabulario y entró `temporada` como
+// OPERACIÓN. Todo navegador que ya abrió la demo tiene propiedades guardadas
+// con el vocabulario viejo; sin subir esto seguiría mostrándolas y la
+// temporada aparecería vacía. Es la misma regla del 8-ago.
+const SEED_VERSION = "2026-08-14-temporada-es-operacion";
 const lsKey = (name: string) => `potente_demo_${name}`;
 
 /** Para páginas que guardan su propia colección (ej: Fichas) y no viven en el provider. */
@@ -164,12 +168,12 @@ interface DataCtx {
   // temporada (alquiler temporario)
   unidadesTemporada: UnidadTemporada[];
   reservasTemporada: ReservaTemporada[];
-  addUnidadTemporada: (u: UnidadTemporada) => Promise<void>;
-  updateUnidadTemporada: (id: string, patch: Partial<UnidadTemporada>) => Promise<void>;
-  deleteUnidadTemporada: (id: string) => Promise<void>;
-  addReservaTemporada: (r: ReservaTemporada) => Promise<void>;
-  updateReservaTemporada: (id: string, patch: Partial<ReservaTemporada>) => Promise<void>;
-  deleteReservaTemporada: (id: string) => Promise<void>;
+  addUnidadTemporada: (u: UnidadTemporada) => Promise<Resultado>;
+  updateUnidadTemporada: (id: string, patch: Partial<UnidadTemporada>) => Promise<Resultado>;
+  deleteUnidadTemporada: (id: string) => Promise<Resultado>;
+  addReservaTemporada: (r: ReservaTemporada) => Promise<Resultado>;
+  updateReservaTemporada: (id: string, patch: Partial<ReservaTemporada>) => Promise<Resultado>;
+  deleteReservaTemporada: (id: string) => Promise<Resultado>;
   // asistente IA · bandeja de conversaciones
   conversaciones: Conversacion[];
   conversacionesNoLeidas: number;
@@ -472,26 +476,64 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await aviso("update en potente_arrendamientos", supabase.from("potente_arrendamientos").update(patch).eq("id", id));
   };
-  const addUnidadTemporada = async (u: UnidadTemporada) => {
+  /* ── TEMPORADA ─────────────────────────────────────────────────────────────
+   * 🔴 Estas mutaciones DEVUELVEN `Resultado`, como las de propiedades y llaves.
+   * Hasta el 14-ago no devolvían nada: el error de la base moría en la consola.
+   * Eso dejó de ser aceptable cuando temporada pasó a ser una OPERACIÓN y la
+   * unidad se crea junto con la propiedad — si la propiedad se guarda y la
+   * unidad no, Mateo ve "publicada ✓" y esa ficha NO aparece en temporada. Es
+   * exactamente la cicatriz de los errores silenciosos, que ya costó leads dos
+   * veces (IAGRO 14-jul, Potente 6/7-ago). */
+  /* 🔴 Las cinco mutaciones de temporada pintan primero y preguntan después
+   * (escritura optimista: la pantalla responde al toque), pero si la base RECHAZA
+   * se DESHACE lo pintado. Sin la reversión, avisar del error no alcanza: la fila
+   * fantasma se queda en la lista hasta que alguien recargue, y Mateo la ve ahí y
+   * le cree. Devolver el `Resultado` es la mitad del arreglo; la otra mitad es
+   * que la pantalla vuelva a decir la verdad.
+   * No hay función pública de resincronizado, así que cada una guarda el valor
+   * anterior y lo repone. */
+  const addUnidadTemporada = async (u: UnidadTemporada): Promise<Resultado> => {
     setUnidadesTemporada((prev) => [u, ...prev]);
-    if (supabase) await aviso("upsert en potente_unidades_temporada", supabase.from("potente_unidades_temporada").upsert(u));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("upsert en potente_unidades_temporada", supabase.from("potente_unidades_temporada").upsert(u));
+    if (!r.ok) setUnidadesTemporada((prev) => prev.filter((x) => x.id !== u.id));
+    return r;
   };
-  const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>) => {
+  const updateUnidadTemporada = async (id: string, patch: Partial<UnidadTemporada>): Promise<Resultado> => {
+    const anterior = unidadesTemporada.find((x) => x.id === id);
     setUnidadesTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_unidades_temporada", supabase.from("potente_unidades_temporada").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("update en potente_unidades_temporada", supabase.from("potente_unidades_temporada").update(patch).eq("id", id));
+    if (!r.ok && anterior) setUnidadesTemporada((prev) => prev.map((x) => (x.id === id ? anterior : x)));
+    return r;
   };
-  // Sacar una unidad de temporada también borra sus reservas (no dejamos huérfanas).
-  const deleteUnidadTemporada = async (id: string) => {
+  /* Sacar una unidad de temporada también borra sus reservas (no dejamos huérfanas).
+   * Son DOS borrados y el orden importa: primero las reservas, porque apuntan a la
+   * unidad. Si el primero falla se corta acá y se devuelve ese error — seguir con
+   * el segundo dejaría reservas colgadas de una unidad que ya no existe. */
+  const deleteUnidadTemporada = async (id: string): Promise<Resultado> => {
+    const unidadAnterior = unidadesTemporada.find((x) => x.id === id);
+    const reservasAnteriores = reservasTemporada.filter((r) => r.unidadId === id);
+    const reponer = () => {
+      if (unidadAnterior) setUnidadesTemporada((prev) => (prev.some((x) => x.id === id) ? prev : [unidadAnterior, ...prev]));
+      if (reservasAnteriores.length) setReservasTemporada((prev) => [...reservasAnteriores.filter((r) => !prev.some((x) => x.id === r.id)), ...prev]);
+    };
     setUnidadesTemporada((prev) => prev.filter((x) => x.id !== id));
     setReservasTemporada((prev) => prev.filter((r) => r.unidadId !== id));
-    if (supabase) {
-      await aviso("delete en potente_reservas_temporada", supabase.from("potente_reservas_temporada").delete().eq("unidadId", id));
-      await aviso("delete en potente_unidades_temporada", supabase.from("potente_unidades_temporada").delete().eq("id", id));
-    }
+    if (!supabase) return SIN_BASE;
+    const r1 = await aviso("delete en potente_reservas_temporada", supabase.from("potente_reservas_temporada").delete().eq("unidadId", id));
+    if (!r1.ok) { reponer(); return r1; }
+    const r2 = await aviso("delete en potente_unidades_temporada", supabase.from("potente_unidades_temporada").delete().eq("id", id));
+    if (!r2.ok) reponer();
+    return r2;
   };
-  const deleteReservaTemporada = async (id: string) => {
+  const deleteReservaTemporada = async (id: string): Promise<Resultado> => {
+    const anterior = reservasTemporada.find((x) => x.id === id);
     setReservasTemporada((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await aviso("delete en potente_reservas_temporada", supabase.from("potente_reservas_temporada").delete().eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("delete en potente_reservas_temporada", supabase.from("potente_reservas_temporada").delete().eq("id", id));
+    if (!r.ok && anterior) setReservasTemporada((prev) => (prev.some((x) => x.id === id) ? prev : [anterior, ...prev]));
+    return r;
   };
   const deleteLead = async (id: string) => {
     setLeads((prev) => prev.filter((x) => x.id !== id));
@@ -543,13 +585,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setArrendamientos((prev) => prev.filter((x) => x.id !== id));
     if (supabase) await aviso("delete en potente_arrendamientos", supabase.from("potente_arrendamientos").delete().eq("id", id));
   };
-  const addReservaTemporada = async (r: ReservaTemporada) => {
+  /* 🔴 ESTA es la que MENOS puede fallar en silencio de todo el módulo.
+   * La base tiene un constraint de exclusión que RECHAZA dos reservas solapadas
+   * sobre la misma unidad (23P01, probado en `verificar-db`). El chequeo que hace
+   * el panel antes de llamar acá mira el estado LOCAL, que queda viejo apenas otra
+   * oficina seña algo. O sea: el rechazo de la base no es un caso raro, es el
+   * camino normal de una carrera entre dos oficinas — y si se traga, Mateo cree
+   * que señó una quincena que en realidad está tomada. */
+  const addReservaTemporada = async (r: ReservaTemporada): Promise<Resultado> => {
     setReservasTemporada((prev) => [r, ...prev]);
-    if (supabase) await aviso("upsert en potente_reservas_temporada", supabase.from("potente_reservas_temporada").upsert(r));
+    if (!supabase) return SIN_BASE;
+    const res = await aviso("upsert en potente_reservas_temporada", supabase.from("potente_reservas_temporada").upsert(r));
+    if (!res.ok) setReservasTemporada((prev) => prev.filter((x) => x.id !== r.id));
+    return res;
   };
-  const updateReservaTemporada = async (id: string, patch: Partial<ReservaTemporada>) => {
+  const updateReservaTemporada = async (id: string, patch: Partial<ReservaTemporada>): Promise<Resultado> => {
+    const anterior = reservasTemporada.find((x) => x.id === id);
     setReservasTemporada((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_reservas_temporada", supabase.from("potente_reservas_temporada").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("update en potente_reservas_temporada", supabase.from("potente_reservas_temporada").update(patch).eq("id", id));
+    if (!r.ok && anterior) setReservasTemporada((prev) => prev.map((x) => (x.id === id ? anterior : x)));
+    return r;
   };
 
   // ===== Bandeja de conversaciones =====

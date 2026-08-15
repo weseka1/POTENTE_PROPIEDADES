@@ -19,13 +19,115 @@
  * el CONTENEDOR de cada cosa y no el body entero — la misma lección que el
  * saneador de Bochile: un filtro demasiado ancho da falsos positivos.
  *
- * De solo lectura: no crea ni borra nada.
+ * ⚠️ 14-ago · YA NO ES DE SOLO LECTURA, y el motivo importa.
+ * Desde que temporada es una OPERACIÓN (migración 014), lo que se publica exige
+ * una ficha con `operacion = 'temporada'`. En la base viva hoy hay CERO: las
+ * unidades que existen son semillas y cuelgan de fichas de venta/alquiler, así
+ * que /temporada está vacía hasta que Mateo cargue las suyas.
+ *
+ * Con la página vacía, ONCE de estas aserciones pasaban SOLAS —"0 tarjetas con
+ * precio de 0 tarjetas"— y el archivo entero se volvía verde sin probar nada.
+ * Es exactamente la trampa que ya está anotada para `sweep-final` (no puede
+ * cazar el crash de un estado si no hay una fila de ese estado). Un test que
+ * pasa por falta de datos es peor que un test en rojo: miente y nadie lo mira.
+ *
+ * Entonces la suite SIEMBRA su propia ficha de temporada, corre todo contra
+ * ella y la borra en el `finally` — pase lo que pase, incluso si una aserción
+ * explota. Mismo criterio que `llaves.mjs` y que `verificar-db`.
+ *
+ * ⚠️ Escribe en la base de PRODUCCIÓN (es la única que hay). La fila vive unos
+ * segundos y lleva el prefijo PROP-E2E-TEMP-. Si el script se corta a mitad y
+ * queda huérfana, se borra a mano:
+ *   delete from potente_unidades_temporada where "propiedadId" like 'PROP-E2E-TEMP-%';
+ *   delete from potente_propiedades where id like 'PROP-E2E-TEMP-%';
  *
  * USO: APP=http://localhost:5173 node e2e/temporada-mogotes.mjs
  */
 import { nuevaPestania, chequear, resumen } from "./cdp.mjs";
+import { pedirSesion } from "./login.mjs";
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+/* ── Siembra: una ficha de temporada de verdad, como la cargaría Mateo ─────── */
+const AQUI = dirname(fileURLToPath(import.meta.url));
+const env = Object.fromEntries(
+  readFileSync(resolve(AQUI, "..", ".env.local"), "utf8")
+    .split("\n").map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && l.includes("="))
+    .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }),
+);
+const SB_URL = process.env.VITE_SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+const SB_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY;
+
+const ID_PROP = `PROP-E2E-TEMP-${Date.now()}`;
+const ID_UNIDAD = `TMP-E2E-${Date.now()}`;
+
+const sesion = await pedirSesion("mateo");
+const sb = createClient(SB_URL, SB_KEY, {
+  auth: { persistSession: false },
+  global: { headers: { Authorization: `Bearer ${sesion.access_token}` } },
+});
+
+const limpiar = async () => {
+  await sb.from("potente_unidades_temporada").delete().like("propiedadId", "PROP-E2E-TEMP-%");
+  await sb.from("potente_propiedades").delete().like("id", "PROP-E2E-TEMP-%");
+};
+
+// Por si una corrida anterior se cortó antes del finally.
+await limpiar();
+
+const { error: errProp } = await sb.from("potente_propiedades").insert({
+  id: ID_PROP,
+  categoria: "departamento",
+  titulo: "Departamento de verificación en Punta Mogotes",
+  // 🔑 Las tres cosas que la hacen publicable en temporada: la OPERACIÓN, que
+  // esté publicada y no suspendida, y la ZONA dentro de BARRIOS_TEMPORADA.
+  operacion: "temporada",
+  publicado: true,
+  estado: "activa",
+  zona: "Punta Mogotes",
+  provincia: "Mar del Plata",
+  oficina: "puntamogotes",
+  ambientes: 2,
+  dormitorios: 1,
+  banos: 1,
+  descripcion:
+    "Ficha creada por la verificación automática de WESEKA para comprobar que una propiedad " +
+    "cargada en temporada aparece en la sección Temporada con su ficha propia, sus fotos y su " +
+    "descripción, y sin publicar ninguna tarifa. Se borra sola al terminar la prueba. " +
+    "Si la estás viendo en la web, avisá: quedó huérfana de una corrida que se cortó a mitad.",
+  fotos: ["/img/props/depto2.jpg"],
+});
+if (errProp) {
+  console.error("No se pudo sembrar la ficha de temporada:", errProp.message);
+  process.exit(1);
+}
+
+const { error: errUni } = await sb.from("potente_unidades_temporada").insert({
+  id: ID_UNIDAD,
+  propiedadId: ID_PROP,
+  oficina: "puntamogotes",
+  barrio: "Punta Mogotes",
+  ambientes: 2,
+  capacidad: 4,
+  frenteAlMar: false,
+  comodidades: ["wifi", "aire"],
+  tarifas: {},
+  tarifaNocheARS: 0,
+  comisionPct: 15,
+  activa: true,
+  enLimpieza: false,
+});
+if (errUni) {
+  console.error("No se pudo sembrar la unidad de temporada:", errUni.message);
+  await limpiar();
+  process.exit(1);
+}
 
 const { send, evaluar, ir, cerrar, URL_APP } = await nuevaPestania();
+try {
 
 const SONDA = `
   const t = (document.body.innerText || "");
@@ -90,6 +192,15 @@ const href = await evaluar(`
 `);
 chequear("Hay al menos una tarjeta con link a su ficha", Boolean(href), href);
 
+// 🔑 Y que la que se ve sea LA QUE SEMBRAMOS: sin esto, el día que alguien
+// vuelva a publicar una unidad colgada de una ficha de venta, la prueba pasaría
+// igual mirando esa otra tarjeta.
+chequear(
+  "🔑 …y la tarjeta sembrada es la que aparece (la regla nueva la publicó)",
+  href.includes(ID_PROP),
+  `${href} vs ${ID_PROP}`,
+);
+
 if (href) {
   await ir(URL_APP + href, 7000);
   const f = JSON.parse(await evaluar(`
@@ -101,12 +212,19 @@ if (href) {
       // 🔴 NINGUNA referencia de precio de temporada (Mateo, 13-ago). Se busca
       // el signo $ y la palabra "desde" en el bloque, no en toda la página: el
       // precio de VENTA de la propiedad sí se publica y sí lleva $.
+      /* 14-ago · Se mira la COLUMNA DE PRECIO ENTERA (el <aside>), no solo el
+       * bloque azul. Antes el "A consultar" vivía adentro del bloque y arriba se
+       * publicaba igual el precio de la ficha: la aserción vieja miraba justo el
+       * único lugar donde no estaba el problema y pasaba en verde. Ahora la
+       * regla es la de verdad — en toda la columna no puede haber un número de
+       * plata — y el "A consultar" ocupa el lugar del precio. */
       aConsultar: (() => {
-        const bloques = [...document.querySelectorAll("div")].filter((d) =>
-          (d.innerText || "").toLowerCase().startsWith("alquiler de temporada"));
-        const b = bloques[bloques.length - 1];
-        const t2 = b ? (b.innerText || "").toLowerCase() : "";
-        return { texto: t2, ok: t2.includes("a consultar") && !t2.includes("$") && !t2.includes("desde") };
+        const a = document.querySelector("aside");
+        const t2 = a ? (a.innerText || "").toLowerCase() : "";
+        return {
+          texto: t2,
+          ok: t2.includes("a consultar") && !/\\$\\s?\\d/.test(t2) && !t2.includes("desde"),
+        };
       })(),
       capacidad: /hasta \\d+ personas/.test(T),
       hayFotos: document.querySelectorAll("img").length > 0,
@@ -118,7 +236,7 @@ if (href) {
   `));
   chequear("🔑 La ficha dice TEMPORADA", f.selloTemporada);
   chequear("🔑 …y su bloque de temporada", f.bloqueTemporada);
-  chequear("🔒 …que dice A CONSULTAR, sin precio ni «desde»", f.aConsultar.ok,
+  chequear("🔒 La columna de precio dice A CONSULTAR y no lleva NINGÚN número de plata", f.aConsultar.ok,
     f.aConsultar.texto.split("\n").join(" ").slice(0, 70));
   chequear("…con la capacidad (hasta N personas)", f.capacidad);
   chequear("…y su CTA propio de temporada", f.ctaTemporada);
@@ -127,5 +245,12 @@ if (href) {
   chequear("Ficha con consola limpia", f.errores === 0);
 }
 
-await cerrar();
+} finally {
+  /* 🔴 El borrado va en el `finally` y no al final del guion: si una aserción
+   * de arriba explota, la ficha de prueba se queda PUBLICADA en la web del
+   * cliente. El costo de olvidarse acá no es un test en rojo, es una propiedad
+   * inventada en producción. */
+  await cerrar();
+  await limpiar();
+}
 resumen();

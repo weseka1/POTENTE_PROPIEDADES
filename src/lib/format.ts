@@ -22,6 +22,28 @@ export function fmtPrecio(
   return fmtUSD(p.precioUSD ?? null, opts);
 }
 
+/* 🔴 14-ago · EL PRECIO QUE VE EL VISITANTE. Es distinto del interno A PROPÓSITO.
+ *
+ * Una propiedad de TEMPORADA no publica precio: la tarifa se cotiza según las
+ * fechas (Mateo, 13-ago), y por eso la migración 013 le sacó al visitante hasta
+ * la columna `tarifas`. El agujero era que `precioARS` sí le llega: una ficha
+ * que pasó de alquiler a temporada arrastra su precio MENSUAL, y `fmtPrecio` lo
+ * devuelve sin mirar la operación → la web publicaba ese número como si fuera la
+ * tarifa de temporada, en la tarjeta, en la ficha y en lo que se le manda a la IA.
+ *
+ * Por qué la regla NO vive adentro de `fmtPrecio`: en el panel Mateo SÍ tiene que
+ * ver ese número — es su cartera, y esconderlo le rompería la columna Precio.
+ * Entonces hay dos funciones con nombres que dicen de qué lado están, y todo lo
+ * que se pinta para el público pasa por ésta. Si aparece un `fmtPrecio` dentro de
+ * `src/site/`, es un bug. */
+export function precioPublico(
+  p: { precioUSD?: number | null; precioARS?: number | null; categoria?: string; operacion?: string },
+  opts?: { short?: boolean }
+): string {
+  if (p.operacion === "temporada") return "A consultar";
+  return fmtPrecio(p, opts);
+}
+
 // Pesos argentinos — usado por Temporada (el temporario se cobra en ARS).
 export function fmtARS(n: number | null | undefined, opts?: { short?: boolean }): string {
   if (n === null || n === undefined) return "—";

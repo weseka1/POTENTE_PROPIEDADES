@@ -28,8 +28,48 @@ const NO_IMG =
 // Dónde hacemos temporada sale de config/temporada.js — la MISMA lista que usa
 // el generador del sitemap. Desde el 13-ago es solo Punta Mogotes (Mateo).
 // Se reexporta para no romper a quien ya importaba desde acá.
-import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug } from "@/config/temporada";
+import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug, esBarrioTemporada } from "@/config/temporada";
 export { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug };
+
+/** Una unidad de temporada con SU ficha ya resuelta. Que vayan juntas no es
+ *  comodidad: es lo que garantiza que lo que se publica tenga ficha detrás. */
+export type UnidadPublicable = { u: UnidadTemporada; prop: Propiedad };
+
+/**
+ * Qué unidades de temporada salen a la web, emparejadas con su ficha.
+ *
+ * 🔴 14-ago, Mateo: «tienen que quedar 3 tipos de operaciones: Venta, Alquiler,
+ * Temporada. Cada una con sus respectivas fichas» · «las de temporada son
+ * propiedades que están vacías durante el año, no están ni en venta ni en
+ * alquiler». Desde ese cambio la unidad de temporada ya no es una capa sobre un
+ * aviso de venta: se apoya en una propiedad DEDICADA (`operacion === "temporada"`).
+ *
+ * Por qué la web no se conforma con `activa`: la unidad solo guarda un
+ * `propiedadId`, y nada impide que siga apuntando a una ficha de venta — las
+ * cargadas con el modelo viejo apuntan justo a eso. Sin este chequeo la landing
+ * publicaría una casa EN VENTA como alquiler temporario y, como la tarjeta
+ * linkea a la ficha, el visitante entraría a un aviso de venta desde "Alquiler
+ * de temporada". Quién manda es la FICHA: la operación vive ahí y en un solo lado.
+ *
+ * De paso cierra el ciclo que pidió Mateo — «la ficha de temporada, después
+ * cuando no es verano, la damos de baja». La vista pública trae solo lo
+ * publicado y no suspendido, así que dar de baja la ficha en marzo la saca de
+ * `propiedades` y la unidad se cae sola de la grilla: nadie tiene que acordarse
+ * de apagar además el `activa` de la unidad.
+ *
+ * Si la ficha no llegó, la unidad no sale. Regla de la casa: si falta el dato,
+ * no se publica un reemplazo inventado.
+ */
+export function unidadesPublicables(
+  unidades: UnidadTemporada[],
+  propiedades: Propiedad[],
+): UnidadPublicable[] {
+  const fichaPorId = new Map(propiedades.map((p) => [p.id, p]));
+  return unidades.flatMap((u) => {
+    const prop = fichaPorId.get(u.propiedadId);
+    return u.activa && prop?.operacion === "temporada" ? [{ u, prop }] : [];
+  });
+}
 
 /**
  * La foto de la card. Es un link a la ficha cuando la propiedad existe, y un
@@ -58,8 +98,10 @@ export function UnidadTempCard({
   // 🔴 13-ago, Mateo: «que me mande directamente a la ficha que yo cargué en
   // temporada, con las fotos y la descripción». Antes la tarjeta llevaba a la
   // página del barrio, donde no se veía ni una foto ni el texto de la propiedad.
-  // La unidad de temporada SIEMPRE se apoya en una propiedad de la cartera
-  // (`propiedadId`), así que la ficha ya existe: se apunta ahí.
+  // Desde el 14-ago esa ficha es la propiedad PROPIA de temporada, y las dos
+  // páginas que arman la grilla la resuelven antes con `unidadesPublicables`.
+  // La card igual contempla que falte: no es un caso alcanzable hoy, pero si
+  // alguna vez lo fuera, preferimos una tarjeta muda a un link roto.
   const fichaUrl = prop ? `/propiedad/${prop.id}` : null;
 
   return (
@@ -176,26 +218,32 @@ export default function Temporada() {
   useReveal();
 
   const { unidadesTemporada, propiedades } = useData();
-  // Temporada se hace SOLO en Punta Mogotes (Mateo, 13-ago). El filtro es por la
-  // lista de config, no por un string suelto: sumar un barrio es tocar un lugar.
+  // Qué se publica (unidad activa + ficha de temporada) lo decide
+  // `unidadesPublicables`: es la MISMA regla que usa la página del barrio, y
+  // vive en un solo lado para que no se puedan desincronizar.
+  // Lo único propio de esta página es el recorte geográfico: temporada se hace
+  // SOLO en Punta Mogotes (Mateo, 13-ago). El filtro es por la lista de config,
+  // no por un string suelto: sumar un barrio es tocar un lugar.
   const activas = useMemo(
-    () => unidadesTemporada.filter((u) => u.activa && (BARRIOS_TEMPORADA as readonly string[]).includes(u.barrio)),
-    [unidadesTemporada],
+    () =>
+      unidadesPublicables(unidadesTemporada, propiedades).filter(({ u }) =>
+        esBarrioTemporada(u.barrio),
+      ),
+    [unidadesTemporada, propiedades],
   );
-  const propById = (id: string) => propiedades.find((p) => p.id === id);
 
   // 🔴 13-ago, Mateo: «el buscador eliminarlo y poner únicamente cantidad de
   // personas». Con un solo barrio, filtrar por barrio no tenía sentido; y la
   // quincena la resuelve la consulta por WhatsApp, que es como reserva él.
   // Queda UN control: cuántos son. Se muestran las que entran esa cantidad.
   const capacidades = useMemo(
-    () => [...new Set(activas.map((u) => u.capacidad))].sort((a, b) => a - b),
+    () => [...new Set(activas.map(({ u }) => u.capacidad))].sort((a, b) => a - b),
     [activas],
   );
   const [personas, setPersonas] = useState("");
 
   const filtradas = useMemo(
-    () => activas.filter((u) => !personas || u.capacidad >= Number(personas)),
+    () => activas.filter(({ u }) => !personas || u.capacidad >= Number(personas)),
     [activas, personas],
   );
 
@@ -214,11 +262,15 @@ export default function Temporada() {
       // describe la propiedad (fotos + descripción), y es a donde ahora lleva
       // la tarjeta. Que el dato estructurado y el link coincidan es la mitad
       // del SEO.
-      itemListElement: activas.map((u, i) => ({
+      // El nombre sale de la ficha y ya no hay título de reemplazo: lo que entra
+      // acá tiene ficha de temporada sí o sí, así que Google nunca ve un
+      // "Alquiler temporario en X" armado por nosotros apuntando a una URL que
+      // puede no existir.
+      itemListElement: activas.map(({ prop }, i) => ({
         "@type": "ListItem",
         position: i + 1,
-        name: propById(u.propiedadId)?.titulo ?? `Alquiler temporario en ${u.barrio}`,
-        url: `${SITE}/propiedad/${u.propiedadId}`,
+        name: prop.titulo,
+        url: `${SITE}/propiedad/${prop.id}`,
       })),
     },
   });
@@ -290,9 +342,9 @@ export default function Temporada() {
             </div>
           ) : (
             <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
-              {filtradas.map((u) => (
+              {filtradas.map(({ u, prop }) => (
                 <div key={u.id} className="reveal">
-                  <UnidadTempCard u={u} prop={propById(u.propiedadId)} />
+                  <UnidadTempCard u={u} prop={prop} />
                 </div>
               ))}
             </div>

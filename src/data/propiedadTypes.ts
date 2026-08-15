@@ -23,7 +23,22 @@ export type Categoria =
   | "lote"
   | "terreno";
 
-export type OperacionProp = "venta" | "alquiler" | "arrendamiento";
+/**
+ * Las TRES operaciones. Mateo, 14-ago-2026: «tienen que quedar 3 tipos de
+ * operaciones: Venta, Alquiler, Temporada. Cada una con sus respectivas fichas».
+ *
+ * 🔴 `temporada` reemplaza a `arrendamiento` (que no usaba NINGUNA propiedad —
+ * verificado contra la base antes de tocarlo). Y es una operación de verdad, no
+ * una etiqueta: una propiedad de temporada es una FICHA PROPIA, independiente de
+ * la de venta o alquiler. La razón la dio él y es la que manda el diseño:
+ * «la ficha de temporada, cuando no es verano, la damos de baja» — si colgara de
+ * la ficha de venta, no se podría dar de baja sin tocar la otra.
+ *
+ * Es un enum de Postgres (`potente_operacion`, migración 014): la base rechaza
+ * cualquier otro valor, así que esta lista y la de la base no se pueden
+ * desincronizar en silencio.
+ */
+export type OperacionProp = "venta" | "alquiler" | "temporada";
 
 /* ── Vocabularios cerrados ────────────────────────────────────────────────────
    Son enums de Postgres, no texto libre: la base rechaza un valor inventado, así
@@ -107,6 +122,18 @@ export interface Ficha {
   cancha?: string[]; // fútbol, básquet, tenis
   plantacion?: string[]; // olivos, almendras, nogales
   mejorasCampo?: string[]; // molinos, tanques, aguadas, casas, manga y corrales, etc.
+  /** Ficha rural: el campo se vende o se arrienda. NO es la `operacion` de la
+   *  propiedad (esa ahora es venta/alquiler/temporada) — es un dato interno del
+   *  campo, y por eso vive en la ficha y no en la columna. */
+  operacionCampo?: "venta" | "arrendamiento";
+  /** 🪦 El nombre viejo de `operacionCampo`, antes de que "operación" pasara a
+   *  significar venta/alquiler/temporada (14-ago). Las fichas rurales ya cargadas
+   *  siguen teniendo la clave con este nombre adentro del jsonb, y NO se migró:
+   *  hay una sola propiedad de categoría campo en toda la cartera, así que un
+   *  UPDATE sobre jsonb en producción costaba más riesgo que valor.
+   *  Se lee con `operacionCampo ?? operacion` allá donde se muestra; al guardar
+   *  se escribe siempre el nombre nuevo. Cuando no queden fichas con la clave
+   *  vieja, se borra este campo y los dos `??`. */
   operacion?: "venta" | "arrendamiento";
   hectareas?: number;
 
