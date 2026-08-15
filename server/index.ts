@@ -178,8 +178,16 @@ app.get("/propiedad/:id", async (req, res) => {
 
     // La descripción se ARMA con campos limpios (nunca el texto scrapeado, que
     // arrastra teléfonos y links viejos). El precio como lo muestra la web.
+    /* 🔴 14-ago · Temporada NO lleva precio, tampoco acá. Este es el espejo de
+     * `precioPublico()` del front, y tiene que existir aparte porque este archivo
+     * corre en Node contra el REST pelado: no comparte el módulo del bundle.
+     * Sin esta línea, compartir por WhatsApp una propiedad de temporada publicaba
+     * en la previsualización el alquiler MENSUAL que arrastra la ficha — y la
+     * preview de WhatsApp es justo el canal de venta de esta inmobiliaria. */
     const usd = Number(p.precioUSD), ars = Number(p.precioARS);
-    const precio = usd > 0 ? `U$S ${usd.toLocaleString("es-AR")}` : ars > 0 ? `$ ${ars.toLocaleString("es-AR")}${p.operacion === "alquiler" ? " por mes" : ""}` : "";
+    const precio = p.operacion === "temporada"
+      ? "A consultar"
+      : usd > 0 ? `U$S ${usd.toLocaleString("es-AR")}` : ars > 0 ? `$ ${ars.toLocaleString("es-AR")}${p.operacion === "alquiler" ? " por mes" : ""}` : "";
     const titulo = `${String(p.titulo || "Propiedad")} · Potente Propiedades`;
     const bajada = [precio, String(p.zona || ""), "Fotos, mapa y sol en la ficha completa."].filter(Boolean).join(" · ");
     // La PRIMERA foto de ESA propiedad — el corazón del pedido de Mateo.

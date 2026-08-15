@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Propiedad } from "@/data/propiedadTypes";
-import { fmtPrecio, fmtHa, fmtARS } from "@/lib/format";
+import { precioPublico, fmtHa, fmtARS } from "@/lib/format";
 import { useFavorites } from "../context/FavoritesContext";
 import { ESTADO_LABEL, type EstadoPropiedad, type OperacionProp } from "@/data/propiedadTypes";
 
@@ -197,7 +197,7 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
         <div className="mt-5 flex items-end justify-between border-t border-graph/10 pt-4">
           <div>
             <p className="font-display text-xl font-semibold text-brand">
-              {fmtPrecio(p)}
+              {precioPublico(p)}
             </p>
             {/* Las expensas, abajo del precio y en formato corto: en una tarjeta
                 no hay lugar para "+ $85.000 de expensas". Nunca sumadas al precio. */}

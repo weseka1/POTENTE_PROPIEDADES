@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { MessageCircle, X, Send, Waves, Loader2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { hoyISO } from "@/lib/fechas";
-import { fmtHa, fmtPrecio } from "@/lib/format";
+import { fmtHa, precioPublico } from "@/lib/format";
 import { waUrl } from "@/config/marca";
 import WhatsAppCTA from "./WhatsAppCTA";
 import { consultarAsistente, type ChatMsg, type CampoLite } from "@/lib/asistente";
@@ -69,7 +69,7 @@ export default function ChatAsistente() {
         aptitud: p.aptitud,
         operacion: p.operacion,
         oficina: p.oficina,
-        precio: fmtPrecio(p) + (p.operacion === "alquiler" ? " por mes" : ""),
+        precio: precioPublico(p) + (p.operacion === "alquiler" ? " por mes" : ""),
       }));
 
   const enviar = async (textoDirecto?: string) => {
@@ -192,7 +192,7 @@ export default function ChatAsistente() {
                               {c.hectareas ? ` · ${fmtHa(c.hectareas)}` : ""}
                             </p>
                             <p className="text-[11px] font-semibold text-brand">
-                              {fmtPrecio(c)}
+                              {precioPublico(c)}
                             </p>
                           </div>
                         </Link>

@@ -13,6 +13,7 @@ import type { Propiedad, Categoria, Ficha, Orientacion, OperacionProp } from "@/
 import { camposDe, camposDelGrupo, CAMPOS, type CampoProp } from "@/data/esquemaPropiedad";
 import { ESTADOS_PROPIEDAD, estadoCampo } from "../ui/estados";
 import MapaUbicacion from "../components/MapaUbicacion";
+import { esBarrioTemporada, BARRIOS_TEMPORADA } from "@/config/temporada";
 
 const categorias: { v: Categoria; l: string }[] = [
   { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "chalet", l: "Chalet" },
@@ -380,6 +381,25 @@ export default function CargarPropiedad() {
         );
         return;
       }
+    }
+
+    /* 🔴 14-ago · La ZONA decide si una ficha de temporada se publica, y lo decide
+     * en silencio. El barrio de la unidad se copia de `zona` (texto libre), y la
+     * landing de temporada solo muestra los barrios de config/temporada.js. Una
+     * ficha de temporada con la zona en "Varese" queda invisible en /temporada, en
+     * /temporada/<barrio> Y en el catálogo general (que excluye temporada): las
+     * tres puntas mudas, mientras el panel canta "publicada ✓ — ya está en la web".
+     * `esBarrioTemporada` ya perdona cómo se escribe (mayúsculas, acentos,
+     * espacios); lo que no puede adivinar es un barrio que no es. De eso se avisa
+     * ACÁ, que es el único momento en que se puede corregir, y NO se navega para
+     * que el mensaje se lea. */
+    if (p.operacion === "temporada" && !esBarrioTemporada(p.zona)) {
+      push(
+        `Guardada ✓, pero la zona “${p.zona || "(vacía)"}” no es un barrio de temporada, así que NO va a salir en la sección Temporada de la web. ` +
+          `Hoy la temporada se publica en: ${BARRIOS_TEMPORADA.join(", ")}.`,
+        "error",
+      );
+      return;
     }
 
     push(

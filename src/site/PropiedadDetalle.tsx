@@ -13,7 +13,7 @@ import OrientacionYSol from "./components/OrientacionYSol";
 import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
-import { fmtPrecio, fmtARS } from "@/lib/format";
+import { precioPublico, fmtARS } from "@/lib/format";
 import { tarifaDesde, waTemporada } from "@/data/temporada";
 import { datosPublicos } from "@/data/esquemaPropiedad";
 import { ESTADO_LABEL, type EstadoPropiedad, type OperacionProp } from "@/data/propiedadTypes";
@@ -107,9 +107,23 @@ export default function PropiedadDetalle() {
   // visitante ni siquiera recibe la columna `tarifas`. Calcularla igual fue el
   // bug del 13-ago — `tarifaDesde` recibía undefined y tiraba abajo la ficha
   // entera. Si no se muestra, no se calcula.
-  const unidadTemp = unidadesTemporada.find((u) => u.propiedadId === p.id && u.activa);
+  /* 🔴 14-ago · La condición lleva `p.operacion === "temporada"` y NO es de más:
+   * es la MISMA regla que `unidadesPublicables()` usa en /temporada. Sin ella,
+   * cualquier ficha EN VENTA que arrastre una unidad vieja (todas las que se
+   * crearon con el flujo anterior, donde había que elegir una propiedad ya
+   * cargada) anunciaría "Alquiler de temporada" en una propiedad que no está en
+   * /temporada y que la oficina no ofrece. Las tres páginas deciden igual o el
+   * sitio se contradice solo. */
+  const esTemporada = p.operacion === "temporada";
+  const unidadTemp = unidadesTemporada.find((u) => u.propiedadId === p.id && u.activa && esTemporada);
 
-  const similares = propiedades.filter((x) => x.id !== p.id && x.categoria === p.categoria).slice(0, 3);
+  /* "Similares" compara también la OPERACIÓN, no solo la categoría. Antes un
+   * departamento en venta ofrecía como similar uno en alquiler — molesto pero
+   * tolerable. Con temporada adentro pasa a ser engañoso: al que mira para
+   * comprar se le ofrece algo que solo se alquila quince días, sin precio. */
+  const similares = propiedades
+    .filter((x) => x.id !== p.id && x.categoria === p.categoria && x.operacion === p.operacion)
+    .slice(0, 3);
   const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
   // Cada consulta va al WhatsApp de la oficina que vende la propiedad (sin oficina → central).
   const waProp = waDigits(p.oficina);
@@ -253,7 +267,17 @@ export default function PropiedadDetalle() {
         <aside className="lg:sticky lg:top-28 lg:self-start">
           <div className="rounded-2xl border border-graph/10 bg-paper-100 p-7 shadow-card">
             <p className="text-xs uppercase tracking-widest2 text-graph-400">{opLabel[p.operacion]}</p>
-            <p className="mt-2 font-display text-4xl font-semibold text-brand">{fmtPrecio(p)}</p>
+            {/* 🔴 14-ago · UNA FICHA DE TEMPORADA NO PUBLICA PRECIO — la regla vive
+                en `precioPublico()` (src/lib/format.ts), que es por dónde pasa TODO
+                lo que se le pinta al visitante. Acá antes se llamaba a `fmtPrecio`,
+                que devuelve el número sin mirar la operación: una ficha que pasó de
+                alquiler a temporada arrastraba su precio MENSUAL y lo publicaba como
+                si fuera la tarifa de la temporada. Sacarle el dato a la base
+                (migración 013) y dejar que el front lo muestre igual era hacer la
+                mitad del trabajo. */}
+            <p className="mt-2 font-display text-4xl font-semibold text-brand">
+              {precioPublico(p)}
+            </p>
             {p.operacion === "alquiler" && (p.precioARS || p.precioUSD) && (
               <p className="mt-1 text-sm text-graph-400">por mes</p>
             )}
@@ -262,7 +286,10 @@ export default function PropiedadDetalle() {
                 precio o abajo del precio".
                 SIEMPRE en pesos y NUNCA sumadas al precio: mezclar monedas sería
                 mentir, y el sistema no tiene cotización del dólar. */}
-            {Boolean(p.expensasARS) && (
+            {/* En temporada tampoco: al que alquila quince días no se le cobran
+                expensas aparte, así que mostrarlas al lado de "A consultar" sería
+                anunciar un costo que no existe. */}
+            {Boolean(p.expensasARS) && !esTemporada && (
               <p className="mt-1.5 text-sm font-medium text-graph-500">
                 + {fmtARS(p.expensasARS as number)} de expensas
               </p>
@@ -280,9 +307,12 @@ export default function PropiedadDetalle() {
                   <Sun size={14} /> Alquiler de temporada
                 </p>
                 {/* Sin precio ni "desde": la tarifa de temporada no se publica
-                    (Mateo, 13-ago). Se cotiza por WhatsApp según las fechas. */}
-                <p className="mt-2 font-display text-2xl font-semibold text-graph">A consultar</p>
-                <p className="text-xs text-graph-400">por quincena · hasta {unidadTemp.capacidad} personas</p>
+                    (Mateo, 13-ago). Se cotiza por WhatsApp según las fechas.
+                    El "A consultar" grande ya está arriba, en el lugar del precio:
+                    repetirlo acá era decir dos veces lo mismo en la misma tarjeta. */}
+                <p className="mt-2 text-sm text-graph-500">
+                  Por quincena · hasta {unidadTemp.capacidad} personas
+                </p>
                 <a
                   href={waTemporada(p.titulo, undefined, unidadTemp.oficina)}
                   target="_blank"

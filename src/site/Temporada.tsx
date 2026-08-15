@@ -28,7 +28,7 @@ const NO_IMG =
 // Dónde hacemos temporada sale de config/temporada.js — la MISMA lista que usa
 // el generador del sitemap. Desde el 13-ago es solo Punta Mogotes (Mateo).
 // Se reexporta para no romper a quien ya importaba desde acá.
-import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug } from "@/config/temporada";
+import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug, esBarrioTemporada } from "@/config/temporada";
 export { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug };
 
 /** Una unidad de temporada con SU ficha ya resuelta. Que vayan juntas no es
@@ -227,7 +227,7 @@ export default function Temporada() {
   const activas = useMemo(
     () =>
       unidadesPublicables(unidadesTemporada, propiedades).filter(({ u }) =>
-        (BARRIOS_TEMPORADA as readonly string[]).includes(u.barrio),
+        esBarrioTemporada(u.barrio),
       ),
     [unidadesTemporada, propiedades],
   );

@@ -37,3 +37,26 @@ export function slugBarrio(b) {
 export function barrioBySlug(slug) {
   return BARRIOS_TEMPORADA.find((b) => slugBarrio(b) === slug);
 }
+
+/**
+ * ¿Esta zona es uno de los barrios donde hacemos temporada?
+ *
+ * 🔴 14-ago · Compara NORMALIZADO (sin acentos, sin mayúsculas, sin espacios de
+ * más) y no por igualdad exacta de string. El motivo es concreto: el barrio de
+ * la unidad se copia de `zona`, que en el panel es un campo de TEXTO LIBRE que
+ * Mateo tipea —muchas veces desde el celular—. Con igualdad exacta, escribir
+ * "punta mogotes", "Punta Mogotes " o "PUNTA MOGOTES" hacía que la propiedad
+ * quedara INVISIBLE en /temporada, invisible en /temporada/punta-mogotes y
+ * también fuera del catálogo general (que excluye temporada) — las tres puntas
+ * mudas, y el panel diciendo "Propiedad publicada ✓ — ya está en la web".
+ *
+ * Esto tolera cómo se escribe. Lo que NO puede adivinar es un barrio que
+ * realmente no es de temporada (p. ej. "Varese"): de eso avisa el formulario al
+ * guardar, que es el único momento en que Mateo puede corregirlo.
+ */
+export function esBarrioTemporada(zona) {
+  if (!zona) return false;
+  const norm = (s) => slugBarrio(String(s).trim());
+  const z = norm(zona);
+  return BARRIOS_TEMPORADA.some((b) => norm(b) === z);
+}

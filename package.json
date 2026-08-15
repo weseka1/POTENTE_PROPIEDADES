@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/gen-sitemap.mjs && vite build && npm run build:server",
+    "build": "tsc --noEmit && node scripts/gen-sitemap.mjs && vite build && npm run build:server",
     "preview": "vite preview",
     "start": "node server/index.mjs",
     "sembrar": "tsx scripts/sembrar-db.ts",

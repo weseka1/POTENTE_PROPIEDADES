@@ -94,7 +94,7 @@ export function descargarFichaPDF(row: FichaRowPDF) {
   // inventarla. En la ficha urbana, de hecho, acá jamás hubo una operación: lo que se
   // imprimía bajo ese rótulo era `row.tipo`, o sea el tipo de ficha. Ahora lo dice.
   const dp: [string, string][] = [
-    esCampo ? ["Operación del campo", cap(d.operacionCampo)] : ["Tipo de ficha", cap(row.tipo)],
+    esCampo ? ["Operación del campo", cap(d.operacionCampo ?? d.operacion)] : ["Tipo de ficha", cap(row.tipo)],
     ["Precio", money(d.precioUSD)],
   ];
   if (esCampo) { dp.push(["Hectáreas", d.hectareas ? d.hectareas + " ha" : "—"], ["Aptitud", cap(d.tipoCampo)]); }

@@ -71,7 +71,14 @@ export default function TemporadaBarrio() {
   // página filtrara por su cuenta, un día una de las dos publicaría una ficha
   // de venta y la otra no.
   const unidades = useMemo(
-    () => unidadesPublicables(unidadesTemporada, propiedades).filter(({ u }) => u.barrio === barrio),
+    /* Compara por SLUG y no por igualdad de string: `u.barrio` se copia de `zona`,
+     * que es texto libre del panel, y `barrio` acá viene canónico de la config.
+     * "punta mogotes" tiene que caer en la misma página que "Punta Mogotes".
+     * Misma razón que `esBarrioTemporada()` en config/temporada.js. */
+    () =>
+      unidadesPublicables(unidadesTemporada, propiedades).filter(
+        ({ u }) => slugBarrio(String(u.barrio ?? "").trim()) === slugBarrio(barrio),
+      ),
     [unidadesTemporada, propiedades, barrio]
   );
 

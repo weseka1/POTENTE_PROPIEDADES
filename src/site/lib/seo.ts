@@ -72,8 +72,14 @@ export function jsonLdPropiedad(p: {
   m2totales?: number;
   dormitorios?: number;
 }) {
-  // Los alquileres se publican en pesos; las ventas en dólares.
-  const precio = p.precioARS || p.precioUSD;
+  /* Los alquileres se publican en pesos; las ventas en dólares.
+   * 🔴 14-ago · TEMPORADA no lleva `offers`: su tarifa no se publica (Mateo,
+   * 13-ago). Es el tercer espejo de `precioPublico()` — el front, el OG del
+   * server y acá. Y éste es el que más caro sale si se escapa: un `offers` con
+   * precio en los datos estructurados queda indexado por Google y se muestra en
+   * el resultado de búsqueda, o sea que el número sobrevive a que lo saquemos
+   * de la página. */
+  const precio = p.operacion === "temporada" ? null : (p.precioARS || p.precioUSD);
   const moneda = p.precioARS ? "ARS" : "USD";
   return {
     "@context": "https://schema.org",

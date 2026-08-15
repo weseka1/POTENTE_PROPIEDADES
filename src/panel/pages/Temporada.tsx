@@ -154,16 +154,30 @@ export default function Temporada() {
       estado: "senada",
       creadaISO: new Date().toISOString(),
     };
-    await addReservaTemporada(r);
+    /* 🔴 El anti-solape de arriba mira el estado LOCAL, que queda viejo apenas otra
+     * oficina seña algo. Quien decide de verdad es la base, con un constraint de
+     * exclusión (23P01). Si rechaza, NO se cierra el formulario ni se canta el ✓:
+     * se dice qué pasó y los datos cargados quedan en pantalla para reintentar. */
+    const res = await addReservaTemporada(r);
+    if (!res.ok) {
+      push(
+        res.codigo === "23P01"
+          ? "Esas fechas se acaban de tomar desde otra oficina. Refrescá y elegí otras."
+          : `No se pudo guardar la reserva: ${res.error ?? "la base la rechazó"}`,
+        "error",
+      );
+      return;
+    }
     setNuevaCtx(null);
     push("Reserva señada ✓", "success");
   };
 
   // ── Detalle de reserva ──
   const detalle = detalleId ? reservasTemporada.find((r) => r.id === detalleId) ?? null : null;
-  const cambiarEstado = (estado: EstadoReserva) => {
+  const cambiarEstado = async (estado: EstadoReserva) => {
     if (!detalle) return;
-    updateReservaTemporada(detalle.id, { estado });
+    const r = await updateReservaTemporada(detalle.id, { estado });
+    if (!r.ok) { push(`No se pudo cambiar el estado: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push(`Reserva movida a “${EST[estado].label}”`, "info");
   };
   const cancelarReserva = () => {
@@ -173,8 +187,12 @@ export default function Temporada() {
       titulo: "¿Cancelar la reserva?",
       detalle: `${r.inquilino} queda como cancelada y las fechas vuelven a estar disponibles. El registro se conserva.`,
       boton: "Cancelar la reserva",
-      onOk: () => {
-        updateReservaTemporada(r.id, { estado: "cancelada" });
+      /* 🔴 TODO el efecto va adentro del onOk y se espera el resultado: el modal es
+       * asíncrono (a diferencia del confirm nativo, que bloqueaba el hilo). Una
+       * línea afuera cancelaría sin preguntar. */
+      onOk: async () => {
+        const res = await updateReservaTemporada(r.id, { estado: "cancelada" });
+        if (!res.ok) { push(`No se pudo cancelar: ${res.error ?? "la base lo rechazó"}`, "error"); return; }
         setDetalleId(null);
         push("Reserva cancelada — cupo liberado", "info");
       },
@@ -188,7 +206,8 @@ export default function Temporada() {
   };
   const guardarTarifa = async (u: UnidadTemporada) => {
     const raw = tDraft.replace(/[^\d]/g, "");
-    await updateUnidadTemporada(u.id, { tarifaNocheARS: Number(raw) || 0 });
+    const r = await updateUnidadTemporada(u.id, { tarifaNocheARS: Number(raw) || 0 });
+    if (!r.ok) { push(`No se pudo guardar la tarifa: ${r.error ?? "la base la rechazó"}`, "error"); return; }
     setTEdit(null);
     push("Tarifa por noche actualizada ✓", "success");
   };
@@ -200,7 +219,8 @@ export default function Temporada() {
   const guardarQuincena = async (u: UnidadTemporada) => {
     if (!qEdit) return;
     const raw = qDraft.replace(/[^\d]/g, "");
-    await updateUnidadTemporada(u.id, { tarifas: { ...u.tarifas, [qEdit.tramo]: Number(raw) || 0 } });
+    const r = await updateUnidadTemporada(u.id, { tarifas: { ...u.tarifas, [qEdit.tramo]: Number(raw) || 0 } });
+    if (!r.ok) { push(`No se pudo guardar el precio: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     setQEdit(null);
     push("Precio de la quincena actualizado ✓", "success");
   };
@@ -260,7 +280,8 @@ export default function Temporada() {
       activa: true,
       enLimpieza: false,
     };
-    await addUnidadTemporada(u);
+    const r = await addUnidadTemporada(u);
+    if (!r.ok) { push(`No se pudo sumar a la temporada: ${r.error ?? "la base la rechazó"}`, "error"); return; }
     setSumarOpen(false);
     push("Propiedad sumada a la temporada ✓", "success");
   };
@@ -281,7 +302,7 @@ export default function Temporada() {
   };
   const guardarEdit = async () => {
     if (!editId) return;
-    await updateUnidadTemporada(editId, {
+    const r = await updateUnidadTemporada(editId, {
       barrio: edit.barrio.trim(),
       ambientes: Number(edit.ambientes) || 1,
       capacidad: Number(edit.capacidad) || 1,
@@ -290,6 +311,7 @@ export default function Temporada() {
       comodidades: edit.comodidades,
       activa: edit.activa,
     });
+    if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     setEditId(null);
     push("Unidad actualizada ✓", "success");
   };
@@ -305,7 +327,8 @@ export default function Temporada() {
       boton: "Quitar de temporada",
       peligro: true,
       onOk: async () => {
-        await deleteUnidadTemporada(id);
+        const r = await deleteUnidadTemporada(id);
+        if (!r.ok) { push(`No se pudo quitar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
         setEditId(null);
         push("Propiedad quitada de la temporada", "info");
       },
@@ -489,7 +512,10 @@ export default function Temporada() {
             onReservar={abrirNueva}
             onVerReserva={setDetalleId}
             onEditUnidad={abrirEdit}
-            onToggleLimpieza={(u) => updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza })}
+            onToggleLimpieza={async (u) => {
+              const r = await updateUnidadTemporada(u.id, { enLimpieza: !u.enLimpieza });
+              if (!r.ok) push(`No se pudo marcar la limpieza: ${r.error ?? "la base lo rechazó"}`, "error");
+            }}
           />
         </>
       )}

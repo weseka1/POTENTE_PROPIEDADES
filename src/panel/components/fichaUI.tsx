@@ -134,7 +134,7 @@ export function FichaSecciones({
           // `operacion`; ésta en `ficha.operacionCampo`. Con el rótulo pelado, el que
           // carga la ficha creería que acá decide cómo sale publicado el campo, y le
           // estaría tocando otra cosa.
-          <div className="mt-4"><SubLabel>Operación del campo</SubLabel><Seg opts={[{ v: "venta", l: "Venta" }, { v: "arrendamiento", l: "Arrendamiento" }]} value={ficha.operacionCampo} onChange={(v) => setFicha("operacionCampo", v)} /></div>
+          <div className="mt-4"><SubLabel>Operación del campo</SubLabel><Seg opts={[{ v: "venta", l: "Venta" }, { v: "arrendamiento", l: "Arrendamiento" }]} value={ficha.operacionCampo ?? ficha.operacion} onChange={(v) => setFicha("operacionCampo", v)} /></div>
         )}
       </section>
 

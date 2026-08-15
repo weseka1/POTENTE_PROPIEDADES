@@ -126,6 +126,15 @@ export interface Ficha {
    *  propiedad (esa ahora es venta/alquiler/temporada) — es un dato interno del
    *  campo, y por eso vive en la ficha y no en la columna. */
   operacionCampo?: "venta" | "arrendamiento";
+  /** 🪦 El nombre viejo de `operacionCampo`, antes de que "operación" pasara a
+   *  significar venta/alquiler/temporada (14-ago). Las fichas rurales ya cargadas
+   *  siguen teniendo la clave con este nombre adentro del jsonb, y NO se migró:
+   *  hay una sola propiedad de categoría campo en toda la cartera, así que un
+   *  UPDATE sobre jsonb en producción costaba más riesgo que valor.
+   *  Se lee con `operacionCampo ?? operacion` allá donde se muestra; al guardar
+   *  se escribe siempre el nombre nuevo. Cuando no queden fichas con la clave
+   *  vieja, se borra este campo y los dos `??`. */
+  operacion?: "venta" | "arrendamiento";
   hectareas?: number;
 
   // ── Ficha URBANA ──

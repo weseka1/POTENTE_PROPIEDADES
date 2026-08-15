@@ -75,12 +75,20 @@ export default function Cartera() {
     });
   }, [propiedades, q, cat, op, est]);
 
-  const handleUpdate = (id: string, patch: Partial<Propiedad>) => {
-    updatePropiedad(id, patch);
+  /* 🔴 14-ago · Se ESPERA el resultado y se mira antes de cantar el ✓.
+   * `updatePropiedad`/`deletePropiedad` devuelven `Resultado` desde hace rato,
+   * pero acá se descartaba: la base rechazaba y el panel decía "actualizada ✓"
+   * igual. Cartera es la pantalla que Mateo usa TODOS LOS DÍAS (el 10-ago editó
+   * unas 20 propiedades desde acá), así que era el lugar más caro del sistema
+   * para tener un tilde verde que miente. */
+  const handleUpdate = async (id: string, patch: Partial<Propiedad>) => {
+    const r = await updatePropiedad(id, patch);
+    if (!r.ok) { push(`No se pudo guardar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push("Propiedad actualizada ✓", "success");
   };
-  const handleDelete = (id: string) => {
-    deletePropiedad(id);
+  const handleDelete = async (id: string) => {
+    const r = await deletePropiedad(id);
+    if (!r.ok) { push(`No se pudo eliminar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     setSelId(null);
     push("Propiedad eliminada de la cartera", "info");
   };
