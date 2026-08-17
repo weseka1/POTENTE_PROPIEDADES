@@ -16,6 +16,20 @@
 /** Los barrios donde se ofrece alquiler de temporada. El orden es el que se muestra. */
 export const BARRIOS_TEMPORADA = ["Punta Mogotes"];
 
+/**
+ * La oficina que ADMINISTRA la temporada. Mateo, 17-ago (audios): «cuando toco
+ * consultar por WhatsApp manda a mi WhatsApp personal… cambiar eso para que
+ * mande directamente al WhatsApp de Mogotes».
+ *
+ * Es la misma decisión de negocio que BARRIOS_TEMPORADA: la temporada se hace
+ * únicamente en Punta Mogotes, así que las fichas de temporada nacen de esa
+ * oficina. Lo que cuelga de esto: a qué WhatsApp rutea la consulta del
+ * visitante, y en el panel de QUIÉN aparece la ficha (el scope filtra por
+ * oficina exacta — una ficha sin oficina no la ve NINGUNA oficina, que es
+ * exactamente lo que le pasó a Mateo el 16-ago con sus fichas de prueba).
+ */
+export const OFICINA_TEMPORADA = "puntamogotes";
+
 /** El barrio principal: el que encabeza los textos y el SEO. */
 export const BARRIO_TEMPORADA = BARRIOS_TEMPORADA[0];
 

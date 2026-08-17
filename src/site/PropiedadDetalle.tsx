@@ -126,7 +126,13 @@ export default function PropiedadDetalle() {
     .slice(0, 3);
   const waMsg = encodeURIComponent(`Hola Potente Propiedades, me interesa "${p.titulo}" (${p.id}). ¿Me pasan más información?`);
   // Cada consulta va al WhatsApp de la oficina que vende la propiedad (sin oficina → central).
-  const waProp = waDigits(p.oficina);
+  // 🔴 17-ago · En TEMPORADA manda la oficina de la UNIDAD (la que administra el
+  // temporario), igual que el CTA del bloque de temporada. Sin esto, una ficha de
+  // temporada sin oficina caía al número central — el WhatsApp personal de Mateo.
+  // Audio textual: «manda a mi whatsapp personal… cambiar eso para que mande
+  // directamente al WhatsApp de Mogotes». Los DOS botones de la ficha tienen que
+  // marcar el mismo número: el visitante no distingue cuál tocó.
+  const waProp = waDigits((esTemporada ? unidadTemp?.oficina : undefined) ?? p.oficina);
 
   // Los datos salen del esquema (src/data/esquemaPropiedad.ts), que decide qué
   // pide cada tipo de propiedad y qué cuenta como "vacío". Pedido textual de

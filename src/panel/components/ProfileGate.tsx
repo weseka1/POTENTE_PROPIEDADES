@@ -15,7 +15,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 export default function ProfileGate() {
-  const { perfiles, activo, gateOpen, pick, add, update, remove } = useProfiles();
+  const { perfiles, activo, gateOpen, pick, add, update, remove, bloqueado, conSesion } = useProfiles();
   const { esDireccion } = usePanelAuth();
   const [manage, setManage] = useState(false);
   // Perfil que está pidiendo PIN para entrar (null = nadie).
@@ -25,39 +25,56 @@ export default function ProfileGate() {
   // al perfil elegido, como fue siempre.
   const puedeAdministrar = esDireccion ?? Boolean(activo.admin);
 
-  if (!gateOpen) return null;
+  // Con el PIN de la Dirección pendiente, el gate se dibuja aunque nadie lo haya
+  // abierto: ES la puerta. Sin eso, un frame de panel completo se escapa antes
+  // del candado.
+  if (!gateOpen && !bloqueado) return null;
 
   const onPhoto = async (id: string, file?: File) => { if (file) { try { update(id, { foto: await fileToAvatar(file) }); } catch { /* noop */ } } };
 
-  /** Entrar a un perfil: si tiene PIN, primero lo pide. */
+  /** Entrar a un perfil: si tiene PIN, primero lo pide.
+   *  ⚠️ El atajo de "ya estás en ese" NO corre estando bloqueado: volver a la
+   *  Dirección con el PIN pendiente pasa por el PIN, siempre. */
   const elegir = async (p: Perfil) => {
-    if (p.id === activo.id) return pick(p.id); // ya estás adentro de ese
+    if (p.id === activo.id && !bloqueado) return pick(p.id);
     if (await perfilPideePin(p.id)) setPidiendoPin(p);
     else pick(p.id);
   };
 
   return (
     <div className="panel-bg fixed inset-0 z-[60] flex flex-col items-center justify-center px-6 py-10">
-      <button onClick={() => pick(activo.id)} aria-label="Cerrar" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full text-graph-400 transition hover:bg-graph/5 hover:text-graph">
-        <X size={20} />
-      </button>
+      {/* Bloqueado no hay X: la única salida es un perfil (el de la Dirección,
+          con su PIN, o el de una oficina). */}
+      {!bloqueado && (
+        <button onClick={() => pick(activo.id)} aria-label="Cerrar" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full text-graph-400 transition hover:bg-graph/5 hover:text-graph">
+          <X size={20} />
+        </button>
+      )}
 
       <div className="mb-1 text-[11px] font-semibold uppercase tracking-widest2 text-brand">Potente Propiedades · Panel</div>
       <h1 className="text-center font-display text-3xl font-semibold tracking-tight text-graph sm:text-4xl">¿Quién está usando Potente?</h1>
-      <p className="mt-2 text-center text-sm text-graph-500">Elegí tu perfil. Cada uno puede poner su foto.</p>
+      <p className="mt-2 text-center text-sm text-graph-500">
+        {conSesion
+          ? "Elegí con qué sombrero entrás. Volver a Dirección pide el PIN."
+          : "Elegí tu perfil. Cada uno puede poner su foto."}
+      </p>
 
       <div className="mt-10 flex max-w-3xl flex-wrap items-start justify-center gap-7 sm:gap-9">
         {perfiles.map((p) => (
-          <ProfileTile key={p.id} p={p} manage={manage} active={p.id === activo.id} onPick={() => elegir(p)} onPhoto={onPhoto} update={update} remove={remove} canRemove={perfiles.length > 1} />
+          <ProfileTile key={p.id} p={p} manage={manage} conSesion={conSesion} active={p.id === activo.id} onPick={() => elegir(p)} onPhoto={onPhoto} update={update} remove={remove} canRemove={!conSesion && perfiles.length > 1} />
         ))}
 
-        {/* agregar */}
-        <button onClick={add} className="group flex w-28 flex-col items-center gap-3 sm:w-32">
-          <span className="grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-graph/25 text-graph-400 transition duration-300 ease-out group-hover:scale-105 group-hover:border-brand group-hover:text-brand sm:h-28 sm:w-28">
-            <Plus size={30} />
-          </span>
-          <span className="text-sm font-medium text-graph-400 transition group-hover:text-graph">Agregar perfil</span>
-        </button>
+        {/* Agregar perfil es de la DEMO. Con sesión real, los perfiles son los
+            tres del negocio y punto: un perfil nuevo acá era una vía para
+            saltarse el PIN de la Dirección (se creaba uno "admin" a mano). */}
+        {!conSesion && (
+          <button onClick={add} className="group flex w-28 flex-col items-center gap-3 sm:w-32">
+            <span className="grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-graph/25 text-graph-400 transition duration-300 ease-out group-hover:scale-105 group-hover:border-brand group-hover:text-brand sm:h-28 sm:w-28">
+              <Plus size={30} />
+            </span>
+            <span className="text-sm font-medium text-graph-400 transition group-hover:text-graph">Agregar perfil</span>
+          </button>
+        )}
       </div>
 
       {/* Permisos y PIN: los administra la DIRECCIÓN.
@@ -80,9 +97,15 @@ export default function ProfileGate() {
                     <span className="text-sm font-semibold text-graph">{p.nombre}</span>
                     {p.admin && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand-700 ring-1 ring-inset ring-brand/20">Admin</span>}
                   </span>
-                  <label className="flex items-center gap-2 text-[11px] font-medium text-graph-500">Administrador<Toggle on={!!p.admin} onChange={(v) => update(p.id, { admin: v })} /></label>
+                  {/* El interruptor de "Administrador" y los permisos a dedo son
+                      de la DEMO: viven en localStorage y con sesión real no
+                      deciden nada (el permiso sale del perfil blindado + el
+                      token). Mostrarlos con sesión era vender un control falso. */}
+                  {!conSesion && (
+                    <label className="flex items-center gap-2 text-[11px] font-medium text-graph-500">Administrador<Toggle on={!!p.admin} onChange={(v) => update(p.id, { admin: v })} /></label>
+                  )}
                 </div>
-                {!p.admin && (
+                {!conSesion && !p.admin && (
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {EXTRA_SECCIONES.map((s) => {
                       const on = (p.permisos || []).includes(s.key);
@@ -186,23 +209,35 @@ function PedirPin({ perfil, onOk, onCancelar }: { perfil: Perfil; onOk: () => vo
 
 function ConfigurarPin({ perfil }: { perfil: Perfil }) {
   const [tiene, setTiene] = useState<boolean | null>(null);
+  // 🔑 La llave maestra: si la Dirección tiene PIN, administrar CUALQUIER PIN lo
+  // exige (lo fuerza la base — migración 008). Acá solo se pide el dato; el que
+  // decide es el servidor: sin esto, en una sesión abierta se podía QUITAR el
+  // PIN de Mateo sin conocerlo, y el candado quedaba con la llave puesta.
+  const [maestroPuesto, setMaestroPuesto] = useState<boolean | null>(null);
   const [editando, setEditando] = useState(false);
   const [pin, setPin] = useState("");
+  const [pinActual, setPinActual] = useState("");
   const [msg, setMsg] = useState("");
 
   useEffect(() => { perfilPideePin(perfil.id).then(setTiene); }, [perfil.id]);
+  useEffect(() => { perfilPideePin("mateo").then(setMaestroPuesto); }, []);
 
   const guardar = async (valor: string) => {
-    const r = await definirPin(perfil.id, valor);
+    const r = await definirPin(perfil.id, valor, pinActual || undefined);
     if (!r.ok) return setMsg(r.error ?? "No se pudo guardar");
     setTiene(valor.length >= 4);
+    if (perfil.id === "mateo") setMaestroPuesto(valor.length >= 4);
     setEditando(false);
     setPin("");
+    setPinActual("");
     setMsg(valor ? "PIN guardado ✓" : "PIN quitado");
     setTimeout(() => setMsg(""), 2500);
   };
 
   if (tiene === null) return null;
+
+  const pideMaestro = maestroPuesto === true;
+  const faltaMaestro = pideMaestro && pinActual.length < 4;
 
   return (
     <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-graph/[0.07] pt-2.5">
@@ -213,41 +248,50 @@ function ConfigurarPin({ perfil }: { perfil: Perfil }) {
 
       {editando ? (
         <>
+          {pideMaestro && (
+            <input
+              value={pinActual}
+              onChange={(e) => setPinActual(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              type="password"
+              inputMode="numeric"
+              placeholder="PIN actual de Dirección"
+              className="h-8 w-40 rounded-lg border border-brand/30 bg-white px-2 text-center text-sm tracking-widest text-graph outline-none focus:border-brand/60"
+            />
+          )}
           <input
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
             type="password"
             inputMode="numeric"
-            placeholder="4 a 8 números"
-            className="h-8 w-32 rounded-lg border border-graph/15 bg-white px-2 text-center text-sm tracking-widest text-graph outline-none focus:border-brand/60"
+            placeholder="Nuevo (4 a 8 números)"
+            className="h-8 w-36 rounded-lg border border-graph/15 bg-white px-2 text-center text-sm tracking-widest text-graph outline-none focus:border-brand/60"
           />
-          <button onClick={() => guardar(pin)} disabled={pin.length < 4}
+          <button onClick={() => guardar(pin)} disabled={pin.length < 4 || faltaMaestro}
             className="h-8 rounded-lg bg-brand px-3 text-[11px] font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40">
             Guardar
           </button>
-          <button onClick={() => { setEditando(false); setPin(""); }} className="text-[11px] text-graph-400 hover:text-graph">
+          {tiene && (
+            <button onClick={() => guardar("")} disabled={faltaMaestro}
+              className="text-[11px] text-graph-400 transition hover:text-red-600 disabled:opacity-40">
+              Quitar el PIN
+            </button>
+          )}
+          <button onClick={() => { setEditando(false); setPin(""); setPinActual(""); }} className="text-[11px] text-graph-400 hover:text-graph">
             Cancelar
           </button>
         </>
       ) : (
-        <>
-          <button onClick={() => setEditando(true)} className="text-[11px] font-semibold text-brand hover:underline">
-            {tiene ? "Cambiar PIN" : "Poner PIN"}
-          </button>
-          {tiene && (
-            <button onClick={() => guardar("")} className="text-[11px] text-graph-400 transition hover:text-red-600">
-              Quitar
-            </button>
-          )}
-        </>
+        <button onClick={() => setEditando(true)} className="text-[11px] font-semibold text-brand hover:underline">
+          {tiene ? "Cambiar o quitar PIN" : "Poner PIN"}
+        </button>
       )}
       {msg && <span className="text-[11px] font-medium text-brand-700">{msg}</span>}
     </div>
   );
 }
 
-function ProfileTile({ p, manage, active, onPick, onPhoto, update, remove, canRemove }: {
-  p: Perfil; manage: boolean; active: boolean; onPick: () => void;
+function ProfileTile({ p, manage, active, conSesion, onPick, onPhoto, update, remove, canRemove }: {
+  p: Perfil; manage: boolean; active: boolean; conSesion: boolean; onPick: () => void;
   onPhoto: (id: string, file?: File) => void; update: (id: string, patch: Partial<Perfil>) => void; remove: (id: string) => void; canRemove: boolean;
 }) {
   return (
@@ -273,8 +317,14 @@ function ProfileTile({ p, manage, active, onPick, onPhoto, update, remove, canRe
         <div className="flex w-full flex-col items-center gap-1">
           <input value={p.nombre} onChange={(e) => update(p.id, { nombre: e.target.value })}
             className="w-full rounded-lg border border-graph/15 bg-paper-100 px-2 py-1 text-center text-sm font-semibold text-graph outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/15" />
-          <input value={p.rol} onChange={(e) => update(p.id, { rol: e.target.value })}
-            className="w-full rounded-lg border border-graph/10 bg-paper-100 px-2 py-1 text-center text-[11px] text-graph-500 outline-none focus:border-brand/60" />
+          {/* El ROL con sesión es del negocio (Dirección / Oficina 1 / Oficina 2),
+              no un texto libre: editable solo en la demo. */}
+          {conSesion ? (
+            <span className="text-[11px] text-graph-400">{p.rol}</span>
+          ) : (
+            <input value={p.rol} onChange={(e) => update(p.id, { rol: e.target.value })}
+              className="w-full rounded-lg border border-graph/10 bg-paper-100 px-2 py-1 text-center text-[11px] text-graph-500 outline-none focus:border-brand/60" />
+          )}
           {canRemove && (
             <button onClick={() => remove(p.id)} className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-graph-400 transition hover:text-red-600">
               <Trash2 size={12} /> Eliminar

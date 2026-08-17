@@ -819,8 +819,18 @@ export default function Temporada() {
                 ...disponibles.map((p) => ({ value: p.id, label: `${p.titulo.split(",")[0]} · ${p.zona}` })),
               ]}
             />
+            {/* 🔴 17-ago · Este texto decía "Todas las propiedades de la cartera ya
+                están en la temporada" — FALSO desde que temporada es una operación
+                (esta lista solo ofrece fichas de temporada huérfanas de unidad, que
+                por el camino normal no existen). Mateo lo leyó, miró la grilla, no
+                vio lo suyo y reportó el módulo como roto. El estado vacío ahora dice
+                la verdad y señala el camino real: cargar una ficha nueva. */}
             {disponibles.length === 0 && (
-              <span className="mt-1 block text-[11px] text-graph-400">Todas las propiedades de la cartera ya están en la temporada.</span>
+              <span className="mt-1 block text-[11px] leading-relaxed text-graph-400">
+                Acá no hay nada para recuperar: las propiedades de temporada se cargan como una
+                ficha nueva, desde <strong className="font-semibold text-graph-500">Cargar propiedad → Operación: Temporada</strong>.
+                Al guardarla aparece sola en esta pantalla.
+              </span>
             )}
           </label>
 

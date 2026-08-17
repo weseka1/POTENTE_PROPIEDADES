@@ -186,19 +186,21 @@ for (const [ancho, alto, etiqueta] of [[390, 844, "📱 390"], [1440, 950, "🖥
 /* ── La otra mitad del pedido: la ficha muestra los datos de temporada ─────── */
 await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
 await ir(URL_APP + "/temporada", 6000);
+/* 🔑 Se busca la ficha SEMBRADA entre todas las tarjetas — no "la primera".
+ * La versión anterior tomaba la primera tarjeta y exigía que fuera la sembrada:
+ * funcionó exactamente hasta que Mateo cargó SU primera ficha de temporada real
+ * (17-ago) y la página, con toda razón, la mostró antes que la nuestra. Es la
+ * misma trampa de `llaves`: el test no puede depender de en qué posición caen
+ * los datos vivos del cliente. La ficha que se navega y se verifica abajo es
+ * SIEMPRE la sembrada, que es la única cuyo contenido controlamos. */
 const href = await evaluar(`
-  const a = document.querySelector('a[href^="/propiedad/"]');
-  return a ? a.getAttribute("href") : "";
+  const links = [...document.querySelectorAll('a[href^="/propiedad/"]')].map((a) => a.getAttribute("href"));
+  return links.find((h) => h.includes(${JSON.stringify(ID_PROP)})) || "";
 `);
-chequear("Hay al menos una tarjeta con link a su ficha", Boolean(href), href);
-
-// 🔑 Y que la que se ve sea LA QUE SEMBRAMOS: sin esto, el día que alguien
-// vuelva a publicar una unidad colgada de una ficha de venta, la prueba pasaría
-// igual mirando esa otra tarjeta.
 chequear(
-  "🔑 …y la tarjeta sembrada es la que aparece (la regla nueva la publicó)",
-  href.includes(ID_PROP),
-  `${href} vs ${ID_PROP}`,
+  "🔑 La tarjeta sembrada está en la grilla, con link a su ficha (la regla nueva la publicó)",
+  Boolean(href),
+  href || `ninguna tarjeta apunta a ${ID_PROP}`,
 );
 
 if (href) {
@@ -230,6 +232,23 @@ if (href) {
       hayFotos: document.querySelectorAll("img").length > 0,
       hayDescripcion: t.length > 800,
       ctaTemporada: T.includes("consultar la temporada"),
+      /* 17-ago, audio de Mateo: «toco consultar por WhatsApp y manda a mi
+       * WhatsApp personal… que mande directamente al WhatsApp de Mogotes».
+       * La columna de la ficha tiene DOS botones de WhatsApp (el del bloque de
+       * temporada y el general) y el visitante no distingue cuál toca: los dos
+       * tienen que marcar EL MISMO número.
+       * ⚠️ Se mira SOLO el <aside> — el footer lleva los WhatsApp de las dos
+       * oficinas y el navbar el central, y esos son legítimos. Mirar toda la
+       * página daría falso rojo (la cicatriz de siempre: contenedor, no body). */
+      telefonosWA: (() => {
+        const a = document.querySelector("aside");
+        return [...new Set(
+          [...(a ? a.querySelectorAll('a[href*="wa.me/"]') : [])]
+            .map((x) => (x.getAttribute("href").match(/wa\\.me\\/(\\d+)/) || [])[1])
+            .filter(Boolean)
+        )];
+      })(),
+      ctasWA: (document.querySelector("aside")?.querySelectorAll('a[href*="wa.me/"]') ?? []).length,
       overflow: document.documentElement.scrollWidth - window.innerWidth,
       errores: (window.__err || []).length,
     });
@@ -240,6 +259,11 @@ if (href) {
     f.aConsultar.texto.split("\n").join(" ").slice(0, 70));
   chequear("…con la capacidad (hasta N personas)", f.capacidad);
   chequear("…y su CTA propio de temporada", f.ctaTemporada);
+  chequear(
+    "🔑 TODOS los WhatsApp de la ficha marcan EL MISMO número (el de la oficina de temporada)",
+    f.ctasWA >= 2 && f.telefonosWA.length === 1,
+    `${f.ctasWA} botones → números distintos: [${f.telefonosWA.join(", ")}]`,
+  );
   chequear("🔑 La ficha tiene las FOTOS y la descripción (lo que faltaba)", f.hayFotos && f.hayDescripcion);
   chequear("Ficha sin desborde horizontal", f.overflow <= 0, `${f.overflow}px`);
   chequear("Ficha con consola limpia", f.errores === 0);

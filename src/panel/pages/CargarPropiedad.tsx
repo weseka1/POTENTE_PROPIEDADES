@@ -13,7 +13,7 @@ import type { Propiedad, Categoria, Ficha, Orientacion, OperacionProp } from "@/
 import { camposDe, camposDelGrupo, CAMPOS, type CampoProp } from "@/data/esquemaPropiedad";
 import { ESTADOS_PROPIEDAD, estadoCampo } from "../ui/estados";
 import MapaUbicacion from "../components/MapaUbicacion";
-import { esBarrioTemporada, BARRIOS_TEMPORADA } from "@/config/temporada";
+import { esBarrioTemporada, BARRIOS_TEMPORADA, OFICINA_TEMPORADA } from "@/config/temporada";
 
 const categorias: { v: Categoria; l: string }[] = [
   { v: "departamento", l: "Departamento" }, { v: "casa", l: "Casa" }, { v: "chalet", l: "Chalet" },
@@ -318,7 +318,17 @@ export default function CargarPropiedad() {
       lng: num(f.lng) ?? null,
       caracteristicas: f.caracteristicas ? f.caracteristicas.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
       video: f.video?.trim() || undefined,
-      oficina: f.oficina || undefined,
+      /* 🔴 17-ago · UNA FICHA DE TEMPORADA NACE DE LA OFICINA DE MOGOTES.
+       * Mateo cargó sus primeras fichas de temporada dejando el selector en
+       * "Central (Mateo)" → oficina null → tres síntomas de una: no aparecía
+       * en la Cartera de NINGUNA oficina (el scope filtra por oficina exacta),
+       * no aparecía en el panel de Temporada, y el "Consultar por WhatsApp" de
+       * la web caía al número central — su WhatsApp personal. Audio textual:
+       * «cambiar eso para que mande directamente al WhatsApp de Mogotes».
+       * La temporada la administra Mogotes (misma decisión que
+       * BARRIOS_TEMPORADA), así que el default sale de config/temporada.js.
+       * Si la dirección elige otra oficina a propósito, se respeta. */
+      oficina: f.oficina || (f.operacion === "temporada" ? OFICINA_TEMPORADA : undefined),
       ficha,
     };
     // ⚠️ Se ESPERA y se MIRA el resultado antes de decir que se guardó.
@@ -459,8 +469,19 @@ export default function CargarPropiedad() {
               <Campo label="Tipo de propiedad"><Sel value={f.categoria} onChange={(v) => set("categoria", v)} opts={categorias.map((c) => ({ v: c.v, l: c.l }))} /></Campo>
               {/* Las TRES operaciones (Mateo, 14-ago). `temporada` no es una
                   etiqueta: elegirla acá crea una FICHA PROPIA de temporada, con
-                  su unidad. Textual: «necesito que sean fichas distintas». */}
-              <Campo label="Operación"><Sel value={f.operacion} onChange={(v) => set("operacion", v)} opts={OPERACIONES} /></Campo>
+                  su unidad. Textual: «necesito que sean fichas distintas».
+                  Y al elegirla, la oficina se pone SOLA en Mogotes (17-ago) —
+                  a la vista, no por atrás: el selector de arriba se mueve y el
+                  contacto de la ficha se completa, igual que si la hubiera
+                  elegido a mano. Si ya eligió una oficina, no se pisa. */}
+              <Campo label="Operación"><Sel value={f.operacion} onChange={(v) => {
+                set("operacion", v);
+                if (v === "temporada" && !f.oficina) {
+                  set("oficina", OFICINA_TEMPORADA);
+                  const o = getOficina(OFICINA_TEMPORADA);
+                  if (o) setFicha("contacto", `Oficina ${o.numero} ${o.nombre} · ${o.direccion} · Tel ${o.telefono}`);
+                }
+              }} opts={OPERACIONES} /></Campo>
               <Campo label="Título" full><Inp value={f.titulo} onChange={(v) => set("titulo", v)} ph="Ej: Departamento 3 ambientes — Playa Grande" /></Campo>
               <Campo label="Zona / Localidad"><Inp value={f.zona} onChange={(v) => set("zona", v)} ph="Punta Mogotes" /></Campo>
               <Campo label="Dirección / Ubicación"><Inp value={f.direccion} onChange={(v) => set("direccion", v)} ph="Córdoba 3719" /></Campo>

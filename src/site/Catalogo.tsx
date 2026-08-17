@@ -401,6 +401,9 @@ export default function Catalogo() {
                   <button
                     key={t.key}
                     onClick={() => setCat(t.key)}
+                    // El riel centra solo al chip activo (entrar por link a
+                    // ?cat=galpon lo dejaba medio cortado a la derecha).
+                    data-activo={f.cat === t.key}
                     className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
                       f.cat === t.key
                         ? "bg-brand text-white shadow-[0_6px_16px_-6px_rgba(12,77,162,0.55)]"

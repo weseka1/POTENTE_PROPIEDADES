@@ -30,16 +30,45 @@ export async function verificarPin(perfilId: string, pin: string): Promise<boole
   return !error && data === true;
 }
 
-/** Pone o quita el PIN (vacío = lo quita). La base solo deja hacerlo a Dirección. */
-export async function definirPin(perfilId: string, pin: string): Promise<{ ok: boolean; error?: string }> {
+/** Pone o quita el PIN (vacío = lo quita). La base solo deja hacerlo a Dirección
+ *  y, desde la migración 008, exige la LLAVE MAESTRA: si la dirección ya tiene
+ *  PIN, hay que presentarlo para administrar cualquier PIN. Cierra el agujero
+ *  que encontró Juani (10-ago): en una sesión abierta se podía QUITAR el PIN de
+ *  Mateo sin conocerlo — un candado con la llave puesta. */
+export async function definirPin(
+  perfilId: string,
+  pin: string,
+  pinActual?: string,
+): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: "Hace falta la base de datos para guardar el PIN." };
-  const { error } = await supabase.rpc("potente_pin_definir", { p_perfil: perfilId, p_pin: pin });
+  const { error } = await supabase.rpc("potente_pin_definir", {
+    p_perfil: perfilId,
+    p_pin: pin,
+    p_pin_actual: pinActual ?? null,
+  });
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 export type Perfil = { id: string; nombre: string; rol: string; foto: string | null; color: string; admin?: boolean; permisos?: string[]; oficina?: "chauvin" | "puntamogotes" };
 
 /* Secciones del panel. basic=true → la ven TODOS. El resto solo el admin (o quien él habilite). */
+/**
+ * LA MATRIZ DE PERMISOS — quién ve qué, y por qué.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * La regla (Juani, 17-ago): las oficinas OPERAN, la dirección ANALIZA. Textual:
+ * «ellos solo pueden cargar propiedades, ver y cargar el crm, cargar fichas,
+ * llaves, etc». Todo lo que agregue números del negocio (reportes, embudo,
+ * alquileres anuales, la IA del orquestador) es de la dirección.
+ *
+ * `basic: true`  = herramienta de mostrador: la ve cualquier oficina, siempre
+ *                  con SUS datos (el scope + RLS recortan a su oficina).
+ * `basic: false` = del orquestador. Una oficina la ve SOLO si la dirección se
+ *                  la habilitó en `permisos` (cartera/temporada/inicio hoy).
+ *
+ * ⚠️ Lo que la pantalla esconde lo REFUERZA la base: verificado 17-ago por API
+ * — Chauvín lee 46 propiedades de 103 (las suyas), CERO fichas internas de
+ * Mogotes, cero leads/clientes/llaves ajenos. El menú es UX; el candado es RLS.
+ */
 export const SECCIONES = [
   { key: "inicio", label: "Inicio", basic: false },
   { key: "asistente", label: "Asistente IA", basic: false },
@@ -56,34 +85,56 @@ export const SECCIONES = [
   // basic. El aislamiento por oficina lo hace el RLS, no el menú.
   { key: "llaves", label: "Llaves", basic: true },
   { key: "arrendamientos", label: "Alquileres", basic: false },
-  { key: "reportes", label: "Reportes", basic: true },
+  /* 🔴 17-ago · Reportes DEJÓ de ser básica. Era la fuga que vio Juani
+   * («todas las oficinas tienen la misma información que mateo»): cualquier
+   * oficina abría Reportes y veía valores de cartera en plata — análisis del
+   * negocio, no herramienta de mostrador. Los datos que mostraba ya venían
+   * recortados a su oficina por el scope, pero el análisis del negocio es de
+   * quien lo dirige, aunque sea sobre la tajada propia. */
+  { key: "reportes", label: "Reportes", basic: false },
 ] as const;
 export const EXTRA_SECCIONES = SECCIONES.filter((s) => !s.basic);
 
 /**
  * ¿Se puede ver esta sección?
  *
- * 🔒 `esDireccion` sale del TOKEN (app_metadata.rol), que solo se escribe desde el
- * servidor. Es la autoridad. `p.admin` y `p.permisos` viven en localStorage, o sea
- * que los puede editar cualquiera con las herramientas del navegador — sirven para
- * organizar al equipo, NO para decidir un permiso.
+ * LA REGLA (corregida el 10-ago con Juani): **el PERFIL manda la vista y el
+ * TOKEN pone el techo.**
  *
- * Por eso, cuando hay sesión con base:
- *   · dirección → todo
- *   · oficina    → las básicas + lo que la dirección le habilitó, y NUNCA una
- *                  sección no-básica por decir `admin: true` en el navegador.
- * En la demo sin base (`esDireccion === null`) se cae al comportamiento viejo.
+ * · Perfil de OFICINA → vista de oficina, sea quien sea el que entró. Esto hace
+ *   dos cosas a la vez: cuando Mateo "va a ver una oficina", ve EXACTAMENTE lo
+ *   que ve la oficina (antes seguía viendo las 13 secciones y el paseo no
+ *   servía de nada); y alguien parado frente a una sesión de la dirección
+ *   abierta solo alcanza vistas de oficina — para volver al panel completo está
+ *   el PIN.
+ * · Perfil de DIRECCIÓN → todo, pero SOLO si el token dice dirección
+ *   (app_metadata.rol, que se escribe únicamente desde el servidor). Una
+ *   oficina jamás llega acá: su perfil lo fija el token.
+ * · En la demo sin base (`esDireccion === null`) manda el perfil elegido a
+ *   mano, como fue siempre — el enlatado de demos depende de esto.
+ *
+ * ⚠️ `p.admin` y `p.permisos` de localStorage NO deciden nada cuando hay sesión:
+ * los edita cualquiera con las herramientas del navegador. Con sesión, los
+ * permisos del perfil salen de los DEFAULTS del código (ver `blindar()` en el
+ * provider).
  */
 export function canAccess(p: Perfil | undefined, key: string, esDireccion?: boolean | null): boolean {
   if (!p) return false;
 
   const s = SECCIONES.find((x) => x.key === key);
 
-  // Con sesión real, el token decide.
-  if (esDireccion === true) return true;
-  if (esDireccion === false) {
+  // Perfil de oficina: vista de oficina. Para todos.
+  if (p.oficina) {
     if (s?.basic) return true;
     return (p.permisos || []).includes(key);
+  }
+
+  // Perfil de dirección (sin oficina): el token es la autoridad.
+  if (esDireccion === true) return true;
+  if (esDireccion === false) {
+    // Una oficina con un perfil sin oficina no debería existir (el token le fija
+    // el suyo), pero si aparece, no gana nada: solo lo básico.
+    return s?.basic === true;
   }
 
   // Demo sin base: manda el perfil elegido a mano.
@@ -159,6 +210,11 @@ type Ctx = {
   /** true cuando el perfil lo fija el usuario que entró y NO se puede cambiar
    *  (una oficina no puede ponerse el sombrero de Dirección). */
   perfilFijo: boolean;
+  /** true mientras la Dirección está parada en su perfil SIN haber pasado el
+   *  PIN en esta pestaña: la pantalla de perfiles no se puede cerrar. */
+  bloqueado: boolean;
+  /** true = hay sesión real (con base). El gate esconde lo de la demo. */
+  conSesion: boolean;
 };
 const ProfilesCtx = createContext<Ctx | null>(null);
 export const useProfiles = () => { const c = useContext(ProfilesCtx); if (!c) throw new Error("useProfiles fuera de ProfilesProvider"); return c; };
@@ -193,7 +249,9 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
   // Ahora manda el TOKEN: si dice que sos de una oficina, el perfil lo fija el
   // token, haya o no un perfil guardado que coincida. El navegador solo aporta lo
   // cosmético (nombre, foto, color).
-  const { oficina: oficinaUsuario } = usePanelAuth();
+  const { oficina: oficinaUsuario, esDireccion } = usePanelAuth();
+  // Con base y usuario real. En la demo sin base es false y todo sigue como era.
+  const conSesion = esDireccion !== null;
 
   const perfilDelUsuario = useMemo(() => {
     if (!oficinaUsuario) return undefined;
@@ -220,6 +278,53 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
   // encontrado un perfil — ahí estaba el agujero.
   const perfilFijo = Boolean(oficinaUsuario);
 
+  /* ── El PIN de la Dirección, por pestaña ────────────────────────────────────
+     El flujo que pidió Juani (10-ago): Mateo puede pasearse por las vistas de
+     las oficinas, y PARA VOLVER a su perfil pone el PIN. La marca de "ya lo
+     puso" vive en sessionStorage: dura lo que dura la pestaña, así que cerrar
+     el navegador o abrir otra pestaña vuelve a pedirlo. Cambiarse a una oficina
+     la borra — volver SIEMPRE pide PIN. */
+  const [pinOk, setPinOk] = useState<boolean>(() => {
+    try { return sessionStorage.getItem("potente_pin_direccion_ok") === "1"; } catch { return false; }
+  });
+  const marcarPin = (ok: boolean) => {
+    setPinOk(ok);
+    try {
+      if (ok) sessionStorage.setItem("potente_pin_direccion_ok", "1");
+      else sessionStorage.removeItem("potente_pin_direccion_ok");
+    } catch { /* noop */ }
+  };
+
+  // ¿La dirección tiene PIN puesto? (async, una vez por sesión de dirección).
+  // Mientras no se sabe (null) se asume que SÍ: fallar cerrado.
+  const [direccionTienePin, setDireccionTienePin] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!conSesion || esDireccion !== true) return;
+    let vivo = true;
+    perfilPideePin("mateo").then((v) => { if (vivo) setDireccionTienePin(v); });
+    return () => { vivo = false; };
+  }, [conSesion, esDireccion]);
+
+  /* Con sesión, los perfiles que el gate puede ofrecer son LOS TRES del negocio,
+     blindados: rol/permisos/oficina salen del código; del navegador solo lo
+     cosmético. "Agregar perfil" y los permisos por localStorage son de la demo. */
+  const perfilesPanel = useMemo(() => {
+    if (!conSesion) return perfiles;
+    return DEFAULTS.map((base) => {
+      // Primero el id exacto (es donde escribe `update` con sesión); si no, el
+      // perfil viejo que tenga esa oficina (cosmética guardada antes del cambio).
+      const guardado =
+        perfiles.find((p) => p.id === base.id) ??
+        perfiles.find((p) => (base.oficina ? p.oficina === base.oficina : p.rol === "Dirección"));
+      return {
+        ...base,
+        nombre: guardado?.nombre ?? base.nombre,
+        foto: guardado?.foto ?? base.foto,
+        color: guardado?.color ?? base.color,
+      };
+    });
+  }, [conSesion, perfiles]);
+
   useEffect(() => { try { localStorage.setItem(LS_PERFILES, JSON.stringify(perfiles)); } catch { /* noop */ } }, [perfiles]);
   useEffect(() => { try { if (activoId) localStorage.setItem(LS_ACTIVO, activoId); } catch { /* noop */ } }, [activoId]);
 
@@ -231,14 +336,50 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
     }
   }, [perfilDelUsuario?.id]);
 
-  const activo = perfilDelUsuario ?? perfiles.find((p) => p.id === activoId) ?? perfiles[0];
+  const activo = perfilDelUsuario
+    ?? (conSesion
+      ? (perfilesPanel.find((p) => p.id === activoId) ?? perfilesPanel[0])
+      : (perfiles.find((p) => p.id === activoId) ?? perfiles[0]));
+
+  /* La Dirección parada en su perfil sin haber puesto el PIN en esta pestaña:
+     el gate queda clavado abierto (el contenido de atrás queda tapado). Si la
+     dirección no tiene PIN, no hay nada que pedir. */
+  const bloqueado =
+    conSesion &&
+    esDireccion === true &&
+    !activo.oficina &&
+    direccionTienePin !== false &&
+    !pinOk;
+
+  /* ⚠️ Acá NO va un `if (bloqueado) setGateOpen(true)`. El patch original lo
+   * tenía y era un bug: `bloqueado` arranca en true A PROPÓSITO (fallar cerrado
+   * mientras se consulta si la Dirección tiene PIN), así que ese efecto disparaba
+   * en el montaje y dejaba `gateOpen` clavado aunque el chequeo volviera con "no
+   * hay PIN" — el selector de perfiles aparecía en CADA carga del panel y se
+   * comía los clicks de atrás. No hace falta: el gate ya se dibuja solo con
+   * `bloqueado` (su condición de render es `gateOpen || bloqueado`), y cuando el
+   * chequeo resuelve que no hay PIN, se va solo sin dejar estado pegado. */
 
   const pick = (id: string) => {
     if (perfilFijo) return; // una oficina no cambia de perfil
+    if (conSesion) {
+      const destino = perfilesPanel.find((p) => p.id === id);
+      if (!destino) return; // con sesión solo existen los tres del negocio
+      // Volver a la Dirección deja la marca (el gate ya verificó el PIN antes de
+      // llamar acá); irse a una oficina LA BORRA — volver pedirá PIN de nuevo.
+      marcarPin(!destino.oficina);
+    }
     setActivoId(id);
     setGateOpen(false);
   };
-  const update = (id: string, patch: Partial<Perfil>) => setPerfiles((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const update = (id: string, patch: Partial<Perfil>) => setPerfiles((ps) => {
+    if (ps.some((p) => p.id === id)) return ps.map((p) => (p.id === id ? { ...p, ...patch } : p));
+    // Con sesión, el gate edita los perfiles blindados por su id de código
+    // ("mateo", "chauvin"...) que puede no existir aún en lo guardado: se crea
+    // la entrada para que la foto o el nombre persistan.
+    const base = DEFAULTS.find((d) => d.id === id);
+    return base ? [...ps, { ...base, ...patch }] : ps;
+  });
   const add = () => setPerfiles((ps) => {
     const id = "p" + Math.random().toString(36).slice(2, 8);
     return [...ps, { id, nombre: "Nuevo perfil", rol: "Equipo", foto: null, color: PALETA[ps.length % PALETA.length], admin: false, permisos: [] }];
@@ -252,10 +393,13 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
 
   return (
     <ProfilesCtx.Provider value={{
-      perfiles, activo, gateOpen,
+      // Con sesión, el gate ofrece SOLO los tres perfiles del negocio, blindados.
+      perfiles: conSesion ? perfilesPanel : perfiles,
+      activo, gateOpen,
       openGate: () => { if (!perfilFijo) setGateOpen(true); },
-      closeGate: () => setGateOpen(false),
-      pick, add, update, remove, perfilFijo,
+      // Con el PIN pendiente, el gate no se cierra: es la puerta.
+      closeGate: () => { if (!bloqueado) setGateOpen(false); },
+      pick, add, update, remove, perfilFijo, bloqueado, conSesion,
     }}>
       {children}
     </ProfilesCtx.Provider>
