@@ -318,8 +318,21 @@ export default function CargarPropiedad() {
    * sin dato: la web no promete cupo (ni acá ni en /temporada). */
   const [capacidadTemp, setCapacidadTemp] = useState("");
   const unidadExistente = original ? unidadesTemporada.find((u) => u.propiedadId === original.id) : undefined;
+
+  /* ── Moneda del precio (alquiler y temporada; venta es U$S siempre) ────────
+   * Juani, 18-ago: «que en alquiler, temporada, haya para operación USD y ARS».
+   * UNA moneda por publicación: al cambiar de moneda, el número tipeado viaja
+   * con ella y la otra queda vacía (fmtPrecio publica ARS si existe). */
+  const [monedaPrecio, setMonedaPrecio] = useState<"usd" | "ars">(original?.precioARS ? "ars" : "usd");
+  const cambiarMoneda = (m: string) => {
+    setMonedaPrecio(m as "usd" | "ars");
+    if (m === "ars" && f.precioUSD) setF((prev: any) => ({ ...prev, precioARS: prev.precioUSD, precioUSD: "" }));
+    if (m === "usd" && f.precioARS) setF((prev: any) => ({ ...prev, precioUSD: prev.precioARS, precioARS: "" }));
+  };
+
   useEffect(() => {
     setCapacidadTemp(unidadExistente && unidadExistente.capacidad > 0 ? String(unidadExistente.capacidad) : "");
+    setMonedaPrecio(original?.precioARS ? "ars" : "usd");
     // Solo al cambiar de propiedad editada: no pisa lo que se esté tipeando.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [original?.id]);
@@ -577,7 +590,34 @@ export default function CargarPropiedad() {
               <Campo label="Título" full><Inp value={f.titulo} onChange={(v) => set("titulo", v)} ph="Ej: Departamento 3 ambientes — Playa Grande" /></Campo>
               <Campo label="Zona / Localidad"><Inp value={f.zona} onChange={(v) => set("zona", v)} ph="Punta Mogotes" /></Campo>
               <Campo label="Dirección / Ubicación"><Inp value={f.direccion} onChange={(v) => set("direccion", v)} ph="Córdoba 3719" /></Campo>
-              <Campo label="Precio (U$S) — vacío = “A consultar”"><Inp value={f.precioUSD} onChange={(v) => set("precioUSD", v)} ph="vacío = A consultar" type="number" /></Campo>
+              {/* Venta se publica en dólares, siempre. Alquiler y temporada
+                  eligen la moneda (Juani, 18-ago): un alquiler puede ser en
+                  pesos O en dólares. UNA sola moneda por publicación — la web
+                  publica precioARS si existe y precioUSD si no (fmtPrecio):
+                  con las dos puestas el resultado sería ambiguo, así que al
+                  cambiar de moneda el número viaja y la otra queda vacía. */}
+              {f.operacion === "venta" ? (
+                <Campo label="Precio (U$S) — vacío = “A consultar”"><Inp value={f.precioUSD} onChange={(v) => set("precioUSD", v)} ph="vacío = A consultar" type="number" /></Campo>
+              ) : (
+                <>
+                  <Campo label="Moneda del precio">
+                    <Sel value={monedaPrecio} onChange={cambiarMoneda} opts={[{ v: "usd", l: "U$S (dólares)" }, { v: "ars", l: "$ (pesos)" }]} />
+                  </Campo>
+                  <Campo label={monedaPrecio === "ars" ? "Precio ($ pesos) — vacío = “A consultar”" : "Precio (U$S) — vacío = “A consultar”"}>
+                    <Inp
+                      value={monedaPrecio === "ars" ? f.precioARS : f.precioUSD}
+                      onChange={(v) => set(monedaPrecio === "ars" ? "precioARS" : "precioUSD", v)}
+                      ph="vacío = A consultar"
+                      type="number"
+                    />
+                    {f.operacion === "temporada" && (
+                      <p className="mt-1 text-[11px] leading-snug text-graph-400">
+                        La web de temporada nunca publica el precio: al visitante siempre le dice “A consultar”. Este número es tu referencia interna.
+                      </p>
+                    )}
+                  </Campo>
+                </>
+              )}
               {esCampo && <Campo label="Precio por hectárea (U$S)"><Inp value={f.precioPorHa} onChange={(v) => set("precioPorHa", v)} ph="3500" type="number" /></Campo>}
             </div>
             {/* Autorización — datos internos de la inmobiliaria, no van a la web.
@@ -660,7 +700,7 @@ export default function CargarPropiedad() {
 
             <div className="space-y-5">
               {GRUPOS.map(({ grupo, titulo }) => {
-                const campos = camposDelGrupo(f.categoria as Categoria, grupo);
+                const campos = camposDelGrupo(f.categoria as Categoria, grupo, f.operacion);
                 if (!campos.length) return null;
                 return (
                   <div key={grupo}>
@@ -961,7 +1001,9 @@ export default function CargarPropiedad() {
  * con piso y expensas se cambia a "lote", el piso tiene que irse de verdad.
  */
 function camposParaGuardar(f: Record<string, any>): Record<string, unknown> {
-  const usa = new Set(camposDe(f.categoria as Categoria).map((c) => String(c.id)));
+  // La categoría Y la operación deciden qué se guarda: pasar una ficha de venta
+  // a temporada limpia expensas y apta crédito de verdad (Juani, 18-ago).
+  const usa = new Set(camposDe(f.categoria as Categoria, f.operacion).map((c) => String(c.id)));
   const salida: Record<string, unknown> = {};
 
   for (const c of Object.values(CAMPOS)) {

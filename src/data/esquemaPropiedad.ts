@@ -26,7 +26,7 @@ import {
   Ruler, Maximize, BedDouble, Bath, Car, Compass, Building2, Layers,
   Calendar, Receipt, Landmark, ArrowUpDown, Route, Trees,
 } from "lucide-react";
-import type { Categoria, Propiedad } from "./propiedadTypes";
+import type { Categoria, OperacionProp, Propiedad } from "./propiedadTypes";
 
 /** Cómo se pide y cómo se muestra un dato de la propiedad. */
 export interface CampoProp {
@@ -76,6 +76,16 @@ export interface CampoProp {
    * campo transversal se reparte solo.
    */
   transversal?: true;
+  /**
+   * El campo solo aplica a estas OPERACIONES. Sin la marca, aplica a todas.
+   * Juani, 18-ago: «si es temporada deben ser los datos específicos, lo mismo
+   * para compra/venta… no debemos hacer cuello de botella con el sistema» —
+   * las expensas o el apta crédito no tienen nada que hacer en una ficha de
+   * temporada, ni en el formulario ni en la web.
+   * Igual que con las categorías, `camposParaGuardar()` pone en NULL lo que la
+   * operación no usa: pasar una ficha de venta a temporada limpia de verdad.
+   */
+  operaciones?: readonly OperacionProp[];
 }
 
 const DISPOSICION = [
@@ -155,11 +165,20 @@ export const CAMPOS = {
     icono: Receipt, publico: true, ph: "85000",
     // Las expensas NO van en la grilla de datos: se renderizan aparte, como
     // segunda línea abajo del precio (pedido textual de Mateo).
+    // Solo venta y alquiler: al que alquila quince días no se le cobran
+    // expensas aparte (la web ya lo escondía; ahora el formulario también).
+    operaciones: ["venta", "alquiler"],
   },
   // Transversal: cualquier cosa que se venda puede ser apta crédito. Un lote, un
   // galpón y un departamento por igual — "lote apto crédito" es un término real
   // del rubro y así venían etiquetados los datos que importamos del portal.
-  aptaCredito: { id: "aptaCredito", label: "Apta para crédito", grupo: "extra", tipo: "siNo", icono: Landmark, publico: true, transversal: true },
+  aptaCredito: {
+    id: "aptaCredito", label: "Apta para crédito", grupo: "extra", tipo: "siNo",
+    icono: Landmark, publico: true, transversal: true,
+    // El crédito hipotecario es para COMPRAR: en alquiler y temporada el toggle
+    // solo confundía (Juani, 18-ago: cada operación con sus datos).
+    operaciones: ["venta"],
+  },
 
   // ── Rurales (ya existían; se declaran acá para que el campo también salga de
   //    una sola fuente) ─────────────────────────────────────────────────────
@@ -238,17 +257,22 @@ const familiaDe = (cat: Categoria): Familia => {
 };
 
 // Memoizado: `camposDe` se llama en cada render de la ficha, de la tarjeta y del
-// formulario. Son 19 categorías, así que el mapa se llena una vez y listo.
-const cache = new Map<Categoria, CampoProp[]>();
+// formulario. 19 categorías × 3 operaciones (+ "sin operación"): el mapa se
+// llena una vez y listo.
+const cache = new Map<string, CampoProp[]>();
 
 /** Los campos transversales: van en todas las categorías, sin excepción. */
 const TRANSVERSALES = Object.values(CAMPOS)
   .filter((c) => (c as CampoProp).transversal)
   .map((c) => String(c.id) as IdCampo);
 
-/** Los campos que pide (y muestra) esta categoría, en orden de formulario. */
-export function camposDe(cat: Categoria): CampoProp[] {
-  const guardado = cache.get(cat);
+/** Los campos que pide (y muestra) esta categoría, en orden de formulario.
+ *  Con `operacion`, además filtra los que esa operación no usa (expensas y
+ *  apta crédito no existen en temporada). Sin `operacion` devuelve todos —
+ *  compatibilidad para quien no tiene el dato a mano. */
+export function camposDe(cat: Categoria, operacion?: OperacionProp): CampoProp[] {
+  const clave = `${cat}|${operacion ?? "*"}`;
+  const guardado = cache.get(clave);
   if (guardado) return guardado;
   const ids = [
     ...CAMPOS_DE[familiaDe(cat)],
@@ -257,19 +281,22 @@ export function camposDe(cat: Categoria): CampoProp[] {
     // así que quedan después de las características propias de la propiedad.
     ...TRANSVERSALES,
   ];
-  const lista = [...new Set(ids)].map((id) => CAMPOS[id] as CampoProp);
-  cache.set(cat, lista);
+  const lista = [...new Set(ids)]
+    .map((id) => CAMPOS[id] as CampoProp)
+    .filter((c) => !c.operaciones || !operacion || c.operaciones.includes(operacion));
+  cache.set(clave, lista);
   return lista;
 }
 
-/** ¿Esta categoría usa este campo? Lo usa el formulario para decidir si lo
- *  guarda o lo manda en null (un depto no tiene "superficie construible"). */
-export const usa = (cat: Categoria, id: IdCampo): boolean =>
-  camposDe(cat).some((c) => c.id === CAMPOS[id].id);
+/** ¿Esta categoría (y operación) usa este campo? Lo usa el formulario para
+ *  decidir si lo guarda o lo manda en null (un depto no tiene "superficie
+ *  construible"; una temporada no tiene expensas). */
+export const usa = (cat: Categoria, id: IdCampo, operacion?: OperacionProp): boolean =>
+  camposDe(cat, operacion).some((c) => c.id === CAMPOS[id].id);
 
 /** Los campos de un grupo, para armar los bloques del formulario. */
-export const camposDelGrupo = (cat: Categoria, grupo: CampoProp["grupo"]) =>
-  camposDe(cat).filter((c) => c.grupo === grupo);
+export const camposDelGrupo = (cat: Categoria, grupo: CampoProp["grupo"], operacion?: OperacionProp) =>
+  camposDe(cat, operacion).filter((c) => c.grupo === grupo);
 
 /* ── Cómo se lee un valor, y qué cuenta como "vacío" ──────────────────────────
    Pedido textual de Mateo: "si no tengo el dato lo dejo en blanco y que ni se
@@ -301,7 +328,7 @@ export function valorLegible(campo: CampoProp, p: Propiedad): string | null {
 /** Los datos que se muestran en la ficha pública: los que tienen valor, nada más.
  *  Las expensas quedan afuera porque van pegadas al precio, no en la grilla. */
 export function datosPublicos(p: Propiedad): { campo: CampoProp; valor: string }[] {
-  return camposDe(p.categoria)
+  return camposDe(p.categoria, p.operacion)
     .filter((c) => c.publico && c.id !== "expensasARS")
     .map((campo) => ({ campo, valor: valorLegible(campo, p) }))
     .filter((d): d is { campo: CampoProp; valor: string } => d.valor !== null);
@@ -310,7 +337,7 @@ export function datosPublicos(p: Propiedad): { campo: CampoProp; valor: string }
 /** Los 3-4 datos de la tarjeta del catálogo, donde no hay lugar para más.
  *  Formato compacto: "2 dorm." · "1 baño" · "85 m² cub." */
 export function specsTarjeta(p: Propiedad, max = 3): string[] {
-  return camposDe(p.categoria)
+  return camposDe(p.categoria, p.operacion)
     .filter((c) => c.enTarjeta)
     .map((c) => {
       const v = p[c.id] as number | string | undefined | null;
