@@ -30,6 +30,13 @@
   to = "/.netlify/functions/geocodificar"
   status = 200
 
+# Tiles de edificios (sombras/3D). Mismo path que declara el `export const config` de netlify/functions/edificios.ts.
+[[redirects]]
+  from = "/api/edificios/*"
+  to = "/.netlify/functions/edificios/:splat"
+  status = 200
+
+# ⚠️ El sitemap dinámico y el OG por propiedad de server/index.ts NO existen en este espejo: acá salen el sitemap.xml/robots.txt estáticos del build y la tarjeta genérica.
 # SPA fallback (además de public/_redirects, por si el deploy no lo toma).
 [[redirects]]
   from = "/*"

@@ -1,7 +1,10 @@
 // Genera public/sitemap.xml Y public/robots.txt antes del build (lo corre
-// `npm run build`). Extrae los IDs de propiedades de los datasets locales por
-// regex (sin importar TS) para que el script sea robusto ante cualquier cambio
-// de imports en src/data.
+// `npm run build`). OJO: en producción el server sirve /sitemap.xml y
+// /robots.txt VIVOS desde la base (server/index.ts) — estos archivos quedan de
+// RED DE SEGURIDAD: se sirven solo si la base falla o no hay env configurada
+// (y en el espejo Netlify, que no tiene server). Extrae los IDs de propiedades
+// de los datasets locales por regex (sin importar TS) para que el script sea
+// robusto ante cualquier cambio de imports en src/data.
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

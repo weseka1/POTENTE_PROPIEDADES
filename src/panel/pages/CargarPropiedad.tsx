@@ -69,6 +69,11 @@ const MEJORAS_URB = [
   "Riego", "Patio", "Amenities", "Balcón", "Living", "Comedor", "Cocina",
 ];
 
+/** Tope de video = el del bucket `potente` (001_esquema.sql: file_size_limit
+ *  50 MB). No es un gusto de la UI: un tope más alto acá deja que el archivo
+ *  viaje entero para que Storage lo rebote al final. Si se cambia allá, acá. */
+const VIDEO_MAX_MB = 50;
+
 /** Los campos declarados en el esquema arrancan todos vacíos. Se genera de la
  *  declaración para no tener que acordarse de sumarlos acá también. */
 const CAMPOS_VACIOS = Object.fromEntries(
@@ -187,11 +192,32 @@ export default function CargarPropiedad() {
 
   // El video va a Supabase Storage si hay base conectada; en modo demo queda en
   // IndexedDB de este navegador (localStorage no banca archivos de este tamaño).
+  //
+  // ⚠️ Los límites (50 MB, solo MP4) son los del bucket — ver VIDEO_MAX_MB.
+  // Antes la UI dejaba pasar hasta 200 MB y cualquier formato: Storage
+  // rechazaba la subida y el video caía a IndexedDB EN SILENCIO — quedaba
+  // `idb:` en la propiedad, visible solo en este navegador, y el visitante
+  // nunca lo veía. Por eso se rechaza ANTES de subir, con el motivo, y un
+  // fallo de Storage se muestra en pantalla en vez de degradar: el fallback a
+  // IndexedDB queda SOLO para el modo demo sin base.
   const subirVideo = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
-    if (file.size > 200 * 1024 * 1024) {
-      push("El video no puede pasar los 200 MB", "info");
+    if (file.size > VIDEO_MAX_MB * 1024 * 1024) {
+      push(
+        `El video pesa ${Math.round(file.size / 1024 / 1024)} MB y el máximo es ${VIDEO_MAX_MB} MB. ` +
+          "Comprimilo (con bajarlo a 1080p suele alcanzar) o pegá un link de YouTube/Vimeo acá abajo.",
+        "error",
+        9000,
+      );
+      return;
+    }
+    if (supabase && file.type !== "video/mp4") {
+      push(
+        "Solo se aceptan videos MP4. Convertilo a MP4 o pegá un link de YouTube/Vimeo acá abajo.",
+        "error",
+        9000,
+      );
       return;
     }
     setSubiendoVideo(true);
@@ -199,11 +225,17 @@ export default function CargarPropiedad() {
       if (supabase) {
         const path = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
         const { error } = await supabase.storage.from("potente").upload(path, file, { upsert: true });
-        if (!error) {
-          set("video", supabase.storage.from("potente").getPublicUrl(path).data.publicUrl);
-          push("Video subido ✓", "success");
+        if (error) {
+          push(
+            `No se pudo subir el video: ${error.message}. Probá de nuevo o avisale a WESEKA.`,
+            "error",
+            9000,
+          );
           return;
         }
+        set("video", supabase.storage.from("potente").getPublicUrl(path).data.publicUrl);
+        push("Video subido ✓", "success");
+        return;
       }
       set("video", await guardarVideo(file));
       push("Video cargado ✓ (en demo queda guardado en este navegador)", "success");
@@ -220,7 +252,7 @@ export default function CargarPropiedad() {
   };
 
   const subirArchivos = async (
-    files: FileList | null,
+    files: FileList | File[] | null,
     setter: React.Dispatch<React.SetStateAction<string[]>>,
     prefijo: string,
     setBusy: (b: boolean) => void
@@ -257,6 +289,27 @@ export default function CargarPropiedad() {
     }
     setBusy(false);
   };
+
+  // ── Ctrl+V de imágenes (estándar de la casa: todo form de carga lo lleva) ──
+  // Una captura o una foto copiada entra como cualquier foto elegida a mano:
+  // el MISMO pipeline (compresión WebP + Storage, con sus fallbacks). Si el
+  // paste cae dentro de un campo de texto NO se intercepta: el input de
+  // coordenadas del mapa depende de su propio paste (MapaUbicacion). Y solo
+  // imágenes: un PDF pegado no es una foto de la propiedad.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const imagenes = Array.from(e.clipboardData?.files ?? []).filter((a) => a.type.startsWith("image/"));
+      if (!imagenes.length) return;
+      e.preventDefault();
+      subirArchivos(imagenes, setFotos, "props", setSubiendo).then(() =>
+        push(`${imagenes.length} foto${imagenes.length > 1 ? "s" : ""} pegada${imagenes.length > 1 ? "s" : ""} ✓`, "success"),
+      );
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   const num = (v: any) => (v === "" || v == null ? undefined : Number(v));
 
@@ -676,7 +729,7 @@ export default function CargarPropiedad() {
               <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => subirArchivos(e.target.files, setFotos, "props", setSubiendo).then(() => push("Fotos subidas ✓", "success"))} />
               {subiendo ? <Loader2 size={24} className="animate-spin text-brand" /> : <UploadCloud size={24} className="text-graph-400" />}
               <span className="text-sm font-medium text-graph-500">{subiendo ? "Subiendo…" : "Arrastrá o hacé clic para subir"}</span>
-              <span className="text-xs text-graph-400">JPG, PNG — varias a la vez</span>
+              <span className="text-xs text-graph-400">JPG, PNG — varias a la vez, o pegalas con Ctrl+V</span>
             </label>
             {fotos.length > 0 && (
               <>
@@ -771,10 +824,11 @@ export default function CargarPropiedad() {
             <h3 className="mb-3 flex items-center gap-2 font-display text-base font-semibold text-graph"><Video size={16} className="text-brand" /> Video (opcional)</h3>
             {!f.video && (
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-graph/15 bg-graph/[0.02] py-6 text-center transition hover:border-brand/50 hover:bg-graph/[0.04]">
-                <input type="file" accept="video/*" className="hidden" onChange={(e) => subirVideo(e.target.files)} />
+                {/* Con base conectada el bucket solo acepta MP4; en demo vale cualquiera. */}
+                <input type="file" accept={supabase ? "video/mp4" : "video/*"} className="hidden" onChange={(e) => subirVideo(e.target.files)} />
                 {subiendoVideo ? <Loader2 size={22} className="animate-spin text-brand" /> : <Video size={22} className="text-graph-400" />}
                 <span className="text-sm font-medium text-graph-500">{subiendoVideo ? "Cargando…" : "Subí el video de la propiedad"}</span>
-                <span className="text-xs text-graph-400">MP4 o WebM — recorrido, drone (hasta 200 MB)</span>
+                <span className="text-xs text-graph-400">MP4 — recorrido, drone (hasta {VIDEO_MAX_MB} MB)</span>
               </label>
             )}
             {f.video && videoPreview && esVideoArchivo(f.video) && (

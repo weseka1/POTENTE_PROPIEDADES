@@ -80,7 +80,10 @@ export default function Agenda() {
       responsable: form.responsable.trim() || "Sin asignar",
       estado: "agendada",
     };
-    await addVisita(v);
+    // Si la base rechazó, se dice en pantalla y el formulario queda cargado para
+    // reintentar — el tilde verde solo sobre un guardado que ocurrió (cicatriz 7-ago).
+    const r = await addVisita(v);
+    if (!r.ok) { push(`No se pudo agendar: ${r.error ?? "la base la rechazó"}`, "error"); return; }
     setForm(vacio);
     setOpen(false);
     setWeekStart(mondayOf(parseISO(v.fechaISO)));
@@ -88,7 +91,11 @@ export default function Agenda() {
     push("Visita agendada ✓", "success");
   };
 
-  const cambiar = (v: Visita, estado: Visita["estado"], msg: string) => { updateVisita(v.id, { estado }); push(msg, "success"); };
+  const cambiar = async (v: Visita, estado: Visita["estado"], msg: string) => {
+    const r = await updateVisita(v.id, { estado });
+    if (!r.ok) { push(`No se pudo cambiar el estado: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
+    push(msg, "success");
+  };
   // Cancelar deja registro; eliminar borra la visita del todo (queda disponible en cualquier estado).
   const eliminar = (v: Visita) => {
     // es-AR mete coma después del día de semana ("jueves, 13 de agosto"): la sacamos
@@ -105,7 +112,8 @@ export default function Agenda() {
       // El modal no bloquea, así que el borrado y el aviso viven acá adentro; si
       // quedaran afuera, la visita se borraría sin preguntar nada.
       onOk: async () => {
-        await deleteVisita(v.id);
+        const r = await deleteVisita(v.id);
+        if (!r.ok) { push(`No se pudo eliminar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
         push("Visita eliminada", "success");
       },
     });

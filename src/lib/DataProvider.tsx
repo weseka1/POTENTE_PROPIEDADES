@@ -12,6 +12,7 @@ import { unidadesTemporada as seedUnidades, reservasTemporada as seedReservas } 
 import { conversaciones as seedConversaciones } from "@/data/conversaciones";
 import type { Conversacion, EstadoConv, MensajeConv } from "@/data/conversaciones";
 import { consultasPorMes as seedConsultasMes } from "@/data/kpis";
+import { comoFechaLocal } from "./format";
 import { rebaseISO } from "./fechas";
 
 // Demo "siempre actual": las fechas del dataset de ejemplo se desplazan al día real (ver lib/fechas).
@@ -144,19 +145,19 @@ interface DataCtx {
   addLead: (l: Lead) => Promise<void>;
   updateLead: (id: string, patch: Partial<Lead>) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
-  updateOperacion: (id: string, patch: Partial<Operacion_>) => Promise<void>;
+  updateOperacion: (id: string, patch: Partial<Operacion_>) => Promise<Resultado>;
   addCliente: (c: Cliente) => Promise<void>;
   updateCliente: (id: string, patch: Partial<Cliente>) => Promise<void>;
   deleteCliente: (id: string) => Promise<void>;
-  addVisita: (v: Visita) => Promise<void>;
-  updateVisita: (id: string, patch: Partial<Visita>) => Promise<void>;
-  deleteVisita: (id: string) => Promise<void>;
-  addTasacion: (t: Tasacion) => Promise<void>;
-  updateTasacion: (id: string, patch: Partial<Tasacion>) => Promise<void>;
-  deleteTasacion: (id: string) => Promise<void>;
-  addArrendamiento: (a: Arrendamiento) => Promise<void>;
-  updateArrendamiento: (id: string, patch: Partial<Arrendamiento>) => Promise<void>;
-  deleteArrendamiento: (id: string) => Promise<void>;
+  addVisita: (v: Visita) => Promise<Resultado>;
+  updateVisita: (id: string, patch: Partial<Visita>) => Promise<Resultado>;
+  deleteVisita: (id: string) => Promise<Resultado>;
+  addTasacion: (t: Tasacion) => Promise<Resultado>;
+  updateTasacion: (id: string, patch: Partial<Tasacion>) => Promise<Resultado>;
+  deleteTasacion: (id: string) => Promise<Resultado>;
+  addArrendamiento: (a: Arrendamiento) => Promise<Resultado>;
+  updateArrendamiento: (id: string, patch: Partial<Arrendamiento>) => Promise<Resultado>;
+  deleteArrendamiento: (id: string) => Promise<Resultado>;
   // llaves (el llavero físico de cada oficina — audios de Mateo 12-ago)
   llaves: Llave[];
   movimientosLlave: MovimientoLlave[];
@@ -208,6 +209,36 @@ function computeKpis(propiedades: Propiedad[], leads: Lead[], operaciones: Opera
   };
 }
 
+// Etiquetas fijas en vez de toLocaleDateString: el eje del gráfico tiene que decir
+// "Sep", no lo que el ICU del navegador opine ("sept.", en minúscula y con punto).
+const MES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+/**
+ * Tendencia de los últimos 6 meses derivada de los leads REALES (con base; sin
+ * base el provider sigue mostrando el seed, que la demo se vea viva). Misma
+ * forma que el seed de data/kpis para que Dashboard y Reportes no cambien.
+ * Un mes sin consultas vale 0: cero es la verdad, no se maquilla.
+ * "Cierres" se atribuye al mes en que ENTRÓ la consulta: el lead no guarda
+ * cuándo se cerró (fechaISO es su única fecha).
+ * Las fechas pasan por comoFechaLocal: una fecha simple parseada como UTC cae
+ * en el mes anterior si el lead entró el día 1 (la cicatriz del 12-ago).
+ */
+function computeConsultasPorMes(leads: Lead[]): typeof seedConsultasMes {
+  const ahora = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const mes = new Date(ahora.getFullYear(), ahora.getMonth() - (5 - i), 1);
+    const delMes = leads.filter((l) => {
+      const f = comoFechaLocal(l.fechaISO);
+      return f.getFullYear() === mes.getFullYear() && f.getMonth() === mes.getMonth();
+    });
+    return {
+      mes: MES_CORTO[mes.getMonth()],
+      consultas: delMes.length,
+      cierres: delMes.filter((l) => l.estado === "cerrado").length,
+    };
+  });
+}
+
 
 // ===== Aislamiento MULTI-OFICINA =====
 // Re-provee el MISMO contexto de datos filtrado por oficina: montado en el panel
@@ -256,6 +287,8 @@ export function DataScope({ oficina, children }: { oficina?: "chauvin" | "puntam
       getProp: (id: string) => propiedades.find((p) => p.id === id),
       conversacionesNoLeidas: conversaciones.filter((c) => c.noLeida).length,
       kpis: computeKpis(propiedades, leads, operaciones, clientes),
+      // La oficina ve SU tendencia (sus leads, ya filtrados). Sin base, el seed global.
+      consultasPorMes: supabase ? computeConsultasPorMes(leads) : full.consultasPorMes,
       leadsPorCanal: Object.entries(canal).map(([k, v]) => ({ name: labelCanal[k] || k, value: v })),
       embudo: etapas.map((e) => ({ etapa: e.label, cantidad: operaciones.filter((o) => o.etapa === e.key).length })),
       carteraPorAptitud: Object.entries(aptitud).map(([k, v]) => ({ name: k, value: v })),
@@ -436,9 +469,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     if (supabase) await aviso("update en potente_leads", supabase.from("potente_leads").update(patch).eq("id", id));
   };
-  const updateOperacion = async (id: string, patch: Partial<Operacion_>) => {
+  /* ── GESTIÓN COMERCIAL (operaciones, visitas, tasaciones, arrendamientos) ──
+   * Mismo contrato que temporada: devuelven `Resultado`, pintan optimista y
+   * DESHACEN lo pintado si la base rechaza. Eran las últimas que devolvían
+   * void: el error moría en consola y la página mostraba el toast de éxito
+   * igual — la cicatriz de los errores silenciosos que ya costó leads dos
+   * veces (IAGRO 14-jul, Potente 6/7-ago). Sin la reversión, la fila fantasma
+   * queda en pantalla hasta un reload y Mateo le cree. */
+  const updateOperacion = async (id: string, patch: Partial<Operacion_>): Promise<Resultado> => {
+    const anterior = operaciones.find((x) => x.id === id);
     setOperaciones((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_operaciones", supabase.from("potente_operaciones").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("update en potente_operaciones", supabase.from("potente_operaciones").update(patch).eq("id", id));
+    if (!r.ok && anterior) setOperaciones((prev) => prev.map((x) => (x.id === id ? anterior : x)));
+    return r;
   };
   const addCliente = async (c: Cliente) => {
     setClientes((prev) => [c, ...prev]);
@@ -452,29 +496,50 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setClientes((prev) => prev.filter((x) => x.id !== id));
     if (supabase) await aviso("delete en potente_clientes", supabase.from("potente_clientes").delete().eq("id", id));
   };
-  const addVisita = async (v: Visita) => {
+  const addVisita = async (v: Visita): Promise<Resultado> => {
     setVisitas((prev) => [v, ...prev]);
-    if (supabase) await aviso("upsert en potente_visitas", supabase.from("potente_visitas").upsert(v));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("upsert en potente_visitas", supabase.from("potente_visitas").upsert(v));
+    if (!r.ok) setVisitas((prev) => prev.filter((x) => x.id !== v.id));
+    return r;
   };
-  const updateVisita = async (id: string, patch: Partial<Visita>) => {
+  const updateVisita = async (id: string, patch: Partial<Visita>): Promise<Resultado> => {
+    const anterior = visitas.find((x) => x.id === id);
     setVisitas((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_visitas", supabase.from("potente_visitas").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("update en potente_visitas", supabase.from("potente_visitas").update(patch).eq("id", id));
+    if (!r.ok && anterior) setVisitas((prev) => prev.map((x) => (x.id === id ? anterior : x)));
+    return r;
   };
-  const addTasacion = async (t: Tasacion) => {
+  const addTasacion = async (t: Tasacion): Promise<Resultado> => {
     setTasaciones((prev) => [t, ...prev]);
-    if (supabase) await aviso("upsert en potente_tasaciones", supabase.from("potente_tasaciones").upsert(t));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("upsert en potente_tasaciones", supabase.from("potente_tasaciones").upsert(t));
+    if (!r.ok) setTasaciones((prev) => prev.filter((x) => x.id !== t.id));
+    return r;
   };
-  const updateTasacion = async (id: string, patch: Partial<Tasacion>) => {
+  const updateTasacion = async (id: string, patch: Partial<Tasacion>): Promise<Resultado> => {
+    const anterior = tasaciones.find((x) => x.id === id);
     setTasaciones((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_tasaciones", supabase.from("potente_tasaciones").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("update en potente_tasaciones", supabase.from("potente_tasaciones").update(patch).eq("id", id));
+    if (!r.ok && anterior) setTasaciones((prev) => prev.map((x) => (x.id === id ? anterior : x)));
+    return r;
   };
-  const addArrendamiento = async (a: Arrendamiento) => {
+  const addArrendamiento = async (a: Arrendamiento): Promise<Resultado> => {
     setArrendamientos((prev) => [a, ...prev]);
-    if (supabase) await aviso("upsert en potente_arrendamientos", supabase.from("potente_arrendamientos").upsert(a));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("upsert en potente_arrendamientos", supabase.from("potente_arrendamientos").upsert(a));
+    if (!r.ok) setArrendamientos((prev) => prev.filter((x) => x.id !== a.id));
+    return r;
   };
-  const updateArrendamiento = async (id: string, patch: Partial<Arrendamiento>) => {
+  const updateArrendamiento = async (id: string, patch: Partial<Arrendamiento>): Promise<Resultado> => {
+    const anterior = arrendamientos.find((x) => x.id === id);
     setArrendamientos((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (supabase) await aviso("update en potente_arrendamientos", supabase.from("potente_arrendamientos").update(patch).eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("update en potente_arrendamientos", supabase.from("potente_arrendamientos").update(patch).eq("id", id));
+    if (!r.ok && anterior) setArrendamientos((prev) => prev.map((x) => (x.id === id ? anterior : x)));
+    return r;
   };
   /* ── TEMPORADA ─────────────────────────────────────────────────────────────
    * 🔴 Estas mutaciones DEVUELVEN `Resultado`, como las de propiedades y llaves.
@@ -539,9 +604,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setLeads((prev) => prev.filter((x) => x.id !== id));
     if (supabase) await aviso("delete en potente_leads", supabase.from("potente_leads").delete().eq("id", id));
   };
-  const deleteTasacion = async (id: string) => {
+  const deleteTasacion = async (id: string): Promise<Resultado> => {
+    const anterior = tasaciones.find((x) => x.id === id);
     setTasaciones((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await aviso("delete en potente_tasaciones", supabase.from("potente_tasaciones").delete().eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("delete en potente_tasaciones", supabase.from("potente_tasaciones").delete().eq("id", id));
+    if (!r.ok && anterior) setTasaciones((prev) => (prev.some((x) => x.id === id) ? prev : [anterior, ...prev]));
+    return r;
   };
 
   /* ── LLAVES ────────────────────────────────────────────────────────────────
@@ -577,13 +646,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!supabase) return SIN_BASE;
     return aviso("delete en potente_movimientos_llave", supabase.from("potente_movimientos_llave").delete().eq("id", id));
   };
-  const deleteVisita = async (id: string) => {
+  const deleteVisita = async (id: string): Promise<Resultado> => {
+    const anterior = visitas.find((x) => x.id === id);
     setVisitas((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await aviso("delete en potente_visitas", supabase.from("potente_visitas").delete().eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("delete en potente_visitas", supabase.from("potente_visitas").delete().eq("id", id));
+    if (!r.ok && anterior) setVisitas((prev) => (prev.some((x) => x.id === id) ? prev : [anterior, ...prev]));
+    return r;
   };
-  const deleteArrendamiento = async (id: string) => {
+  const deleteArrendamiento = async (id: string): Promise<Resultado> => {
+    const anterior = arrendamientos.find((x) => x.id === id);
     setArrendamientos((prev) => prev.filter((x) => x.id !== id));
-    if (supabase) await aviso("delete en potente_arrendamientos", supabase.from("potente_arrendamientos").delete().eq("id", id));
+    if (!supabase) return SIN_BASE;
+    const r = await aviso("delete en potente_arrendamientos", supabase.from("potente_arrendamientos").delete().eq("id", id));
+    if (!r.ok && anterior) setArrendamientos((prev) => (prev.some((x) => x.id === id) ? prev : [anterior, ...prev]));
+    return r;
   };
   /* 🔴 ESTA es la que MENOS puede fallar en silencio de todo el módulo.
    * La base tiene un constraint de exclusión que RECHAZA dos reservas solapadas
@@ -673,6 +750,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return Object.entries(map).map(([k, v]) => ({ name: k, value: v }));
   }, [propiedades]);
 
+  // Con base, la tendencia sale de los leads reales; sin base, el seed (la demo
+  // se ve viva). Nunca el seed en producción: era utilería pintada como dato.
+  const consultasPorMes = useMemo(
+    () => (supabase ? computeConsultasPorMes(leads) : seedConsultasMes),
+    [leads]
+  );
+
   return (
     <Ctx.Provider
       value={{
@@ -683,7 +767,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         llaves, movimientosLlave, addLlave, updateLlave, deleteLlave, addMovimientoLlave, deleteMovimientoLlave,
         unidadesTemporada, reservasTemporada, addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada, addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
         conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion, setOficinaConversacion,
-        kpis, consultasPorMes: seedConsultasMes, leadsPorCanal, embudo, carteraPorAptitud,
+        kpis, consultasPorMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}
     >
       {children}

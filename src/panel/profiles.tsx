@@ -23,11 +23,21 @@ export async function perfilPideePin(perfilId: string): Promise<boolean> {
   return data === true;
 }
 
-/** Prueba un PIN. La base compara contra el hash; el PIN nunca viaja de vuelta. */
-export async function verificarPin(perfilId: string, pin: string): Promise<boolean> {
-  if (!supabase) return true;
+/** Prueba un PIN. La base compara contra el hash; el PIN nunca viaja de vuelta.
+ *
+ *  TRES salidas, no dos (migración 017): abre (`ok`) · PIN incorrecto
+ *  (`ok: false` sin `error`) · ERROR de la rpc (`error` trae el mensaje de la
+ *  base TAL CUAL — es humano a propósito: el bloqueo por intentos dice cuántos
+ *  minutos faltan). Ante error el gate NO abre: fallar cerrado, igual que
+ *  perfilPideePin. */
+export async function verificarPin(
+  perfilId: string,
+  pin: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!supabase) return { ok: true };
   const { data, error } = await supabase.rpc("potente_pin_ok", { p_perfil: perfilId, p_pin: pin });
-  return !error && data === true;
+  if (error) return { ok: false, error: error.message || "No se pudo verificar el PIN." };
+  return { ok: data === true };
 }
 
 /** Pone o quita el PIN (vacío = lo quita). La base solo deja hacerlo a Dirección

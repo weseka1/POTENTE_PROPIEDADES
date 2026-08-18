@@ -33,6 +33,9 @@ const TABLAS = [
   "potente_tasaciones",
   "potente_arrendamientos",
   "potente_fichas",
+  // Los planos dibujados en el editor (migración 016): antes vivían solo en
+  // localStorage y ningún respaldo los cubría.
+  "potente_planos",
   "potente_unidades_temporada",
   "potente_reservas_temporada",
   // El llavero y su historia: perder esto es volver al problema que lo originó

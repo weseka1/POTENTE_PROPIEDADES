@@ -66,7 +66,7 @@ export function fmtHa(n: number): string {
  * se entregó). Agregarle la hora la vuelve LOCAL, que es lo que quiso escribir
  * quien la cargó. Los timestamps completos (con T y zona) no se tocan.
  */
-function comoFechaLocal(iso: string): Date {
+export function comoFechaLocal(iso: string): Date {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso);
 }
 

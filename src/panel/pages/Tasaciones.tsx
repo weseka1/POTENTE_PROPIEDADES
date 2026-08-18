@@ -50,14 +50,18 @@ export default function Tasaciones() {
       valorEstimadoUSD: null,
       estado: "solicitada",
     };
-    await addTasacion(t);
+    // Si la base rechazó, se dice en pantalla y el formulario queda cargado para
+    // reintentar — el tilde verde solo sobre un guardado que ocurrió (cicatriz 7-ago).
+    const r = await addTasacion(t);
+    if (!r.ok) { push(`No se pudo registrar: ${r.error ?? "la base la rechazó"}`, "error"); return; }
     setForm(vacio);
     setOpen(false);
     push("Tasación registrada como “Solicitada” ✓", "success");
   };
 
-  const cambiarEstado = (id: string, estado: Tasacion["estado"]) => {
-    updateTasacion(id, { estado });
+  const cambiarEstado = async (id: string, estado: Tasacion["estado"]) => {
+    const r = await updateTasacion(id, { estado });
+    if (!r.ok) { push(`No se pudo cambiar el estado: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push(`Tasación movida a “${estadoTasacion[estado].label}”`, "info");
   };
 
@@ -72,7 +76,8 @@ export default function Tasaciones() {
       boton: "Eliminar",
       peligro: true,
       onOk: async () => {
-        await deleteTasacion(t.id);
+        const r = await deleteTasacion(t.id);
+        if (!r.ok) { push(`No se pudo eliminar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
         push("Tasación eliminada", "success");
       },
     });
@@ -84,7 +89,9 @@ export default function Tasaciones() {
   const guardarValor = async (t: Tasacion) => {
     const raw = draft.replace(/[^\d.]/g, "").trim();
     const nuevo = raw === "" ? null : Number(raw);
-    await updateTasacion(t.id, { valorEstimadoUSD: Number.isFinite(nuevo as number) ? nuevo : null });
+    const r = await updateTasacion(t.id, { valorEstimadoUSD: Number.isFinite(nuevo as number) ? nuevo : null });
+    // Si la base rechazó, el input sigue abierto con lo tipeado para reintentar.
+    if (!r.ok) { push(`No se pudo guardar la valuación: ${r.error ?? "la base la rechazó"}`, "error"); return; }
     setEditId(null);
     push("Valuación actualizada ✓", "success");
   };

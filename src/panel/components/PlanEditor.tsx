@@ -4,12 +4,14 @@ import {
   Undo2, Redo2, Trash2, Download, Save, Grid3x3, Magnet, Check, Ruler, Box,
   Image as ImageIcon, Upload, ZoomIn, ZoomOut, Move, X, Crosshair,
   DoorOpen, AppWindow, Home, GitCommitHorizontal, MoreHorizontal, StretchHorizontal,
-  Columns2, Layers, Plus, Copy, Maximize2, Minimize2,
+  Columns2, Layers, Plus, Copy, Maximize2, Minimize2, Cloud, CloudOff,
 } from "lucide-react";
 import Plan3D from "./Plan3D";
 import Select from "@/components/Select";
 import { useConfirmar } from "./Confirmar";
 import { useToast } from "./Toast";
+import { hasSupabase } from "@/lib/supabase";
+import { cargarPlanoNube, guardarPlanoNube } from "@/lib/planosNube";
 
 type Pt = { x: number; y: number };
 type Shape = {
@@ -508,6 +510,15 @@ function makeEngine(canvas: HTMLCanvasElement, wrap: HTMLElement, hooks: Hooks) 
   });
   ro.observe(wrap);
 
+  // El payload que persiste save(). `t` (época en ms) dice cuándo se guardó en
+  // ESTE dispositivo: la capa React lo compara contra el updated_at de la nube.
+  // Es OPCIONAL en el formato a propósito — load() sigue entendiendo los
+  // payloads viejos que no lo traen.
+  const buildPayload = () => ({
+    v: 2, floors: st.floors, active: st.active, mPerCell: opts.mPerCell, unit: opts.unit, t: Date.now(),
+    bg: st.bg ? { src: st.bg.src, x: st.bg.x, y: st.bg.y, scale: st.bg.scale } : null,
+  });
+
   return {
     setOpts(o: any) { Object.assign(opts, o); if (o.tool && !["recta", "cota", "eje", "oculta"].includes(o.tool)) st.editIdx = null; draw(); },
     getShapes() { return JSON.parse(JSON.stringify(st.shapes)) as Shape[]; },
@@ -623,8 +634,13 @@ function makeEngine(canvas: HTMLCanvasElement, wrap: HTMLElement, hooks: Hooks) 
       if (rawBg?.src) { const b = rawBg; const img = new Image(); img.crossOrigin = "anonymous"; img.onload = () => { st.bg = { img, src: b.src, x: b.x, y: b.y, scale: b.scale }; draw(); changed(); }; img.src = b.src; }
       return { mPerCell, unit, floors: st.floors.map((f: any) => f.name), active: 0 };
     },
+    // Lo que save() persistiría ahora mismo — lo usa la sincronización con la
+    // nube para normalizar un local con formato viejo antes de subirlo.
+    payload: buildPayload,
+    // Hay trazos sin guardar: la sincronización al montar NO pisa el lienzo si esto da true.
+    dirty() { return st.undo.length > 0 || st.redo.length > 0; },
     save(id: string) {
-      const payload = { v: 2, floors: st.floors, active: st.active, mPerCell: opts.mPerCell, unit: opts.unit, bg: st.bg ? { src: st.bg.src, x: st.bg.x, y: st.bg.y, scale: st.bg.scale } : null };
+      const payload = buildPayload();
       try { localStorage.setItem("potente_plano_" + id, JSON.stringify(payload)); return true; }
       catch {
         // Cuota de localStorage llena (casi siempre por la imagen de fondo en base64): guardamos el
@@ -709,6 +725,20 @@ const TOOLS = [
   { t: "mano", Icon: Hand, label: "Mover — arrastrá para desplazar el pizarrón." },
 ];
 
+/* ============ sincronización con la nube (el dibujo viaja; el calco no) ============ */
+// El bg NUNCA viaja: el calco es una satelital en base64 que pesa MB y el check
+// de potente_planos rebota payloads de más de 512 KB. El dibujo son KB.
+const claveLocal = (id: string) => "potente_plano_" + id;
+const leerLocal = (id: string): any => {
+  try { return JSON.parse(localStorage.getItem(claveLocal(id)) || "null"); } catch { return null; }
+};
+const sinBg = ({ bg: _bg, ...resto }: Record<string, unknown>) => resto;
+
+// El chip de la toolbar dice la verdad: chip=null es "todavía consultando" y no
+// se afirma nada. `aviso` marca que la nube FALLÓ con base configurada (ámbar).
+type EstadoNube = { chip: "nube" | "guardando" | "local" | null; detalle: string; aviso?: boolean };
+const DETALLE_NUBE = "El dibujo está respaldado en la base. La imagen de fondo (calco) queda en este dispositivo.";
+
 export default function PlanEditor({ propId, propName, propImg, onUsar }: { propId: string; propName: string; propImg?: string; onUsar?: (dataUrl: string) => void }) {
   // Confirmaciones y avisos por el sistema: borrar un piso se pierde el dibujo,
   // y los errores de guardado iban por `alert()` del navegador (feo y fuera de
@@ -728,6 +758,11 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
   const [mPerCell, setMPerCell] = useState(0.5);
   const [unit, setUnit] = useState<"auto" | "m2" | "ha">("auto");
   const [saved, setSaved] = useState(false);
+  const [nube, setNube] = useState<EstadoNube>(() =>
+    hasSupabase
+      ? { chip: null, detalle: "" }
+      : { chip: "local", detalle: "Modo demo, sin base configurada: el plano queda guardado en este navegador." });
+  const pushTimer = useRef<number | null>(null);
   const [view3d, setView3d] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [stack3d, setStack3d] = useState<any[][]>([]);
@@ -759,6 +794,100 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
     return () => { e.destroy(); eng.current = null; };
   }, [propId]);
 
+  // Sube a la nube lo último GUARDADO en el navegador (nunca el lienzo en vivo),
+  // siempre sin el bg. El resultado se mira: si la base rechaza, el chip lo dice.
+  const pushear = async (id: string) => {
+    const p = leerLocal(id);
+    if (!p || typeof p !== "object" || Array.isArray(p)) return; // los formatos viejos se normalizan al montar
+    setNube({ chip: "guardando", detalle: "Subiendo el dibujo a la nube…" });
+    const r = await guardarPlanoNube(id, sinBg(p));
+    if (r.ok) setNube({ chip: "nube", detalle: DETALLE_NUBE });
+    else {
+      console.error("No se pudo guardar el plano en la nube:", r.error);
+      setNube({ chip: "local", aviso: true, detalle: `No se pudo subir a la nube (${r.error}). El dibujo quedó guardado en este dispositivo.` });
+    }
+  };
+
+  // ── La nube y el navegador se dan la mano al montar / cambiar de id ────────
+  // Gana el más NUEVO (updated_at de la base contra el `t` local), con dos
+  // reglas duras: el trabajo local no se pierde JAMÁS (sin fecha comparable
+  // gana lo local y la nube se cura subiéndolo), y el bg no viaja (al bajar un
+  // plano se conserva el calco local si existía).
+  useEffect(() => {
+    if (!hasSupabase) return; // modo demo: el estado inicial ya lo dice
+    let vivo = true;
+    setNube({ chip: null, detalle: "" });
+    (async () => {
+      let remoto: Awaited<ReturnType<typeof cargarPlanoNube>>;
+      try { remoto = await cargarPlanoNube(propId); }
+      catch (err) {
+        // Un error acá NO es "no hay plano": no se pisa nada, ni local ni nube.
+        if (!vivo) return;
+        console.error("No se pudo consultar el plano en la nube:", err);
+        setNube({ chip: "local", aviso: true, detalle: `No se pudo consultar la nube (${err instanceof Error ? err.message : err}). Se sigue con lo guardado en este dispositivo.` });
+        return;
+      }
+      if (!vivo || !eng.current) return;
+
+      // Si ya hay trazos en el lienzo (dibujó mientras la nube contestaba), no
+      // se pisa nada: cuando guarde, lo suyo viaja y manda.
+      if (eng.current.dirty()) {
+        setNube({ chip: "local", detalle: "Hay trazos sin guardar en este dispositivo. Al tocar Guardar, viajan a la nube." });
+        return;
+      }
+
+      const local = leerLocal(propId);
+      // La nube quedó atrás (o vacía): se sube lo local. A un local sin fecha
+      // (formatos viejos) se le estampa una, para que la próxima comparación
+      // no vuelva a arrancar de cero.
+      const curar = () => {
+        let p = local;
+        if (Array.isArray(p)) p = eng.current!.payload(); // formato viejísimo: se normaliza (no traía bg)
+        else if (typeof p.t !== "number") p = { ...p, t: Date.now() };
+        if (p !== local) { try { localStorage.setItem(claveLocal(propId), JSON.stringify(p)); } catch { /* cuota: el push sale igual */ } }
+        void pushear(propId);
+      };
+
+      if (!remoto) {
+        if (local) curar();
+        else setNube({ chip: "local", detalle: "Todavía no hay nada guardado. Al tocar Guardar, el dibujo queda acá y en la nube." });
+        return;
+      }
+
+      const tNube = Date.parse(remoto.updated_at);
+      const tLocal = local && !Array.isArray(local) && typeof local.t === "number" ? local.t : null;
+      if (local && (tLocal === null || tLocal > tNube)) { curar(); return; }
+      if (tLocal === tNube) { setNube({ chip: "nube", detalle: DETALLE_NUBE }); return; }
+
+      // La nube es más nueva (o no había nada local): baja, conservando el
+      // calco local si existía. t = updated_at, así la próxima comparación da
+      // "en sincronía" en vez de volver a bajar lo mismo.
+      const bajado = { ...remoto.data, t: tNube, bg: (local && !Array.isArray(local) && local.bg) || null };
+      try { localStorage.setItem(claveLocal(propId), JSON.stringify(bajado)); }
+      catch {
+        // Cuota llena (el calco local en base64): el dibujo de la nube entra sin él.
+        try { localStorage.setItem(claveLocal(propId), JSON.stringify({ ...bajado, bg: null })); }
+        catch {
+          setNube({ chip: "local", aviso: true, detalle: "El plano de la nube no entró en el espacio del navegador. Se sigue con lo guardado en este dispositivo." });
+          return;
+        }
+      }
+      const l = eng.current.load(propId);
+      if (l) { setMPerCell(l.mPerCell); setUnit(l.unit); setFloors(l.floors || ["Planta baja"]); setActive(l.active || 0); }
+      setNube({ chip: "nube", detalle: DETALLE_NUBE });
+    })();
+    return () => {
+      vivo = false;
+      // Un push pendiente del debounce no se pierde: sale ya, con lo último guardado.
+      if (pushTimer.current) {
+        window.clearTimeout(pushTimer.current); pushTimer.current = null;
+        const p = leerLocal(propId);
+        if (p && typeof p === "object" && !Array.isArray(p))
+          guardarPlanoNube(propId, sinBg(p)).then((r) => { if (!r.ok) console.error("No se pudo guardar el plano en la nube:", r.error); });
+      }
+    };
+  }, [propId]);
+
   useEffect(() => { eng.current?.setOpts({ tool, color, width, grid, snap, measures, mPerCell, unit, meta: { propName, dateText } }); }, [tool, color, width, grid, snap, measures, mPerCell, unit, propName, dateText]);
 
   // Atajos: Ctrl/⌘+Z deshacer · Ctrl/⌘+Shift+Z o Ctrl+Y rehacer (sin pisar los campos de texto)
@@ -783,6 +912,12 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
     }
     if (r === "sin-fondo") push("Plano guardado. La imagen de fondo era muy pesada y no entró (el dibujo sí).", "info");
     setSaved(true); setTimeout(() => setSaved(false), 1600);
+    // A la nube con debounce: guardar varias veces seguidas es un solo viaje.
+    if (hasSupabase) {
+      setNube({ chip: "guardando", detalle: "Subiendo el dibujo a la nube…" });
+      if (pushTimer.current) window.clearTimeout(pushTimer.current);
+      pushTimer.current = window.setTimeout(() => { pushTimer.current = null; void pushear(propId); }, 1500);
+    }
   };
   const go3d = () => { setStack3d((eng.current as any)?.getStack() || []); setFloor3d(-1); setView3d(true); };
   const doExport = () => eng.current?.exportPNG(propName);
@@ -952,6 +1087,16 @@ export default function PlanEditor({ propId, propName, propImg, onUsar }: { prop
             <button onClick={() => setSnap((v) => !v)} data-tip="Imán: las líneas se pegan a la grilla para que queden perfectas" aria-label="Imán: las líneas se pegan a la grilla para que queden perfectas" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${snap ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Magnet size={16} /></button>
             <button onClick={() => setMeasures((v) => !v)} data-tip="Mostrar u ocultar las medidas de cada pared" aria-label="Mostrar u ocultar las medidas de cada pared" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${measures ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><Ruler size={16} /></button>
             <button onClick={() => setBgPanel((v) => !v)} data-tip="Imagen de fondo para calcar (satelital del campo o foto)" aria-label="Imagen de fondo para calcar (satelital del campo o foto)" data-tip-side="top" className={`grid h-8 w-8 place-items-center rounded-lg transition ${bg?.has || bgPanel ? "text-brand" : "text-graph-400"} hover:bg-graph/[0.06]`}><ImageIcon size={16} /></button>
+            {nube.chip && (
+              <>
+                <div className="h-5 w-px bg-graph/10" />
+                <span data-tip={nube.detalle} data-tip-side="top"
+                  className={`inline-flex h-8 cursor-default items-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold ${nube.chip === "guardando" ? "animate-pulse text-graph-400" : nube.chip === "nube" ? "text-graph-500" : nube.aviso ? "text-amber-600" : "text-graph-400"}`}>
+                  {nube.chip === "local" ? <CloudOff size={14} /> : <Cloud size={14} className={nube.chip === "nube" ? "text-brand" : undefined} />}
+                  {nube.chip === "guardando" ? "Guardando…" : nube.chip === "nube" ? "Guardado en la nube" : "Solo en este dispositivo"}
+                </span>
+              </>
+            )}
           </div>
         )}
 

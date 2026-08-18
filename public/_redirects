@@ -1,1 +1,2 @@
+/api/edificios/*    /.netlify/functions/edificios/:splat    200
 /*    /index.html   200

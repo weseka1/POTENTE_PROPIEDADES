@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Search, Bell, ChevronDown, Sparkles, Users, LogOut, RotateCcw } from "lucide-react";
+import { Menu, Search, Bell, ChevronDown, Sparkles, Users, KeyRound, LogOut, RotateCcw } from "lucide-react";
 import { useData, resetDemoData } from "@/lib/DataProvider";
+import { supabase } from "@/lib/supabase";
 import { useProfiles, Avatar } from "../profiles";
 import { usePanelAuth } from "../auth";
 import { canalLabel } from "../ui/estados";
 import Modal from "./Modal";
+import CambiarPassword from "./CambiarPassword";
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const { online, leads } = useData();
@@ -16,6 +18,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const [menu, setMenu] = useState(false);
   const [noti, setNoti] = useState(false);
   const [reset, setReset] = useState(false);
+  const [pw, setPw] = useState(false);
   const nuevas = leads.filter((l) => l.estado === "nueva");
   const salir = async () => { setMenu(false); await signOut(); navigate("/ingresar"); };
   const irAConsultas = () => { setNoti(false); navigate("/panel/leads"); };
@@ -25,6 +28,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   return (
     <>
       <ModalReset open={reset} onClose={() => setReset(false)} onConfirmar={restablecer} />
+      <CambiarPassword open={pw} onClose={() => setPw(false)} />
     <header className="glass sticky top-0 z-20 flex h-16 items-center gap-3 border-x-0 border-t-0 border-b px-4 md:px-6">
       <button onClick={onMenu} className="rounded-lg p-2 text-graph-500 transition hover:bg-graph/5 lg:hidden" aria-label="Menú">
         <Menu size={20} />
@@ -135,6 +139,13 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
                 <button onClick={() => { setMenu(false); openGate(); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-graph transition hover:bg-graph/[0.04]">
                   <Users size={16} className="text-brand" /> Cambiar de perfil
                 </button>
+                {/* Solo con sesión real: en la demo sin base no hay cuenta que
+                    cambiar, y ofrecerlo sería fingir una capacidad. */}
+                {Boolean(supabase) && (
+                  <button onClick={() => { setMenu(false); setPw(true); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-graph transition hover:bg-graph/[0.04]">
+                    <KeyRound size={16} className="text-brand" /> Cambiar contraseña
+                  </button>
+                )}
                 <button onClick={salir} className="flex w-full items-center gap-3 border-t border-graph/[0.06] px-4 py-2.5 text-sm font-medium text-graph-500 transition hover:bg-graph/[0.04]">
                   <LogOut size={16} /> Cerrar sesión
                 </button>

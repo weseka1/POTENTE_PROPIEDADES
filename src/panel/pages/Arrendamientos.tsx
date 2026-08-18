@@ -49,14 +49,18 @@ export default function Arrendamientos() {
       vencimientoISO: venc,
       estado: "vigente",
     };
-    await addArrendamiento(a);
+    // Si la base rechazó, se dice en pantalla y el formulario queda cargado para
+    // reintentar — el tilde verde solo sobre un guardado que ocurrió (cicatriz 7-ago).
+    const r = await addArrendamiento(a);
+    if (!r.ok) { push(`No se pudo registrar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     setForm(vacio);
     setOpen(false);
     push("Contrato registrado ✓", "success");
   };
 
-  const cambiarEstado = (id: string, estado: Arrendamiento["estado"]) => {
-    updateArrendamiento(id, { estado });
+  const cambiarEstado = async (id: string, estado: Arrendamiento["estado"]) => {
+    const r = await updateArrendamiento(id, { estado });
+    if (!r.ok) { push(`No se pudo cambiar el estado: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push(`Contrato movido a “${estadoArrendamiento[estado].label}”`, "info");
   };
 
@@ -69,7 +73,8 @@ export default function Arrendamientos() {
       boton: "Eliminar",
       peligro: true,
       onOk: async () => {
-        await deleteArrendamiento(a.id);
+        const r = await deleteArrendamiento(a.id);
+        if (!r.ok) { push(`No se pudo eliminar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
         push("Contrato eliminado", "success");
       },
     });
@@ -78,11 +83,12 @@ export default function Arrendamientos() {
     const inicio = new Date();
     const venc = new Date(inicio);
     venc.setFullYear(venc.getFullYear() + 1);
-    await updateArrendamiento(a.id, {
+    const r = await updateArrendamiento(a.id, {
       inicioISO: inicio.toISOString().slice(0, 10),
       vencimientoISO: venc.toISOString().slice(0, 10),
       estado: "vigente",
     });
+    if (!r.ok) { push(`No se pudo renovar: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push(`Contrato de ${a.arrendatario} renovado por 12 meses ✓`, "success");
   };
 

@@ -157,10 +157,14 @@ function PedirPin({ perfil, onOk, onCancelar }: { perfil: Perfil; onOk: () => vo
     e.preventDefault();
     if (pin.length < 4) return;
     setProbando(true);
-    const ok = await verificarPin(perfil.id, pin);
+    const r = await verificarPin(perfil.id, pin);
     setProbando(false);
-    if (ok) return onOk();
-    setError("PIN incorrecto");
+    if (r.ok) return onOk();
+    // Sin error de la base = PIN incorrecto. Con error, el mensaje va tal cual:
+    // desde la 017 el bloqueo por intentos llega por acá ("Demasiados intentos.
+    // Probá de nuevo en N minuto(s).") y taparlo con un "PIN incorrecto"
+    // genérico haría seguir probando contra un candado que no va a abrir.
+    setError(r.error ?? "PIN incorrecto");
     setPin("");
     campo.current?.focus();
   };

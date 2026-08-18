@@ -23,13 +23,16 @@ export default function Pipeline() {
   const { operaciones: ops, getProp, updateOperacion } = useData();
   const scrollRef = useDragScroll<HTMLDivElement>();
 
-  const mover = (id: string, dir: -1 | 1) => {
+  const mover = async (id: string, dir: -1 | 1) => {
     const o = ops.find((x) => x.id === id);
     if (!o) return;
     const idx = ETAPAS_PIPELINE.indexOf(o.etapa);
     const next = Math.min(Math.max(idx + dir, 0), ETAPAS_PIPELINE.length - 1);
     if (next === idx) return;
-    updateOperacion(id, { etapa: ETAPAS_PIPELINE[next] as EtapaPipeline });
+    // Si la base rechazó, la tarjeta vuelve a su columna (revierte el provider)
+    // y acá se dice en pantalla — nada de anunciar una etapa que no se guardó.
+    const r = await updateOperacion(id, { etapa: ETAPAS_PIPELINE[next] as EtapaPipeline });
+    if (!r.ok) { push(`No se pudo mover: ${r.error ?? "la base lo rechazó"}`, "error"); return; }
     push(`Operación movida a “${etapaPipeline[ETAPAS_PIPELINE[next]].label}”`, "info");
   };
 

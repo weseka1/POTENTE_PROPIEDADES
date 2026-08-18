@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { atenderAsistente, chatGenerico } from "../netlify/functions/_core";
 import { geocodificar } from "../netlify/functions/_geocodificar";
 import { pasaElCupo, ipDe, tieneSesionDePanel, CABECERAS_SEGURIDAD } from "../netlify/functions/_seguridad";
+import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
 // Sirve el build estático (dist/) + expone el asistente en POST /api/asistente.
@@ -215,6 +216,89 @@ app.get("/propiedad/:id", async (req, res) => {
   } catch {
     generico(); // cualquier tropiezo = la página de siempre, jamás un error al visitante
   }
+});
+
+// ── Sitemap y robots VIVOS (desde la base, no del build) ─────────────────────
+// El sitemap que genera el build (scripts/gen-sitemap.mjs) saca los IDs de los
+// datasets de muestra: las propiedades que Mateo carga por el panel no entraban
+// nunca, y las que borra quedaban listadas para siempre. Acá se arma desde la
+// MISMA vista pública que usa el OG, con el host real del pedido (portable:
+// Render hoy, Hostinger mañana). Estas rutas van ANTES de express.static —
+// si no, el estático sirve el dist/sitemap.xml congelado del build.
+// La cartera es viva pero Google no relee cada minuto: cache 1 hora, por host
+// (las URLs llevan el dominio con el que llegó el pedido; el Host lo manda el
+// cliente, por eso el tope chico del Map).
+const cacheSitemap = new Map<string, { xml: string; vence: number }>();
+
+app.get("/sitemap.xml", async (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  const origen = `${req.protocol}://${req.get("host")}`;
+  // Fallback honesto: el sitemap estático del build. Jamás un 500 al crawler.
+  const estatico = () => res.type("application/xml").sendFile(path.join(DIST, "sitemap.xml"));
+  try {
+    const enCache = cacheSitemap.get(origen);
+    if (enCache && enCache.vence > Date.now()) return res.type("application/xml").send(enCache.xml);
+
+    const base = process.env.VITE_SUPABASE_URL, key = process.env.VITE_SUPABASE_ANON_KEY;
+    if (!base || !key) return estatico(); // modo demo: vale el del build
+    // PostgREST devuelve hasta 1.000 filas por pedido (techo de Supabase). La
+    // cartera anda en ~100; si algún día lo pasa, esto necesita paginar.
+    const r = await fetch(`${base}/rest/v1/potente_propiedades_web?select=id,created_at`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!r.ok) return estatico();
+    const filas = (await r.json()) as Array<{ id?: unknown; created_at?: unknown }>;
+
+    // /favoritos queda AFUERA a propósito: está bloqueada en robots.txt.
+    const fijas = [
+      { loc: "/", prioridad: "1.0" },
+      { loc: "/propiedades", prioridad: "0.9" },
+      // temporada: la búsqueda arranca en octubre, tiene que estar indexada antes
+      { loc: "/temporada", prioridad: "0.9" },
+      ...BARRIOS_TEMPORADA.map((b: string) => ({ loc: `/temporada/${slugBarrio(b)}`, prioridad: "0.8" })),
+    ];
+    const urls = [
+      ...fijas.map((e) => `  <url><loc>${origen}${e.loc}</loc><priority>${e.prioridad}</priority></url>`),
+      ...filas
+        .filter((p) => typeof p.id === "string" && p.id)
+        .map((p) => {
+          // lastmod SOLO con la fecha real que expone la vista (created_at,
+          // migración 010) — nada inventado.
+          const fecha = typeof p.created_at === "string" ? p.created_at.slice(0, 10) : "";
+          const lastmod = /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? `<lastmod>${fecha}</lastmod>` : "";
+          return `  <url><loc>${origen}/propiedad/${encodeURIComponent(p.id as string)}</loc>${lastmod}<priority>0.6</priority></url>`;
+        }),
+    ].join("\n");
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+
+    if (cacheSitemap.size >= 20) cacheSitemap.delete(cacheSitemap.keys().next().value!);
+    cacheSitemap.set(origen, { xml, vence: Date.now() + 60 * 60_000 });
+    res.type("application/xml").send(xml);
+  } catch {
+    estatico(); // base caída = el sitemap del build, jamás un error al crawler
+  }
+});
+
+// robots.txt con el host real: el estático del build lleva el dominio fijado en
+// build-time — detrás de otro dominio le diría a Google que el sitemap vive en
+// el viejo. Mismas Disallow que scripts/gen-sitemap.mjs. No toca la base, así
+// que no necesita fallback.
+app.get("/robots.txt", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("text/plain").send(
+    [
+      "User-agent: *",
+      "Allow: /",
+      "Disallow: /panel",
+      "Disallow: /admin",
+      "Disallow: /ingresar",
+      "Disallow: /cuenta",
+      "Disallow: /favoritos",
+      "",
+      `Sitemap: ${req.protocol}://${req.get("host")}/sitemap.xml`,
+      "",
+    ].join("\n"),
+  );
 });
 
 // Estáticos con cache larga para assets versionados por Vite.

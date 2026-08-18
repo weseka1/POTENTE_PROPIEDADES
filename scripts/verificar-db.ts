@@ -76,10 +76,12 @@ async function limpiar(sb: any) {
   await sb.from("potente_propiedades").delete().like("id", "PROP-VERIF-%");
   await sb.from("potente_propiedades").delete().like("id", "VERIF-%");
   await sb.from("potente_reservas_temporada").delete().like("id", "RSV-VERIF-%");
+  await sb.from("potente_unidades_temporada").delete().like("id", "UNI-VERIF-%");
   // Llaves de prueba: los movimientos se van en cascada con su llave, pero se
   // barren igual por si alguno quedó apuntando a una llave ya borrada.
   await sb.from("potente_movimientos_llave").delete().like("id", "MOV-VERIF-%");
   await sb.from("potente_llaves").delete().like("id", "LLV-VERIF-%");
+  await sb.from("potente_planos").delete().like("id", "PLANO-VERIF-%");
 }
 
 const contar = async (sb: any, tabla: string, filtro?: [string, string]) => {
@@ -98,6 +100,57 @@ async function main() {
   const chauvin = await entrar("chauvin");
   await esperar(3000);
   const mogotes = await entrar("mogotes");
+
+  // Una corrida anterior cortada no puede envenenar ésta: se barre ANTES,
+  // además del finally (el doble barrido que ya usan las suites e2e).
+  await limpiar(mateo);
+
+  /* ── Siembra de TEMPORADA (sonda; se borra en el finally) ──────────────────
+   * Las pruebas de aislamiento e integridad de temporada dependían de que
+   * hubiera unidades y reservas VIVAS. El 18-ago la temporada quedó
+   * legítimamente vacía (se borraron las semillas y las fichas de prueba) y
+   * cuatro pruebas se pusieron rojas con "0 de 0" — rojo por datos del cliente,
+   * la clase de test que MIENTE. La regla de la casa: toda prueba que necesita
+   * datos SIEMBRA los suyos.
+   * Las fichas de sonda van con publicado:false — JAMÁS pisan la web del
+   * cliente. Las unidades sí van activas: la prueba del visitante necesita
+   * poder leer una unidad activa por la API (y sin ficha publicada no llegan
+   * a la web igual: unidadesPublicables exige la ficha en la vista). */
+  const SELLO = Date.now();
+  const sondaProp = (id: string, oficina: "chauvin" | "puntamogotes") => ({
+    id, categoria: "departamento", operacion: "temporada", publicado: false,
+    estado: "activa", titulo: "Sonda de verificación de temporada",
+    zona: "Punta Mogotes", provincia: "Mar del Plata", oficina,
+    descripcion: "Fila de la verificación automática de WESEKA. Se borra sola al terminar.",
+    fotos: [],
+  });
+  const sondaUnidad = (id: string, propiedadId: string, oficina: "chauvin" | "puntamogotes") => ({
+    id, propiedadId, oficina, barrio: "Punta Mogotes", ambientes: 2, capacidad: 4,
+    frenteAlMar: false, comodidades: [], tarifas: {}, tarifaNocheARS: 0,
+    comisionPct: 15, activa: true, enLimpieza: false,
+  });
+  const siembra = [
+    await mateo.from("potente_propiedades").insert([
+      sondaProp(`PROP-VERIF-TCH-${SELLO}`, "chauvin"),
+      sondaProp(`PROP-VERIF-TMG-${SELLO}`, "puntamogotes"),
+    ]),
+    await mateo.from("potente_unidades_temporada").insert([
+      sondaUnidad(`UNI-VERIF-CH-${SELLO}`, `PROP-VERIF-TCH-${SELLO}`, "chauvin"),
+      sondaUnidad(`UNI-VERIF-MG-${SELLO}`, `PROP-VERIF-TMG-${SELLO}`, "puntamogotes"),
+    ]),
+    await mateo.from("potente_reservas_temporada").insert({
+      id: `RSV-VERIF-BASE-${SELLO}`, unidadId: `UNI-VERIF-MG-${SELLO}`,
+      desdeISO: "2028-01-10", hastaISO: "2028-01-15", noches: 5,
+      inquilino: "Verificación", personas: 2, estado: "senada",
+    }),
+  ];
+  const errSiembra = siembra.find((r) => r.error)?.error;
+  if (errSiembra) {
+    console.error(`\n🔴 No se pudo sembrar la sonda de temporada: ${errSiembra.message}`);
+    console.error("   Sin la sonda, las pruebas de temporada no prueban nada. Abortando.");
+    await limpiar(mateo);
+    process.exit(1);
+  }
 
   const propsMateo = await contar(mateo, "potente_propiedades");
   const propsChauvin = await contar(chauvin, "potente_propiedades");
@@ -228,6 +281,31 @@ async function main() {
   });
   chequear("Dos llaves no comparten número en la misma oficina", Boolean(errDuplicado), errDuplicado?.code ?? "");
 
+  // ── PLANOS EN LA NUBE (migración 016): el dibujo viaja entre dispositivos ──
+  // A diferencia del llavero, la tabla es transversal al equipo A PROPÓSITO
+  // (como potente_fichas): se dibuja en el iPad y se abre en la compu. La sonda
+  // upsertea, la ve otra oficina, se relee con su fecha y se borra.
+  const idPlano = `PLANO-VERIF-${Date.now()}`;
+  const { error: errPlanoSube } = await chauvin.from("potente_planos").upsert({
+    id: idPlano, data: { v: 2, floors: [], active: 0, mPerCell: 0.5, unit: "auto" },
+  });
+  chequear("Una oficina puede guardar un plano en la nube", !errPlanoSube, errPlanoSube?.message ?? "");
+
+  const { data: planoLeido, error: errPlanoLee } = await chauvin
+    .from("potente_planos").select("data, updated_at").eq("id", idPlano).maybeSingle();
+  chequear(
+    "…y volver a leerlo con su fecha (la que decide qué versión gana)",
+    !errPlanoLee && planoLeido?.data?.v === 2 && Boolean(planoLeido?.updated_at),
+    errPlanoLee?.message ?? "",
+  );
+
+  const planoTransversal = await contar(mogotes, "potente_planos", ["id", idPlano]);
+  chequear("El plano lo ve TODO el equipo (transversal, como las fichas)", planoTransversal === 1, `${planoTransversal} visibles`);
+
+  const { error: errPlanoBorra } = await chauvin.from("potente_planos").delete().eq("id", idPlano);
+  const planoQueda = await contar(chauvin, "potente_planos", ["id", idPlano]);
+  chequear("…y borrarlo de verdad", !errPlanoBorra && planoQueda === 0, errPlanoBorra?.message ?? `${planoQueda} quedaron`);
+
   console.log("\n═══ 2 · LO QUE VE UN DESCONOCIDO (clave pública) ═══\n");
 
   const anon = createClient(URL, KEY, { auth: { persistSession: false } });
@@ -273,6 +351,9 @@ async function main() {
     // El llavero es del equipo: el visitante de la web no tiene nada que hacer
     // ahí (migración 011 le revoca todo explícitamente).
     "potente_llaves", "potente_movimientos_llave",
+    // Un plano puede llevar datos del propietario dibujados encima: anon no
+    // tiene ni grant ni política (migración 016).
+    "potente_planos",
     "potente_auditoria",
   ]) {
     const n = await contar(anon, tabla);
