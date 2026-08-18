@@ -66,7 +66,10 @@ const staging = mkdtempSync(path.join(tmpdir(), "potente-deploy-"));
 const tarTmp = path.join(staging, "_src.tar");
 execFileSync("git", ["archive", "--format=tar", "-o", tarTmp, "HEAD"], { cwd: RAIZ });
 const appDir = path.join(staging, "app");
-execFileSync("tar", ["-xf", tarTmp, "-C", staging, "--one-top-level=app"]);
+// 🔴 tar con cwd y rutas RELATIVAS: el tar de GNU en Windows interpreta
+// "C:\..." como host remoto ("Cannot connect to C:") — cazado en el primer
+// uso real del script. Sin letras de unidad no hay ambigüedad.
+execFileSync("tar", ["-xf", "_src.tar", "--one-top-level=app"], { cwd: staging });
 rmSync(tarTmp);
 writeFileSync(path.join(appDir, ".env.production"), contenidoEnv);
 writeFileSync(path.join(appDir, ".env.local"), contenidoEnv);
