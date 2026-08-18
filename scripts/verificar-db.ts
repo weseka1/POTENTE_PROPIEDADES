@@ -123,13 +123,21 @@ async function main() {
   chequear("Chauvín NO puede leer propiedades de Mogotes ni pidiéndolas", fugaChauvin === 0, `intentó y obtuvo ${fugaChauvin}`);
   chequear("Mogotes NO puede leer propiedades de Chauvín ni pidiéndolas", fugaMogotes === 0, `intentó y obtuvo ${fugaMogotes}`);
 
-  // Lo más sensible que pidió Mateo: las conversaciones de una oficina no las ve la otra.
-  const convChauvinDeMogotes = await contar(chauvin, "potente_conversaciones", ["oficina", "puntamogotes"]);
-  const convMogotesDeChauvin = await contar(mogotes, "potente_conversaciones", ["oficina", "chauvin"]);
+  /* 🔴 LAS CONVERSACIONES SON DEL ORQUESTADOR (migración 015, pedido de Mateo
+   * del 17-ago: «no quiere que vean en las demás oficinas… él ve las
+   * conversaciones de las sucursales»). La prueba vieja miraba solo el CRUCE
+   * (Chauvín no ve hilos marcados Mogotes) y pasaba en verde mientras las
+   * oficinas leían 7 de 8 conversaciones — las centrales, con oficina NULL,
+   * que la regla de la 004 les regalaba. La regla de verdad es total: una
+   * oficina lee CERO conversaciones, de cualquier oficina y de la central.
+   * ⚠️ Y sin cantidades fijas: la prueba vieja afirmaba `=== 8` sobre una
+   * bandeja VIVA — se rompía sola con la primera conversación nueva de Marina. */
+  const convChauvin = await contar(chauvin, "potente_conversaciones");
+  const convMogotes = await contar(mogotes, "potente_conversaciones");
   const convMateo = await contar(mateo, "potente_conversaciones");
-  chequear("Bandeja aislada: Chauvín no ve hilos de Mogotes", convChauvinDeMogotes === 0);
-  chequear("Bandeja aislada: Mogotes no ve hilos de Chauvín", convMogotesDeChauvin === 0);
-  chequear("Mateo ve TODA la bandeja", convMateo === 8, `${convMateo} conversaciones`);
+  chequear("🔒 Chauvín lee CERO conversaciones (ni las de la central)", convChauvin === 0, `leyó ${convChauvin}`);
+  chequear("🔒 Mogotes lee CERO conversaciones (ni las de la central)", convMogotes === 0, `leyó ${convMogotes}`);
+  chequear("Mateo sigue viendo la bandeja entera", convMateo > 0, `${convMateo} conversaciones`);
 
   // Temporada: las unidades y, con ellas, las reservas (que llevan el nombre y el
   // teléfono del inquilino). La reserva no tiene columna oficina: la hereda de su
