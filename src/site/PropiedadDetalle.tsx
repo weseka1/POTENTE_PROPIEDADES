@@ -14,7 +14,6 @@ import { useLenis } from "./lib/useLenis";
 import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
 import { precioPublico, fmtARS } from "@/lib/format";
-import { tarifaDesde, waTemporada } from "@/data/temporada";
 import { datosPublicos } from "@/data/esquemaPropiedad";
 import { ESTADO_LABEL, type EstadoPropiedad, type OperacionProp } from "@/data/propiedadTypes";
 import { useFavorites } from "./context/FavoritesContext";
@@ -316,17 +315,18 @@ export default function PropiedadDetalle() {
                     (Mateo, 13-ago). Se cotiza por WhatsApp según las fechas.
                     El "A consultar" grande ya está arriba, en el lugar del precio:
                     repetirlo acá era decir dos veces lo mismo en la misma tarjeta. */}
-                <p className="mt-2 text-sm text-graph-500">
-                  Por quincena · hasta {unidadTemp.capacidad} personas
-                </p>
-                <a
-                  href={waTemporada(p.titulo, undefined, unidadTemp.oficina)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-primary mt-4 w-full"
-                >
-                  <Phone size={15} /> Consultar la temporada
-                </a>
+                {/* 🔴 18-ago (audios de Mateo): ni "Por quincena" —la consulta
+                    puede ser por dos días, una semana o lo que pidan— ni una
+                    capacidad INVENTADA: «ese número de personas se lo doy yo».
+                    capacidad 0 = no la cargó → no se promete cupo.
+                    Y acá NO va botón: el "Consultar la temporada" duplicaba al
+                    WhatsApp de abajo («me parece como mucho dos botones
+                    iguales»), que ya rutea a la oficina de la unidad. */}
+                {unidadTemp.capacidad > 0 && (
+                  <p className="mt-2 text-sm text-graph-500">
+                    Hasta {unidadTemp.capacidad} personas
+                  </p>
+                )}
               </div>
             )}
 

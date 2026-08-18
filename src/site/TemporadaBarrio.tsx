@@ -133,7 +133,7 @@ export default function TemporadaBarrio() {
       : "Alquiler temporario en Mar del Plata | Verano 2027",
     descripcion: barrio
       ? `Alquiler temporario en ${barrio}, Mar del Plata para el verano 2027. Departamentos y casas ` +
-        `por quincena. Consultá disponibilidad y precios por WhatsApp con Potente Propiedades.`
+        `por días, semanas o quincenas. Consultá disponibilidad y precios por WhatsApp con Potente Propiedades.`
       : undefined,
     path: barrio ? `/temporada/${slugBarrio(barrio)}` : undefined,
     jsonLd: barrio

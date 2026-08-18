@@ -148,7 +148,7 @@ export interface UnidadTemporada {
   oficina?: "chauvin" | "puntamogotes";
   propiedadId: string;
   ambientes: number;
-  capacidad: number; // personas
+  capacidad: number; // personas — 0 = SIN DATO: no se cargó y la web no promete cupo (audios Mateo 18-ago: «ese número se lo doy yo»)
   barrio: string; // Playa Grande, Güemes, La Perla, Varese, Chauvín, Punta Mogotes…
   frenteAlMar?: boolean;
   comodidades: string[]; // pileta, parrilla, cochera, wifi, aire…

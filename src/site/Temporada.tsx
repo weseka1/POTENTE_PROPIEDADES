@@ -142,9 +142,13 @@ export function UnidadTempCard({
           <span className="flex items-center gap-1.5">
             <HomeIcon size={15} className="text-brand" /> {u.ambientes} amb.
           </span>
-          <span className="flex items-center gap-1.5">
-            <Users size={15} className="text-brand" /> hasta {u.capacidad}
-          </span>
+          {/* Solo si Mateo cargó la capacidad — 0 = sin dato, no se promete
+              cupo (audios 18-ago: «ese número de personas se lo doy yo»). */}
+          {u.capacidad > 0 && (
+            <span className="flex items-center gap-1.5">
+              <Users size={15} className="text-brand" /> hasta {u.capacidad}
+            </span>
+          )}
         </div>
 
         {u.comodidades.length > 0 && (
@@ -237,7 +241,8 @@ export default function Temporada() {
   // quincena la resuelve la consulta por WhatsApp, que es como reserva él.
   // Queda UN control: cuántos son. Se muestran las que entran esa cantidad.
   const capacidades = useMemo(
-    () => [...new Set(activas.map(({ u }) => u.capacidad))].sort((a, b) => a - b),
+    // capacidad 0 = sin dato: no entra al filtro (no se promete un cupo que no se cargó)
+    () => [...new Set(activas.map(({ u }) => u.capacidad))].filter((n) => n > 0).sort((a, b) => a - b),
     [activas],
   );
   const [personas, setPersonas] = useState("");
@@ -251,7 +256,7 @@ export default function Temporada() {
     titulo: `Alquiler de temporada en ${BARRIO_TEMPORADA} · Verano 2027 | Potente Propiedades`,
     descripcion:
       `Alquiler temporario en ${BARRIO_TEMPORADA}, Mar del Plata, para el verano 2027. ` +
-      "Departamentos y casas por quincena. Consultá las fechas disponibles y reservá por " +
+      "Departamentos y casas por días, semanas o quincenas. Consultá las fechas disponibles y reservá por " +
       "WhatsApp con una inmobiliaria de más de 50 años en el rubro.",
     path: "/temporada",
     jsonLd: {

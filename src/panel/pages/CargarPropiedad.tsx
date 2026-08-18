@@ -137,7 +137,7 @@ function aFormulario(p: Propiedad) {
  * Así editar una propiedad tiene exactamente las mismas posibilidades que crearla.
  */
 export default function CargarPropiedad() {
-  const { addPropiedad, updatePropiedad, propiedades, unidadesTemporada, addUnidadTemporada } = useData();
+  const { addPropiedad, updatePropiedad, propiedades, unidadesTemporada, addUnidadTemporada, updateUnidadTemporada } = useData();
   const { push } = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -311,6 +311,19 @@ export default function CargarPropiedad() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
+  /* ── Capacidad de temporada: EL NÚMERO LO DA MATEO ─────────────────────────
+   * Audios del 18-ago: la web decía «hasta 4 personas» y él nunca lo cargó —
+   * lo derivábamos de los dormitorios, violando la regla de cero datos
+   * inventados. Textual: «ese número de personas se lo doy yo». Vacío = 0 =
+   * sin dato: la web no promete cupo (ni acá ni en /temporada). */
+  const [capacidadTemp, setCapacidadTemp] = useState("");
+  const unidadExistente = original ? unidadesTemporada.find((u) => u.propiedadId === original.id) : undefined;
+  useEffect(() => {
+    setCapacidadTemp(unidadExistente && unidadExistente.capacidad > 0 ? String(unidadExistente.capacidad) : "");
+    // Solo al cambiar de propiedad editada: no pisa lo que se esté tipeando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [original?.id]);
+
   const num = (v: any) => (v === "" || v == null ? undefined : Number(v));
 
   const guardar = async (e: React.FormEvent) => {
@@ -411,13 +424,16 @@ export default function CargarPropiedad() {
      * aparece en ningún lado. Por eso se crea acá, en el mismo guardado.
      *
      * Arranca con valores mínimos y editables desde el panel de Temporada, que
-     * es donde se afinan tarifas y comodidades. NO se inventan datos: capacidad
-     * y ambientes salen de lo que ya cargó, y si no los cargó quedan en el
-     * mínimo, visible y corregible.
+     * es donde se afinan tarifas y comodidades. NO se inventan datos — y esto
+     * ya mordió (audios 18-ago): la capacidad se derivaba de los dormitorios y
+     * la web decía «hasta 4 personas» sin que Mateo lo cargara. Hoy la
+     * capacidad es SU campo del formulario; vacío = 0 = la web no la muestra.
      *
      * ⚠️ Solo si NO existe: al editar una ficha de temporada no se pisan las
-     * tarifas ni las comodidades que Mateo haya ajustado después. */
-    if (p.operacion === "temporada" && !unidadesTemporada.some((u) => u.propiedadId === p.id)) {
+     * tarifas ni las comodidades que Mateo haya ajustado después. La CAPACIDAD
+     * sí se actualiza al editar (es su número, viaja con el formulario). */
+    const uniPrevia = unidadesTemporada.find((u) => u.propiedadId === p.id);
+    if (p.operacion === "temporada" && !uniPrevia) {
       const amb = Number(p.ambientes) || 1;
       const ru = await addUnidadTemporada({
         id: "TMP-" + Date.now().toString(36),
@@ -425,7 +441,7 @@ export default function CargarPropiedad() {
         oficina: p.oficina,
         barrio: p.zona,
         ambientes: amb,
-        capacidad: Number(p.dormitorios) ? Number(p.dormitorios) * 2 : amb,
+        capacidad: Number(capacidadTemp) > 0 ? Number(capacidadTemp) : 0,
         frenteAlMar: false,
         comodidades: [],
         tarifas: {},
@@ -443,6 +459,22 @@ export default function CargarPropiedad() {
           "error",
         );
         return;
+      }
+    }
+
+    // La capacidad viaja con el formulario también al EDITAR (audios 18-ago):
+    // se actualiza SOLO ese campo — tarifas y comodidades no se tocan jamás.
+    if (p.operacion === "temporada" && uniPrevia) {
+      const cap = Number(capacidadTemp) > 0 ? Number(capacidadTemp) : 0;
+      if (cap !== uniPrevia.capacidad) {
+        const rc = await updateUnidadTemporada(uniPrevia.id, { capacidad: cap });
+        if (!rc.ok) {
+          push(
+            `La ficha se guardó, pero no se pudo actualizar la capacidad: ${rc.error ?? "la base rechazó el cambio"}.`,
+            "error",
+          );
+          return;
+        }
       }
     }
 
@@ -535,6 +567,13 @@ export default function CargarPropiedad() {
                   if (o) setFicha("contacto", `Oficina ${o.numero} ${o.nombre} · ${o.direccion} · Tel ${o.telefono}`);
                 }
               }} opts={OPERACIONES} /></Campo>
+              {/* «Ese número de personas se lo doy yo» (audios 18-ago). Vacío =
+                  la web no promete cupo: no se muestra "hasta N personas". */}
+              {f.operacion === "temporada" && (
+                <Campo label="Hasta cuántas personas (temporada)">
+                  <Inp value={capacidadTemp} onChange={setCapacidadTemp} ph="vacío = la web no lo muestra" type="number" />
+                </Campo>
+              )}
               <Campo label="Título" full><Inp value={f.titulo} onChange={(v) => set("titulo", v)} ph="Ej: Departamento 3 ambientes — Playa Grande" /></Campo>
               <Campo label="Zona / Localidad"><Inp value={f.zona} onChange={(v) => set("zona", v)} ph="Punta Mogotes" /></Campo>
               <Campo label="Dirección / Ubicación"><Inp value={f.direccion} onChange={(v) => set("direccion", v)} ph="Córdoba 3719" /></Campo>

@@ -228,15 +228,19 @@ if (href) {
           ok: t2.includes("a consultar") && !/\\$\\s?\\d/.test(t2) && !t2.includes("desde"),
         };
       })(),
-      capacidad: /hasta \\d+ personas/.test(T),
+      capacidad: /[Hh]asta \\d+ personas/.test(T),
       hayFotos: document.querySelectorAll("img").length > 0,
       hayDescripcion: t.length > 800,
-      ctaTemporada: T.includes("consultar la temporada"),
+      /* 18-ago, audios de Mateo: el botón "Consultar la temporada" se SACÓ
+       * («me parece como mucho dos botones iguales») y "por quincena" también
+       * («puede ser por tres días, por dos días, por semana»). Se mira el
+       * <aside>: ni el texto del botón viejo ni "por quincena" pueden volver. */
+      sinCtaDuplicado: !((document.querySelector("aside")?.innerText || "").toLowerCase().includes("consultar la temporada")),
+      sinPorQuincena: !((document.querySelector("aside")?.innerText || "").toLowerCase().includes("por quincena")),
       /* 17-ago, audio de Mateo: «toco consultar por WhatsApp y manda a mi
        * WhatsApp personal… que mande directamente al WhatsApp de Mogotes».
-       * La columna de la ficha tiene DOS botones de WhatsApp (el del bloque de
-       * temporada y el general) y el visitante no distingue cuál toca: los dos
-       * tienen que marcar EL MISMO número.
+       * Desde el 18-ago la columna tiene UN SOLO botón de WhatsApp (el general,
+       * que rutea por la oficina de la unidad): uno solo, un solo número.
        * ⚠️ Se mira SOLO el <aside> — el footer lleva los WhatsApp de las dos
        * oficinas y el navbar el central, y esos son legítimos. Mirar toda la
        * página daría falso rojo (la cicatriz de siempre: contenedor, no body). */
@@ -257,12 +261,13 @@ if (href) {
   chequear("🔑 …y su bloque de temporada", f.bloqueTemporada);
   chequear("🔒 La columna de precio dice A CONSULTAR y no lleva NINGÚN número de plata", f.aConsultar.ok,
     f.aConsultar.texto.split("\n").join(" ").slice(0, 70));
-  chequear("…con la capacidad (hasta N personas)", f.capacidad);
-  chequear("…y su CTA propio de temporada", f.ctaTemporada);
+  chequear("…con la capacidad (hasta N personas — la sembrada, no una inventada)", f.capacidad);
+  chequear("…SIN el botón duplicado 'Consultar la temporada' (audios 18-ago)", f.sinCtaDuplicado);
+  chequear("…y SIN 'por quincena' (la consulta puede ser por los días que sea)", f.sinPorQuincena);
   chequear(
-    "🔑 TODOS los WhatsApp de la ficha marcan EL MISMO número (el de la oficina de temporada)",
-    f.ctasWA >= 2 && f.telefonosWA.length === 1,
-    `${f.ctasWA} botones → números distintos: [${f.telefonosWA.join(", ")}]`,
+    "🔑 UN SOLO botón de WhatsApp en la columna, y marca a la oficina de temporada",
+    f.ctasWA === 1 && f.telefonosWA.length === 1,
+    `${f.ctasWA} botones → números: [${f.telefonosWA.join(", ")}]`,
   );
   chequear("🔑 La ficha tiene las FOTOS y la descripción (lo que faltaba)", f.hayFotos && f.hayDescripcion);
   chequear("Ficha sin desborde horizontal", f.overflow <= 0, `${f.overflow}px`);
