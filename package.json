@@ -18,7 +18,8 @@
     "respaldo": "tsx scripts/respaldo.ts",
     "verificar-sol": "tsx scripts/verificar-sol.ts",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=server/index.mjs",
-    "server:dev": "tsx server/index.ts"
+    "server:dev": "tsx server/index.ts",
+    "deploy:hostinger": "node scripts/deploy-hostinger.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
