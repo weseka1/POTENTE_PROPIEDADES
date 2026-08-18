@@ -72,7 +72,12 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
   if (!mensaje) return { status: 400, data: { error: "Mensaje vacío." } };
 
   const historial = Array.isArray(body?.historial) ? body.historial.slice(-12) : [];
-  const catalogo: CampoLite[] = Array.isArray(body?.catalogo) ? body.catalogo.slice(0, 60) : [];
+  // 🔴 Cicatriz 18-ago: el tope era 60 y la cartera real ya pasaba las 100
+  // activas — Marina estaba CIEGA de ~40 propiedades y las recomendaba como si
+  // no existieran. 160 cubre la cartera con margen; en tokens es ruido para el
+  // modelo (una línea por propiedad) y el tope sigue existiendo como fusible
+  // contra un body malicioso gigante, no como límite del negocio.
+  const catalogo: CampoLite[] = Array.isArray(body?.catalogo) ? body.catalogo.slice(0, 160) : [];
 
   const messages = [
     ...historial
