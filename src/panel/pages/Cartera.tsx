@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { Plus, MapPin, Maximize, Eye, LayoutGrid, List, BedDouble } from "lucide-react";
+import { Plus, MapPin, Maximize, Eye, LayoutGrid, List, BedDouble, ChevronLeft, ChevronRight } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
 import { PageHeader, EmptyState } from "../components/PageShell";
-import { SearchInput, FilterSelect } from "../components/Controls";
+import { SearchInput, FilterSelect, Btn } from "../components/Controls";
 import Badge from "../components/Badge";
 import CampoThumb from "../components/CampoThumb";
 import CampoDrawer from "../components/CampoDrawer";
@@ -74,6 +74,20 @@ export default function Cartera() {
       return true;
     });
   }, [propiedades, q, cat, op, est]);
+
+  /* ── Paginado (Juani, 18-ago: «que la cartera vaya por páginas, así no queda
+     tan largo») — el mismo patrón Y la misma cicatriz que Llaves: la página
+     vuelve a 1 cuando cambia CUALQUIER filtro, y nada se busca "a ojo" en la
+     hoja actual — para encontrar algo está el buscador, que filtra sobre TODO. */
+  const POR_PAGINA = 24; // divisible por 1, 2 y 3 columnas de la grilla: ninguna fila coja
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => { setPagina(1); }, [q, cat, op, est, view]);
+  const paginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+  const paginaSegura = Math.min(pagina, paginas);
+  const desde = (paginaSegura - 1) * POR_PAGINA;
+  const enPantalla = filtrados.slice(desde, desde + POR_PAGINA);
+  // Cambiar de hoja te deja arriba de la lista, no mirando el final de la anterior.
+  const irA = (p: number) => { setPagina(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   /* 🔴 14-ago · Se ESPERA el resultado y se mira antes de cantar el ✓.
    * `updatePropiedad`/`deletePropiedad` devuelven `Resultado` desde hace rato,
@@ -175,7 +189,7 @@ export default function Cartera() {
         <EmptyState msg="No hay propiedades que coincidan con los filtros." />
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtrados.map((c) => {
+          {enPantalla.map((c) => {
             const e = verEstado(c.estado);
             const esCampo = c.categoria === "campo";
             const meta = specMeta(c);
@@ -237,7 +251,7 @@ export default function Cartera() {
               </tr>
             </thead>
             <tbody className="divide-y divide-graph/[0.07]">
-              {filtrados.map((c) => {
+              {enPantalla.map((c) => {
                 const e = verEstado(c.estado);
                 const meta = specMeta(c) || "—";
                 return (
@@ -261,6 +275,24 @@ export default function Cartera() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Solo con más de una hoja: con 15 propiedades no molesta. */}
+      {paginas > 1 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-graph/[0.07] bg-white px-5 py-3">
+          <p className="text-[13px] text-graph-400">
+            Propiedades {desde + 1}–{Math.min(desde + POR_PAGINA, filtrados.length)} de {filtrados.length}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Btn variant="ghost" onClick={() => irA(Math.max(1, paginaSegura - 1))}>
+              <ChevronLeft size={15} /> Anterior
+            </Btn>
+            <span className="px-2 text-sm font-semibold tabular-nums text-graph">{paginaSegura} / {paginas}</span>
+            <Btn variant="ghost" onClick={() => irA(Math.min(paginas, paginaSegura + 1))}>
+              Siguiente <ChevronRight size={15} />
+            </Btn>
+          </div>
         </div>
       )}
 
