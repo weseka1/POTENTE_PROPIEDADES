@@ -139,21 +139,21 @@ try {
 
   /* 2 · Tocar Mateo pide el PIN */
   await clickPerfil("Mateo");
+  // El PIN es un teclado estilo iOS desde el 18-ago ([data-pin-pad]): no hay
+  // input de password. Se tipea por el TECLADO FÍSICO que el pad escucha en
+  // window (dígitos + Enter) — mismo camino que usaría una persona en una compu.
   const g1 = JSON.parse(await evaluar(`
-    const dlg = [...document.querySelectorAll("form")].find(f => f.querySelector('input[type="password"]'));
-    return JSON.stringify({ pidePin: Boolean(dlg) });
+    return JSON.stringify({ pidePin: Boolean(document.querySelector('[data-pin-pad]')) });
   `));
   chequear("🔑 Tocar el perfil de Mateo pide el PIN", g1.pidePin);
 
   const escribirPin = async (pin) => {
     await evaluar(`
-      const i = [...document.querySelectorAll('input[type="password"]')].pop();
-      if (!i) return "falta";
-      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(pin)});
-      i.dispatchEvent(new Event("input", { bubbles: true }));
+      if (!document.querySelector('[data-pin-pad]')) return "falta";
+      for (const d of ${JSON.stringify(pin)}) window.dispatchEvent(new KeyboardEvent("keydown", { key: d, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
       return "ok";
     `);
-    await click(`[...document.querySelectorAll('button[type="submit"]')].pop()`);
     await new Promise((r) => setTimeout(r, 1500));
   };
 
@@ -161,7 +161,7 @@ try {
   await escribirPin("9999");
   const g2 = JSON.parse(await evaluar(`
     return JSON.stringify({
-      sigueElPin: Boolean([...document.querySelectorAll('input[type="password"]')].length),
+      sigueElPin: Boolean(document.querySelector('[data-pin-pad]')),
       dice: (document.body.innerText||"").includes("PIN incorrecto"),
       gate: Boolean(document.querySelector(".panel-bg.fixed")),
     });
@@ -204,7 +204,7 @@ try {
   await abrirSelector("Oficina 2");
   await clickPerfil("Mateo");
   const g5 = JSON.parse(await evaluar(`
-    return JSON.stringify({ pidePin: Boolean([...document.querySelectorAll('input[type="password"]')].length) });
+    return JSON.stringify({ pidePin: Boolean(document.querySelector('[data-pin-pad]')) });
   `));
   chequear("🔒 Volver a Mateo pide el PIN OTRA VEZ (irse a la oficina borró la marca)", g5.pidePin, JSON.stringify(g5));
 

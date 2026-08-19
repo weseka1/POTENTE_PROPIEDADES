@@ -5,6 +5,7 @@ import {
   perfilPideePin, verificarPin, definirPin,
 } from "../profiles";
 import { usePanelAuth } from "../auth";
+import PinPad from "./PinPad";
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -146,16 +147,11 @@ export default function ProfileGate() {
 /* ── Pedir el PIN para entrar a un perfil ─────────────────────────────────── */
 
 function PedirPin({ perfil, onOk, onCancelar }: { perfil: Perfil; onOk: () => void; onCancelar: () => void }) {
-  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [intentos, setIntentos] = useState(0);
   const [probando, setProbando] = useState(false);
-  const campo = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { campo.current?.focus(); }, []);
-
-  const probar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin.length < 4) return;
+  const probar = async (pin: string) => {
     setProbando(true);
     const r = await verificarPin(perfil.id, pin);
     setProbando(false);
@@ -165,46 +161,27 @@ function PedirPin({ perfil, onOk, onCancelar }: { perfil: Perfil; onOk: () => vo
     // Probá de nuevo en N minuto(s).") y taparlo con un "PIN incorrecto"
     // genérico haría seguir probando contra un candado que no va a abrir.
     setError(r.error ?? "PIN incorrecto");
-    setPin("");
-    campo.current?.focus();
+    setIntentos((n) => n + 1); // dispara la sacudida y limpia los puntos
   };
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-brand-950/50 p-4 backdrop-blur-sm" onClick={onCancelar}>
-      <form
-        onSubmit={probar}
+      <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xs rounded-2xl border border-white/40 bg-paper-100/95 p-7 text-center shadow-card backdrop-blur-xl"
+        className="w-full max-w-sm rounded-3xl border border-white/40 bg-paper-100/95 px-6 py-8 text-center shadow-card backdrop-blur-xl"
       >
         <Avatar p={perfil} size={64} className="mx-auto" />
-        <p className="mt-4 font-display text-lg font-semibold text-graph">{perfil.nombre}</p>
-        <p className="mt-1 flex items-center justify-center gap-1.5 text-xs text-graph-400">
-          <Lock size={12} className="text-brand" /> Este perfil pide PIN
-        </p>
-
-        <input
-          ref={campo}
-          value={pin}
-          onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 8)); setError(""); }}
-          type="password"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="••••"
-          className={`mt-5 h-12 w-full rounded-xl border bg-white px-4 text-center font-display text-2xl tracking-[0.5em] text-graph outline-none transition focus:ring-2 ${
-            error ? "border-red-400 focus:ring-red-200" : "border-graph/15 focus:border-brand/60 focus:ring-brand/15"
-          }`}
+        <p className="mb-5 mt-3 font-display text-lg font-semibold text-graph">{perfil.nombre}</p>
+        <PinPad
+          titulo="Ingresá tu PIN"
+          subtitulo="Este perfil pide PIN para entrar"
+          error={error}
+          intentos={intentos}
+          ocupado={probando}
+          onSubmit={probar}
+          onCancelar={onCancelar}
         />
-        {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
-
-        <div className="mt-5 flex gap-2">
-          <button type="button" onClick={onCancelar} className="h-10 flex-1 rounded-xl border border-graph/15 text-sm font-semibold text-graph-500 transition hover:border-graph/30">
-            Cancelar
-          </button>
-          <button type="submit" disabled={pin.length < 4 || probando} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-50">
-            {probando ? <Loader2 size={15} className="animate-spin" /> : "Entrar"}
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }
@@ -218,30 +195,61 @@ function ConfigurarPin({ perfil }: { perfil: Perfil }) {
   // decide es el servidor: sin esto, en una sesión abierta se podía QUITAR el
   // PIN de Mateo sin conocerlo, y el candado quedaba con la llave puesta.
   const [maestroPuesto, setMaestroPuesto] = useState<boolean | null>(null);
-  const [editando, setEditando] = useState(false);
-  const [pin, setPin] = useState("");
-  const [pinActual, setPinActual] = useState("");
+  // El flujo iOS de configuración (pedido de Mateo, 18-ago: «que lo coloque él,
+  // al estilo iPhone»): pantalla completa con el PinPad, paso a paso —
+  // [PIN actual de la Dirección] → nuevo → repetir → guardar.
+  const [flujo, setFlujo] = useState<null | { modo: "definir" | "quitar"; paso: "maestro" | "nuevo" | "repetir"; maestro: string; nuevo: string }>(null);
+  const [error, setError] = useState("");
+  const [intentos, setIntentos] = useState(0);
+  const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => { perfilPideePin(perfil.id).then(setTiene); }, [perfil.id]);
   useEffect(() => { perfilPideePin("mateo").then(setMaestroPuesto); }, []);
 
-  const guardar = async (valor: string) => {
-    const r = await definirPin(perfil.id, valor, pinActual || undefined);
-    if (!r.ok) return setMsg(r.error ?? "No se pudo guardar");
+  const ejecutar = async (valor: string, maestro: string) => {
+    setGuardando(true);
+    const r = await definirPin(perfil.id, valor, maestro || undefined);
+    setGuardando(false);
+    if (!r.ok) {
+      // La llave maestra la valida LA BASE al guardar (008): si rechaza, se
+      // vuelve al primer paso con el motivo a la vista.
+      setError(r.error ?? "No se pudo guardar");
+      setIntentos((n) => n + 1);
+      setFlujo((f) => (f ? { ...f, paso: maestroPuesto ? "maestro" : "nuevo", maestro: "", nuevo: "" } : f));
+      return;
+    }
     setTiene(valor.length >= 4);
     if (perfil.id === "mateo") setMaestroPuesto(valor.length >= 4);
-    setEditando(false);
-    setPin("");
-    setPinActual("");
+    setFlujo(null);
+    setError("");
     setMsg(valor ? "PIN guardado ✓" : "PIN quitado");
     setTimeout(() => setMsg(""), 2500);
+  };
+
+  const alSubmit = (pin: string) => {
+    setError("");
+    setFlujo((f) => {
+      if (!f) return f;
+      if (f.paso === "maestro") {
+        if (f.modo === "quitar") { void ejecutar("", pin); return f; }
+        return { ...f, maestro: pin, paso: "nuevo" };
+      }
+      if (f.paso === "nuevo") return { ...f, nuevo: pin, paso: "repetir" };
+      if (pin !== f.nuevo) {
+        // Como el iPhone: si la repetición no coincide, se empieza de nuevo.
+        setError("No coinciden — empezá de nuevo");
+        setIntentos((n) => n + 1);
+        return { ...f, nuevo: "", paso: "nuevo" };
+      }
+      void ejecutar(pin, f.maestro);
+      return f;
+    });
   };
 
   if (tiene === null) return null;
 
   const pideMaestro = maestroPuesto === true;
-  const faltaMaestro = pideMaestro && pinActual.length < 4;
 
   return (
     <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-graph/[0.07] pt-2.5">
@@ -250,46 +258,46 @@ function ConfigurarPin({ perfil }: { perfil: Perfil }) {
         {tiene ? "Pide PIN para entrar" : "Sin PIN"}
       </span>
 
-      {editando ? (
-        <>
-          {pideMaestro && (
-            <input
-              value={pinActual}
-              onChange={(e) => setPinActual(e.target.value.replace(/\D/g, "").slice(0, 8))}
-              type="password"
-              inputMode="numeric"
-              placeholder="PIN actual de Dirección"
-              className="h-8 w-40 rounded-lg border border-brand/30 bg-white px-2 text-center text-sm tracking-widest text-graph outline-none focus:border-brand/60"
-            />
-          )}
-          <input
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-            type="password"
-            inputMode="numeric"
-            placeholder="Nuevo (4 a 8 números)"
-            className="h-8 w-36 rounded-lg border border-graph/15 bg-white px-2 text-center text-sm tracking-widest text-graph outline-none focus:border-brand/60"
-          />
-          <button onClick={() => guardar(pin)} disabled={pin.length < 4 || faltaMaestro}
-            className="h-8 rounded-lg bg-brand px-3 text-[11px] font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40">
-            Guardar
-          </button>
-          {tiene && (
-            <button onClick={() => guardar("")} disabled={faltaMaestro}
-              className="text-[11px] text-graph-400 transition hover:text-red-600 disabled:opacity-40">
-              Quitar el PIN
-            </button>
-          )}
-          <button onClick={() => { setEditando(false); setPin(""); setPinActual(""); }} className="text-[11px] text-graph-400 hover:text-graph">
-            Cancelar
-          </button>
-        </>
-      ) : (
-        <button onClick={() => setEditando(true)} className="text-[11px] font-semibold text-brand hover:underline">
-          {tiene ? "Cambiar o quitar PIN" : "Poner PIN"}
+      <button
+        onClick={() => { setError(""); setFlujo({ modo: "definir", paso: pideMaestro ? "maestro" : "nuevo", maestro: "", nuevo: "" }); }}
+        className="text-[11px] font-semibold text-brand hover:underline"
+      >
+        {tiene ? "Cambiar PIN" : "Poner PIN"}
+      </button>
+      {tiene && (
+        <button
+          onClick={() => { setError(""); if (pideMaestro) setFlujo({ modo: "quitar", paso: "maestro", maestro: "", nuevo: "" }); else void ejecutar("", ""); }}
+          className="text-[11px] text-graph-400 transition hover:text-red-600"
+        >
+          Quitar el PIN
         </button>
       )}
       {msg && <span className="text-[11px] font-medium text-brand-700">{msg}</span>}
+
+      {/* El flujo a pantalla completa, con el mismo teclado que el desbloqueo.
+          key={paso}: cada paso arranca con los puntos vacíos. */}
+      {flujo && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-brand-950/50 p-4 backdrop-blur-sm" onClick={() => setFlujo(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-3xl border border-white/40 bg-paper-100/95 px-6 py-8 text-center shadow-card backdrop-blur-xl">
+            <Avatar p={perfil} size={56} className="mx-auto" />
+            <p className="mb-5 mt-3 font-display text-base font-semibold text-graph">{perfil.nombre}</p>
+            <PinPad
+              key={flujo.paso}
+              titulo={flujo.paso === "maestro" ? "PIN actual de la Dirección" : flujo.paso === "nuevo" ? "Ingresá el nuevo PIN" : "Repetí el nuevo PIN"}
+              subtitulo={
+                flujo.paso === "maestro"
+                  ? (flujo.modo === "quitar" ? "La llave maestra, para quitar este PIN" : "La llave maestra, antes de cambiar")
+                  : flujo.paso === "nuevo" ? "De 4 a 8 números" : "Una vez más, para confirmar"
+              }
+              error={error}
+              intentos={intentos}
+              ocupado={guardando}
+              onSubmit={alSubmit}
+              onCancelar={() => setFlujo(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
