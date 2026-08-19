@@ -339,8 +339,14 @@ export default function BandejaConversaciones({
             <div className="grid h-full place-items-center px-6 py-16 text-center">
               <div>
                 <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-graph/[0.05] text-graph-400"><Inbox size={22} /></span>
-                <p className="mt-3 text-sm font-semibold text-graph">No hay conversaciones en este canal</p>
-                <p className="mt-1 text-xs text-graph-400">Probá con otro canal o mirá todas juntas.</p>
+                <p className="mt-3 text-sm font-semibold text-graph">
+                  {filtro === "todos" ? "Sin conversaciones todavía" : "No hay conversaciones en este canal"}
+                </p>
+                <p className="mt-1 text-xs text-graph-400">
+                  {filtro === "todos"
+                    ? "Cuando un canal esté conectado, lo que entre va a caer acá solo."
+                    : "Probá con otro canal o mirá todas juntas."}
+                </p>
               </div>
             </div>
           ) : (

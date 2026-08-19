@@ -310,7 +310,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [arrendamientos, setArrendamientos] = useState<Arrendamiento[]>(() => loadLocal("arrendamientos", seedArrR));
   const [unidadesTemporada, setUnidadesTemporada] = useState<UnidadTemporada[]>(() => loadLocal("unidades_temporada", seedUnidades));
   const [reservasTemporada, setReservasTemporada] = useState<ReservaTemporada[]>(() => loadLocal("reservas_temporada", seedReservas));
-  const [conversaciones, setConversaciones] = useState<Conversacion[]>(() => loadLocal("conversaciones", seedConversaciones));
+  // Conversaciones: con base, arranca VACÍO (nada de gente inventada en el
+  // panel del cliente — Mateo vio a "Nicolás Peralta" como si fuera un lead
+  // real, 19-ago). La semilla queda solo para el modo demo sin Supabase.
+  const [conversaciones, setConversaciones] = useState<Conversacion[]>(() => (supabase ? [] : loadLocal("conversaciones", seedConversaciones)));
   // Registro de llaves (audios de Mateo 12-ago). Tablas del PANEL: se cargan
   // solo con sesión, nunca en el pedido del visitante.
   const [llaves, setLlaves] = useState<Llave[]>(() => loadLocal("llaves", seedLlaves));

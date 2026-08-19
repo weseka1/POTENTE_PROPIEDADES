@@ -35,7 +35,6 @@ import {
   operaciones, visitas, tasaciones, arrendamientos,
 } from "../src/data/operaciones";
 import { unidadesTemporada, reservasTemporada } from "../src/data/temporada";
-import { conversaciones } from "../src/data/conversaciones";
 
 const CON_DEMO = process.argv.includes("--con-demo");
 
@@ -183,12 +182,11 @@ async function main() {
       creadaISO: r.creadaISO ?? null, notas: r.notas ?? null,
     })));
 
-    await subir("potente_conversaciones", conversaciones.map((c) => ({
-      id: c.id, canal: c.canal, nombre: c.nombre, contacto: c.contacto ?? "",
-      propiedadId: c.propiedadId ?? null, leadId: c.leadId ?? null,
-      estado: c.estado, noLeida: Boolean(c.noLeida), motivo: c.motivo ?? null,
-      mensajes: c.mensajes ?? [], oficina: c.oficina ?? null,
-    })));
+    // 🔴 potente_conversaciones NO se siembra, ni con --con-demo (19-ago).
+    // Es el registro operativo de los canales reales: las CONV-01..08 de demo
+    // aparecieron en el panel de Mateo como si Nicolás Peralta existiera.
+    // Se borraron de producción ese día; las semillas quedan solo para el
+    // modo demo sin base (DataProvider las usa únicamente si no hay Supabase).
   }
 
   // ── 3 · Control final ───────────────────────────────────────────────────────

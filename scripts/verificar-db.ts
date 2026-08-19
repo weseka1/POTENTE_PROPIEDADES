@@ -82,6 +82,7 @@ async function limpiar(sb: any) {
   await sb.from("potente_movimientos_llave").delete().like("id", "MOV-VERIF-%");
   await sb.from("potente_llaves").delete().like("id", "LLV-VERIF-%");
   await sb.from("potente_planos").delete().like("id", "PLANO-VERIF-%");
+  await sb.from("potente_conversaciones").delete().like("id", "CONV-VERIF-%");
 }
 
 const contar = async (sb: any, tabla: string, filtro?: [string, string]) => {
@@ -185,12 +186,25 @@ async function main() {
    * oficina lee CERO conversaciones, de cualquier oficina y de la central.
    * ⚠️ Y sin cantidades fijas: la prueba vieja afirmaba `=== 8` sobre una
    * bandeja VIVA — se rompía sola con la primera conversación nueva de Marina. */
+  /* ⚠️ Sonda propia (19-ago): la bandeja real puede estar legítimamente VACÍA
+   * (las CONV demo se borraron de producción — cero datos ficticios). Sin la
+   * sonda, «Mateo ve la bandeja» fallaba por falta de datos y «Chauvín lee
+   * CERO» pasaba en verde SIN PROBAR NADA. Con una fila puesta, los dos lados
+   * de la 015 se prueban de verdad. Se borra en el finally (limpiar). */
+  const { error: eSonda } = await mateo.from("potente_conversaciones").insert({
+    id: `CONV-VERIF-${SELLO}`, canal: "web", nombre: "Sonda de verificación",
+    contacto: "verificar-db", estado: "cerrada", noLeida: false,
+    mensajes: [], oficina: null,
+  });
+  chequear("La Dirección puede crear una conversación", !eSonda, eSonda?.message ?? "insert ok");
   const convChauvin = await contar(chauvin, "potente_conversaciones");
   const convMogotes = await contar(mogotes, "potente_conversaciones");
-  const convMateo = await contar(mateo, "potente_conversaciones");
+  const sondaMateo = await mateo.from("potente_conversaciones").select("id").eq("id", `CONV-VERIF-${SELLO}`);
   chequear("🔒 Chauvín lee CERO conversaciones (ni las de la central)", convChauvin === 0, `leyó ${convChauvin}`);
   chequear("🔒 Mogotes lee CERO conversaciones (ni las de la central)", convMogotes === 0, `leyó ${convMogotes}`);
-  chequear("Mateo sigue viendo la bandeja entera", convMateo > 0, `${convMateo} conversaciones`);
+  chequear("Mateo sigue viendo la bandeja entera (lee la sonda recién creada)",
+    (sondaMateo.data?.length ?? 0) === 1, sondaMateo.error?.message ?? `leyó ${sondaMateo.data?.length ?? 0}`);
+  await mateo.from("potente_conversaciones").delete().eq("id", `CONV-VERIF-${SELLO}`);
 
   // Temporada: las unidades y, con ellas, las reservas (que llevan el nombre y el
   // teléfono del inquilino). La reserva no tiene columna oficina: la hereda de su
