@@ -13,7 +13,10 @@ import type { Propiedad } from "@/data/propiedadTypes";
 const SALUDO =
   "¡Hola! Soy Marina, de Potente Propiedades. ¿Qué estás buscando? ¿Casa, depto, local, lote…? Contame la zona y qué necesitás y te muestro opciones.";
 
-type Burbuja = { rol: "cliente" | "asistente"; texto: string; campos?: Propiedad[] };
+// `fallo`: la burbuja de disculpa cuando no se pudo consultar. Se marca para
+// NO mandarla en el historial del próximo turno — si viaja, el modelo cree que
+// ella misma dijo "no estoy disponible" y sigue la charla desde ahí (19-ago).
+type Burbuja = { rol: "cliente" | "asistente"; texto: string; campos?: Propiedad[]; fallo?: boolean };
 
 export default function ChatAsistente() {
   const { propiedades, addLead } = useData();
@@ -75,7 +78,7 @@ export default function ChatAsistente() {
   const enviar = async (textoDirecto?: string) => {
     const texto = (textoDirecto ?? input).trim();
     if (!texto || busy) return;
-    const historial: ChatMsg[] = msgs.map((m) => ({ rol: m.rol, texto: m.texto }));
+    const historial: ChatMsg[] = msgs.filter((m) => !m.fallo).map((m) => ({ rol: m.rol, texto: m.texto }));
     setMsgs((m) => [...m, { rol: "cliente", texto }]);
     setInput("");
     setBusy(true);
@@ -107,8 +110,11 @@ export default function ChatAsistente() {
         ...m,
         {
           rol: "asistente",
+          // Habla como una persona a la que se le cortó la línea, no como un
+          // sistema caído: la charla sigue viva y el visitante puede reintentar.
           texto:
-            "Disculpá, el asistente no está disponible en este momento. Escribinos por WhatsApp o dejanos tu mail y te contactamos a la brevedad.",
+            "Uy, se me cortó la conexión y no me llegó tu mensaje. ¿Me lo escribís de nuevo? Si preferís, seguimos por WhatsApp y un asesor te atiende al toque.",
+          fallo: true,
         },
       ]);
     } finally {

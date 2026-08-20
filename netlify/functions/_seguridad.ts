@@ -11,10 +11,21 @@
 //
 // Lo usan los dos entornos: server/index.ts (Render) y netlify/functions/*.
 
-/** Cuántos pedidos y en qué ventana. Marina es conversación humana: 12 mensajes
- *  por minuto es holgado para una persona y corto para un script. */
+/** Cuántos pedidos y en qué ventana.
+ *
+ * 🔴 19-ago: era 12/min y ESE fue el bug que Mateo fotografió como "Marina no
+ * funciona". El cupo cuenta por IP, y una oficina sale a internet por UNA sola
+ * IP: Mateo, las dos chicas y cualquier visitante detrás del mismo NAT comparten
+ * el balde. Con eso, dos personas conversando a la vez lo agotan en un minuto y
+ * el 429 le llegaba al visitante como "el asistente no está disponible" — justo
+ * en medio de una charla que venía bien.
+ *
+ * 40/min sigue siendo corto para un script que quiera quemar la cuenta de
+ * Anthropic (que es para lo que existe este cupo) y holgado para una oficina
+ * entera charlando. Y desde hoy, además, agotarlo YA NO ROMPE a Marina: el
+ * endpoint contesta 200 con un mensaje humano (ver server/index.ts). */
 const CUPOS = {
-  asistente: { pedidos: 12, ventanaMs: 60_000 },
+  asistente: { pedidos: 40, ventanaMs: 60_000 },
   chat: { pedidos: 30, ventanaMs: 60_000 },
 } as const;
 

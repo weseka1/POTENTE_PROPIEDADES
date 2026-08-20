@@ -89,34 +89,73 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
     { role: "user" as const, content: mensaje },
   ];
 
-  const client = new Anthropic({ apiKey });
+  // 🔴 `maxRetries` del SDK + reintento propio (19-ago). Mateo vio a Marina
+  // caerse EN MEDIO de una conversación que venía bien: la llamada no tenía
+  // reintentos ni timeout, así que cualquier hipo transitorio de la API
+  // (sobrecarga 529, un 429, un corte de red) llegaba tal cual al visitante
+  // como "el asistente no está disponible". Juani: «Marina no se puede romper
+  // NUNCA. Pero NUNCA».
+  const client = new Anthropic({ apiKey, maxRetries: 3, timeout: 25_000 });
 
-  try {
-    const resp = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1024,
-      system: buildSystem(CONFIG, catalogo),
-      messages,
-      // structured outputs (cuando aplica) + el formato JSON también va explícito en el prompt
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    } as any);
+  let ultimoError: any = null;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      const resp = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 1024,
+        system: buildSystem(CONFIG, catalogo),
+        messages,
+        // structured outputs (cuando aplica) + el formato JSON también va explícito en el prompt
+        output_config: { format: { type: "json_schema", schema: SCHEMA } },
+      } as any);
 
-    const text = (resp.content.find((b: any) => b.type === "text") as any)?.text ?? "";
-    const data = extractJson(text) ?? {};
+      const text = (resp.content.find((b: any) => b.type === "text") as any)?.text ?? "";
+      const data = extractJson(text) ?? {};
 
-    const respuesta =
-      String(data?.respuesta ?? "").trim() ||
-      "Perdón, no te entendí bien. ¿Me lo repetís? Contame qué buscás (una casa, un depto, un local…) y en qué zona.";
-    const camposIds = Array.isArray(data?.campos_ids) ? data.campos_ids.map(String).slice(0, 3) : [];
-    const contacto = String(data?.lead_contacto ?? "").trim();
-    const lead = contacto ? { nombre: String(data?.lead_nombre ?? "").trim(), contacto } : null;
+      // Si el JSON vino cortado o mal formado pero el modelo SÍ escribió algo
+      // útil, se usa ese texto en vez de tirar la respuesta a la basura: para
+      // el visitante, una respuesta sin ficha adjunta es infinitamente mejor
+      // que un "no te entendí" (o peor, un error).
+      const respuesta =
+        String((data as any)?.respuesta ?? "").trim() ||
+        (text.trim().startsWith("{") ? "" : text.trim()) ||
+        "Perdón, no te entendí bien. ¿Me lo repetís? Contame qué buscás (una casa, un depto, un local…) y en qué zona.";
 
-    return { status: 200, data: { respuesta, camposIds, lead } };
-  } catch (e: any) {
-    // El detalle del error va al log del servidor, NO al navegador: los mensajes
-    // de la API traen nombres de modelo, ids de organización y estado de la
-    // cuenta. Eso no tiene por qué verlo un visitante.
-    console.error("Asistente · fallo llamando a Anthropic:", e?.message ?? e);
-    return { status: 502, data: { error: "El asistente no está disponible en este momento." } };
+      // Los IDs se VALIDAN contra el catálogo real: si el modelo devuelve uno
+      // que no existe, se descarta acá y no viaja al navegador.
+      const idsValidos = new Set(catalogo.map((c) => c.id));
+      const camposIds = (Array.isArray((data as any)?.campos_ids) ? (data as any).campos_ids : [])
+        .map(String)
+        .filter((id: string) => idsValidos.has(id))
+        .slice(0, 3);
+
+      const contacto = String((data as any)?.lead_contacto ?? "").trim();
+      const lead = contacto ? { nombre: String((data as any)?.lead_nombre ?? "").trim(), contacto } : null;
+
+      return { status: 200, data: { respuesta, camposIds, lead } };
+    } catch (e: any) {
+      ultimoError = e;
+      // El detalle del error va al log del servidor, NO al navegador: los
+      // mensajes de la API traen nombres de modelo, ids de organización y
+      // estado de la cuenta. Eso no tiene por qué verlo un visitante.
+      console.error(`Asistente · intento ${intento} falló:`, e?.status ?? "", e?.message ?? e);
+      if (intento === 1) await new Promise((r) => setTimeout(r, 700));
+    }
   }
+
+  // Agotados los reintentos: Marina NO se rompe de cara al visitante. Contesta
+  // como una persona a la que se le cortó la línea, mantiene viva la charla y
+  // ofrece el camino humano. Status 200 a propósito: un 502 hace que el widget
+  // pinte el cartel de error y la conversación muere ahí.
+  console.error("Asistente · agotados los reintentos:", ultimoError?.message ?? ultimoError);
+  return {
+    status: 200,
+    data: {
+      respuesta:
+        "Uy, se me cortó la conexión un segundo y no llegué a procesar eso. ¿Me lo repetís? Si preferís, seguimos por WhatsApp y un asesor te atiende al toque.",
+      camposIds: [],
+      lead: null,
+      degradado: true,
+    },
+  };
 }

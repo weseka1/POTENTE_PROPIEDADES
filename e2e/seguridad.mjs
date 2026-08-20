@@ -49,23 +49,32 @@ const tokenTrucho = await post(
 );
 chequear("Un token inventado tampoco entra", tokenTrucho.status === 401, `HTTP ${tokenTrucho.status}`);
 
-// ── 2 · Marina es pública, pero con cupo ─────────────────────────────────────
+// ── 2 · Marina es pública, con cupo — que corta el GASTO, no la atención ─────
 // Se mandan pedidos vacíos: la validación los corta ANTES de llamar a Anthropic,
 // así que la prueba no gasta un centavo, pero el cupo se cuenta igual.
-let vio429 = false;
-let ultimo = 0;
-for (let i = 0; i < 18; i++) {
+//
+// 🔴 19-ago: esta prueba exigía un 429 y por eso el bug vivió tranquilo. El 429
+// era exactamente lo que Mateo veía como "Marina no funciona": una oficina sale
+// por UNA IP, entre todos agotaban el cupo de 12/min y el widget pintaba "el
+// asistente no está disponible" en medio de la charla. Lo que hay que verificar
+// no es el código de error, es que el cupo SIGA protegiendo la billetera
+// (respuesta `degradado`, sin llamar a Anthropic) SIN romperle la charla a nadie.
+let vioDegradado = false;
+let hubo429 = false;
+for (let i = 0; i < 50; i++) {
   const r = await post("/api/asistente", { mensaje: "" });
-  ultimo = r.status;
-  if (r.status === 429) { vio429 = true; break; }
+  if (r.status === 429) { hubo429 = true; break; }
+  const d = await r.json().catch(() => ({}));
+  if (d?.degradado) { vioDegradado = true; break; }
 }
-chequear("Marina corta al que la martilla (cupo por IP)", vio429, vio429 ? "429 a tiempo" : `nunca corto (ultimo ${ultimo})`);
+chequear("Marina corta el GASTO al que la martilla (cupo por IP)", vioDegradado, vioDegradado ? "pasó a modo ocupada" : "nunca corto");
+chequear("🔴 …y NUNCA le tira un 429 al visitante", !hubo429, hubo429 ? "devolvió 429" : "sin 429");
 
-// El visitante legítimo tiene que poder seguir hablando: el cupo es por minuto,
-// así que acá solo se comprueba que el 429 avisa cuánto esperar.
+// Con el cupo agotado sigue contestando algo hablado: la charla no muere.
 const trasCorte = await post("/api/asistente", { mensaje: "hola" });
-chequear("Cuando corta, dice cuánto esperar",
-  trasCorte.status !== 429 || Boolean(trasCorte.headers.get("retry-after") || trasCorte.status === 429),
+const cuerpoTrasCorte = await trasCorte.json().catch(() => ({}));
+chequear("Con el cupo agotado sigue habiendo respuesta para el visitante",
+  trasCorte.status === 200 && String(cuerpoTrasCorte?.respuesta ?? "").length > 10,
   `HTTP ${trasCorte.status}`);
 
 // ── 3 · Cabeceras ────────────────────────────────────────────────────────────

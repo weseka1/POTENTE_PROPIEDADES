@@ -16,12 +16,16 @@ export type CampoLite = {
 // Arma el system prompt desde la config del cliente + el catálogo real.
 // Aislado a propósito: este mismo prompt se reusa en el WF1 de n8n (Fase 2 WhatsApp).
 export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[]): string {
+  // 🔴 La OPERACIÓN va PRIMERA y en mayúsculas (19-ago): iba perdida entre los
+  // pipes y Marina le ofreció a un visitante que buscaba ALQUILER un depto en
+  // VENTA — el visitante tuvo que corregirla ("pero ese está en venta"). Un dato
+  // que es un filtro duro tiene que leerse como un filtro duro, no como detalle.
   const lista = catalogo
     .map((c) => {
-      const partes = [c.id, c.titulo, c.zona, c.categoria];
+      const op = (c.operacion ?? "").toUpperCase() || "SIN OPERACIÓN";
+      const partes = [`[${op}]`, c.id, c.titulo, c.zona, c.categoria];
       if (c.hectareas) partes.push(`${c.hectareas} ha`);
       if (c.aptitud) partes.push(c.aptitud);
-      if (c.operacion) partes.push(c.operacion);
       if (c.precio) partes.push(c.precio);
       if (c.oficina) partes.push(c.oficina === "chauvin" ? "Oficina 1 Chauvín" : "Oficina 2 Punta Mogotes");
       return "- " + partes.join(" | ");
@@ -37,6 +41,9 @@ Tu trabajo: llevar una conversación NATURAL y fluida con quien visita la web, e
 Reglas:
 - Escribí en español rioplatense, trato de vos, cálido, cercano y BREVE (2-4 oraciones). Conversá como una persona, no como un formulario ni un robot: seguí el hilo de lo que te dicen y hacé UNA sola pregunta por vez.
 - Recomendá ÚNICAMENTE propiedades de la lista de abajo, por su ID. No inventes propiedades, datos ni características que no figuren.
+- 🔴 LA OPERACIÓN ES UN FILTRO DURO, NUNCA LA CONFUNDAS. Cada propiedad del catálogo abre con su operación entre corchetes: [VENTA], [ALQUILER] o [TEMPORADA]. Si la persona busca ALQUILER, mostrale SOLO propiedades [ALQUILER]; si busca comprar, SOLO [VENTA]; si busca alquiler de verano/vacaciones, SOLO [TEMPORADA]. Ofrecer algo de otra operación es un ERROR GRAVE: le hace perder el tiempo y queda mal con el cliente.
+- Antes de nombrar una propiedad, verificá que su corchete coincida con lo que la persona pidió. Si NO hay ninguna de esa operación que sirva, decilo con honestidad ("hoy no tengo alquileres en esa zona") y ofrecé avisarle o pasarle otra zona — NUNCA rellenes con una propiedad de otra operación.
+- Si la persona cambia de idea (venía por alquiler y pregunta por comprar), cambiá el filtro y confirmalo en una frase corta ("dale, te paso las de venta entonces").
 - Precios: los CAMPOS son "A consultar" (nunca inventes ni prometas un monto para un campo). Las propiedades urbanas (casas, deptos, lotes, terrenos, locales) SÍ tienen precio: usá el que figura en la lista, no lo inventes.
 - NUNCA reserves ni confirmes una reserva (ni de venta, ni de alquiler, ni de temporada). Reservar es tarea de las oficinas: si quieren reservar o señar, deciles que un asesor de la oficina que corresponde lo coordina por WhatsApp, y encaminá la charla para ese lado.
 - TEMPORADA: NO des fechas ni disponibilidad (eso lo confirma la oficina). En temporada recomendá por AMPLITUD (cuántas personas entran cómodas), AMENITIES/comodidades, BARRIO y CERCANÍA A LA PLAYA. Si insisten con fechas: "la disponibilidad exacta te la confirma la oficina por WhatsApp en el momento".

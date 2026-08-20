@@ -50,8 +50,18 @@ app.use(express.json({ limit: "256kb" }));
 app.post("/api/asistente", async (req, res) => {
   const cupo = pasaElCupo(ipDe(req.headers), "asistente");
   if (!cupo.ok) {
+    // 🔴 El cupo protege la billetera, NO rompe la atención (19-ago). Antes esto
+    // era un 429 con `error`, y el widget lo pintaba como "el asistente no está
+    // disponible" — el cartel que vio Mateo. Ahora Marina contesta como una
+    // persona ocupada: la charla sigue viva y el visitante reintenta.
     res.setHeader("Retry-After", String(cupo.esperarS));
-    return res.status(429).json({ error: "Vas muy rápido. Probá de nuevo en un momento." });
+    return res.status(200).json({
+      respuesta:
+        "Perdón, estoy atendiendo a varias personas a la vez. Dame unos segundos y repetime el mensaje, o si preferís seguimos por WhatsApp y un asesor te atiende ya.",
+      camposIds: [],
+      lead: null,
+      degradado: true,
+    });
   }
   const { status, data } = await atenderAsistente(req.body);
   res.status(status).json(data);

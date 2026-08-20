@@ -17,8 +17,19 @@ function json(obj: unknown, status = 200): Response {
 export default async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  // Espejo EXACTO de server/index.ts (19-ago): agotar el cupo no rompe a Marina,
+  // le hace contestar como una persona ocupada. Si los dos entornos degradan
+  // distinto, el respaldo se rompe de una forma que nadie probó.
   const cupo = pasaElCupo(ipDe(req.headers), "asistente");
-  if (!cupo.ok) return json({ error: "Vas muy rápido. Probá de nuevo en un momento." }, 429);
+  if (!cupo.ok) {
+    return json({
+      respuesta:
+        "Perdón, estoy atendiendo a varias personas a la vez. Dame unos segundos y repetime el mensaje, o si preferís seguimos por WhatsApp y un asesor te atiende ya.",
+      camposIds: [],
+      lead: null,
+      degradado: true,
+    }, 200);
+  }
 
   let body: any;
   try {
