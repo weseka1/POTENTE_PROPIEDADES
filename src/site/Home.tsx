@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronDown, Search, FileSearch, TrendingUp, ArrowRight, Sparkles, SlidersHorizontal,
@@ -25,6 +25,76 @@ const HeroOcean = lazy(() => import("./components/HeroOcean"));
 // Fondo del hero: video real de drone (look cine) o el océano interactivo en
 // shaders (HeroOcean, con la espuma que sigue al mouse). Cambiar acá y listo.
 const HERO_3D = false;
+
+/* El video del hero — el boomerang del mar que eligió Mateo (adelante + reversa:
+ * al dar la vuelta en el mismo frame, el loop no tiene corte). El 5-ago probamos
+ * uno de dron sobre playa urbana y lo descartó; el de dron quedó en git (6a07eaf).
+ *
+ * 🔴 Por qué esto es un componente y no un <video> pelado (19-ago, reporte de
+ * Juani desde el celu): con MODO BAJO CONSUMO, iOS bloquea TODO autoplay aunque
+ * el video esté muted+playsinline, y pinta su ▶ gigante encima — "queda muy
+ * novato". Ningún sitio puede forzar ese autoplay (es política del OS). Lo que
+ * sí se puede: que el bloqueo NUNCA se vea (el poster tapa el glifo) y que el
+ * mar arranque al primer toque en cualquier lado de la página (un gesto del
+ * usuario es permiso válido incluso en bajo consumo). Además React tiene un bug
+ * viejo con `muted` (no siempre baja el atributo al DOM): se pone a mano. */
+function VideoHeroMar() {
+  const ref = useRef<HTMLVideoElement>(null);
+  // true = iOS rechazó el play(): se tapa el video (y su glifo) con el poster.
+  const [bloqueado, setBloqueado] = useState(false);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("muted", "");
+
+    let vivo = true;
+    const intentar = () => {
+      v.play().then(
+        () => { if (vivo) setBloqueado(false); },
+        () => { if (vivo) setBloqueado(true); },
+      );
+    };
+    intentar();
+    // Cada toque reintenta hasta que arranque (el listener se va al lograrlo,
+    // vía onPlaying). passive: no puede frenar el scroll.
+    window.addEventListener("touchstart", intentar, { passive: true });
+    window.addEventListener("pointerdown", intentar, { passive: true });
+    return () => {
+      vivo = false;
+      window.removeEventListener("touchstart", intentar);
+      window.removeEventListener("pointerdown", intentar);
+    };
+  }, []);
+
+  return (
+    <>
+      <video
+        ref={ref}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster="/video/hero-poster.jpg"
+        onPlaying={() => setBloqueado(false)}
+        className="hero-video h-full w-full object-cover"
+      >
+        <source src="/video/hero-loop.mp4" type="video/mp4" />
+      </video>
+      {bloqueado && (
+        <img
+          src="/video/hero-poster.jpg"
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+    </>
+  );
+}
 
 const categoriasHome = [
   { key: "casa", label: "Casas y chalets", icon: HomeIcon, img: "/img/props/casa1.jpg" },
@@ -112,22 +182,7 @@ export default function Home() {
               <HeroOcean />
             </Suspense>
           ) : (
-            // Video "boomerang" (adelante + reversa): al dar la vuelta en el mismo
-            // frame, el loop no tiene corte. El agua fluye y refluye, sin reiniciarse.
-            <video
-              autoPlay
-              muted
-              loop
-              playsInline
-              poster="/video/hero-poster.jpg"
-              className="h-full w-full object-cover"
-            >
-              {/* El video que eligió Mateo: el boomerang del mar (loop sin corte).
-                  El 5-ago probamos uno de dron sobre playa urbana y lo descartó:
-                  prefiere este. El de dron quedó en el historial de git por si
-                  alguna vez se quiere volver (commit 6a07eaf). */}
-              <source src="/video/hero-loop.mp4" type="video/mp4" />
-            </video>
+            <VideoHeroMar />
           )}
           {/* velos de legibilidad: el texto respira, el agua manda a la derecha */}
           <div className="absolute inset-0 bg-gradient-to-r from-paper via-paper/45 to-transparent md:from-paper/95" />

@@ -362,6 +362,18 @@ html.lenis body {
 }
 
 /* Sacudida del PIN estilo iOS (PinPad): el "no" fisico del telefono. */
+/* iOS pinta un ▶ gigante sobre el video del hero cuando bloquea el autoplay
+   (modo bajo consumo). El hero es un fondo, no un reproductor: ese control
+   nativo no debe verse jamás. La otra mitad del arreglo vive en VideoHeroMar
+   (Home.tsx): poster tapando + reintento al primer toque. */
+.hero-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+.hero-video::-webkit-media-controls {
+  display: none !important;
+}
+
 @keyframes sacudida {
   10%, 90% { transform: translateX(-1px); }
   20%, 80% { transform: translateX(3px); }
