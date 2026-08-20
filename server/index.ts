@@ -42,6 +42,41 @@ app.use((_req, res, next) => {
   next();
 });
 
+/* ── UN SITIO, UN DOMINIO: 301 de todo host que no sea el canónico ───────────
+ *
+ * Pedido de Juani y Mateo (20-ago): *«queremos que la web vieja redirija a la
+ * nueva ya también, porque si no quedaron 2»*. Este middleware resuelve la
+ * mitad que vive de nuestro lado y sirve para TRES casos a la vez:
+ *
+ *   1. `www.potentepropiedades.com` → apex. Hasta hoy las DOS respondían 200
+ *      con el mismo contenido: contenido duplicado para Google, y la autoridad
+ *      partida en dos.
+ *   2. `potente-propiedades.onrender.com` → el dominio real, cuando Render
+ *      quede solo de respaldo.
+ *   3. **`potentepropiedades.com.ar`** (el WordPress viejo), el día que su DNS
+ *      apunte acá: cae en esta regla y se redirige solo, sin tocar el hosting
+ *      viejo.
+ *
+ * Es 301 (permanente) y **preserva la ruta y el query**: `/propiedad/POT-123`
+ * del dominio viejo aterriza en la MISMA ficha del nuevo. Un 301 masivo al home
+ * tira a la basura todo el SEO acumulado por página.
+ *
+ * Se salta en local (localhost / IPs) para no romper las suites e2e ni el
+ * desarrollo, y solo actúa si `VITE_SITE_URL` define un dominio canónico. */
+const CANONICO = (() => {
+  try { return new URL(process.env.VITE_SITE_URL || "").host.toLowerCase(); }
+  catch { return ""; }
+})();
+
+app.use((req, res, next) => {
+  const host = String(req.headers.host ?? "").toLowerCase().split(":")[0];
+  const esLocal = !host || host === "localhost" || host === "127.0.0.1" || host === "[::1]" || /^\d+\.\d+\.\d+\.\d+$/.test(host);
+  if (!CANONICO || esLocal || host === CANONICO) return next();
+  // 308 no: los buscadores entienden el 301 como consolidación de autoridad,
+  // que es exactamente lo que queremos decirle a Google.
+  return res.redirect(301, `https://${CANONICO}${req.originalUrl}`);
+});
+
 app.use(express.json({ limit: "256kb" }));
 
 // ── Marina, el asistente de la web ───────────────────────────────────────────

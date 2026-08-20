@@ -15,4 +15,9 @@
 // dominio estaba suelto en 4 lugares (y 3 no coincidían entre sí: los PDFs y el
 // botón de compartir imprimían potenteprop.com.ar, que nunca fue el sitio).
 
-export const DOMINIO_POR_DEFECTO = "https://potente-propiedades.onrender.com";
+// El dominio REAL del cliente desde la mudanza a Hostinger (18-ago). Render
+// quedó de respaldo, pero ya no es la identidad del sitio: tenerlo acá como
+// default hacía que cualquier build sin `VITE_SITE_URL` declarara canonical a
+// onrender.com — y eso fue exactamente lo que pasó en producción (ver la
+// cicatriz en vite.config.ts).
+export const DOMINIO_POR_DEFECTO = "https://potentepropiedades.com";
