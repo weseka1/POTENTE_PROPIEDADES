@@ -200,6 +200,22 @@ const reemplazarMeta = (html: string, propiedad: string, valor: string) =>
     new RegExp(`(<meta[^>]*(?:property|name)="${propiedad}"[^>]*content=")[^"]*(")`),
     `$1${escaparAtributo(valor)}$2`,
   );
+/* 🔴 EL CANONICAL, AUTORREFERENCIAL (20-ago).
+ *
+ * `index.html` trae `<link rel="canonical" href="%VITE_SITE_URL%/">` — con la
+ * barra final, o sea SIEMPRE la raíz. Resultado: las 99 fichas le decían a
+ * Google *"el original de esto es el home"*, y una ficha que canonicaliza al
+ * home se deindexa. Peor: en la misma página el `og:url` sí salía correcto, así
+ * que el HTML se contradecía a sí mismo.
+ *
+ * Es el bloqueante del 301 del dominio viejo: redirigir 8 años de autoridad
+ * hacia páginas que canonicalizan a otra URL es peor que no migrar. */
+const canonicalDe = (html: string, url: string) =>
+  html.replace(
+    /<link rel="canonical" href="[^"]*"\s*\/?>/,
+    `<link rel="canonical" href="${escaparAtributo(url)}" />`,
+  );
+
 // La cartera es viva (Mateo edita a diario): cache corto, no eterno.
 const cacheOG = new Map<string, { html: string; vence: number }>();
 
@@ -250,6 +266,7 @@ app.get("/propiedad/:id", async (req, res) => {
     html = reemplazarMeta(html, "og:description", bajada);
     html = reemplazarMeta(html, "twitter:description", bajada);
     html = reemplazarMeta(html, "og:url", urlPropia);
+    html = canonicalDe(html, urlPropia);
     if (foto) {
       html = reemplazarMeta(html, "og:image", foto);
       html = reemplazarMeta(html, "twitter:image", foto);
@@ -363,9 +380,46 @@ app.use(
 );
 
 // SPA fallback: cualquier ruta (ej. /propiedades, /panel) cae a index.html.
-app.get("*", (_req, res) => {
+/* ── El catch-all: canonical autorreferencial y 404 de verdad ────────────────
+ *
+ * 🔴 20-ago. Dos arreglos que son requisito del 301 del dominio viejo:
+ *
+ * 1. **Canonical por ruta.** `/propiedades` y `/temporada` heredaban el
+ *    canonical de `index.html`, que apunta a la raíz: Google las leía como
+ *    duplicados del home.
+ * 2. **404 real.** Cualquier ruta inexistente devolvía **200 con el home**
+ *    (soft-404). Cuando el `.com.ar` redirija, sus taxonomías dadas de baja y
+ *    las fichas vendidas van a caer acá: con 200 Google las mantiene en el
+ *    índice compitiendo con el sitio nuevo, en vez de entender que murieron.
+ *    Se responde 404 con la MISMA app (el router pinta su pantalla), pero con
+ *    el código correcto en la cabecera — que es lo único que lee el buscador.
+ *
+ * Las rutas conocidas se listan acá porque el router vive en el bundle y este
+ * archivo no puede importarlo. Si nace una ruta pública nueva, sumala.
+ * `e2e/dominio.mjs` verifica las dos cosas contra producción. */
+const RUTAS_PUBLICAS = [
+  /^\/$/,
+  /^\/propiedades\/?$/,
+  /^\/temporada\/?$/,
+  /^\/temporada\/[^/]+\/?$/,
+  /^\/favoritos\/?$/,
+  /^\/propiedad\/[^/]+\/?$/, // las inexistentes ya las filtra su propia ruta
+  /^\/campos\/?$/,           // redirect interno a /propiedades?cat=campo
+  /^\/campo\/[^/]+\/?$/,     // redirect interno de la era "campos"
+  /^\/(panel|admin|ingresar|cuenta)(\/|$)/, // privadas: no son 404 ni llevan canonical
+];
+
+app.get("*", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.sendFile(path.join(DIST, "index.html"));
+  const conocida = RUTAS_PUBLICAS.some((re) => re.test(req.path));
+  const html = readFileSync(path.join(DIST, "index.html"), "utf8");
+  if (!conocida) {
+    // Sin canonical: una página que no existe no debe reclamar ser el original
+    // de nada, ni apuntar al home (eso la mantiene viva en el índice).
+    return res.status(404).type("html").send(html.replace(/<link rel="canonical"[^>]*>/, ""));
+  }
+  const urlPropia = `${req.protocol}://${req.get("host")}${req.path}`;
+  res.type("html").send(canonicalDe(html, urlPropia));
 });
 
 app.listen(PORT, () => {

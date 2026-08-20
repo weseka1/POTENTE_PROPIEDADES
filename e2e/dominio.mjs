@@ -77,6 +77,30 @@ chequear("El 301 preserva la ruta y el query (no manda todo al home)",
   rRuta.location.includes("/propiedades") && rRuta.location.includes("operacion=venta"),
   rRuta.location || "(sin Location)");
 
+/* 6 · 🔴 CANONICAL AUTORREFERENCIAL — cada página se declara a SÍ MISMA.
+ * El `index.html` trae `%VITE_SITE_URL%/` (con barra = la raíz), así que sin
+ * inyección del server las 99 fichas le decían a Google "el original de esto es
+ * el home" → se deindexan. Es el bloqueante del 301 del dominio viejo. */
+const idFicha = ((await traer(APP + "/sitemap.xml")).texto.match(/<loc>[^<]*\/propiedad\/([^<]+)<\/loc>/) || [])[1];
+for (const ruta of ["/propiedades", "/temporada", idFicha ? `/propiedad/${idFicha}` : null].filter(Boolean)) {
+  const p = await traer(APP + ruta);
+  const c = (p.texto.match(/<link rel="canonical" href="([^"]+)"/) || [])[1] || "";
+  chequear(`🔴 ${ruta} se declara canónica de sí misma`, c.endsWith(ruta), c || "(sin canonical)");
+}
+
+/* 7 · 404 DE VERDAD — sin esto, las URLs muertas del dominio viejo se quedan
+ * vivas en el índice de Google compitiendo con el sitio nuevo. */
+for (const ruta of ["/ruta-que-no-existe", "/tipo-propiedad/departamento", "/area/playa-grande"]) {
+  const r = await traer(APP + ruta);
+  chequear(`${ruta} devuelve 404 (no 200 con el home)`, r.status === 404, `HTTP ${r.status}`);
+}
+
+/* 8 · …y las rutas REALES siguen vivas (que el 404 no se lleve puesto el sitio) */
+for (const ruta of ["/", "/propiedades", "/temporada", "/favoritos", "/campos", "/ingresar"]) {
+  const r = await traer(APP + ruta);
+  chequear(`${ruta} sigue respondiendo 200`, r.status === 200, `HTTP ${r.status}`);
+}
+
 console.log(`\n==== ${ok} PASS / ${fallos.length} FAIL ====`);
 if (fallos.length) { console.log("FALLARON:"); fallos.forEach((f) => console.log(" - " + f)); }
 process.exit(fallos.length ? 1 : 0);
