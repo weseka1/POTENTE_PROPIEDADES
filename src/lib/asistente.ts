@@ -12,6 +12,15 @@ export type CampoLite = {
   operacion?: string;
   oficina?: "chauvin" | "puntamogotes";
   precio?: string; // campos = "A consultar"; urbanas = precio real formateado
+  /* 🔴 21-ago — los datos por los que la gente BUSCA. Marina decía "no tengo
+   * alquileres de 2 dormitorios" con uno en pantalla: los dormitorios no
+   * viajaban en el catálogo y solo podía leerlos si el título los mencionaba
+   * de casualidad (video de Mateo, el PH de San José). El prompt encima le
+   * pedía filtrar por ambientes — un dato que no podía ver. */
+  ambientes?: number;
+  dormitorios?: number;
+  banos?: number;
+  m2?: number;
 };
 
 export type RespuestaAsistente = {

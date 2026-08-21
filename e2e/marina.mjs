@@ -60,6 +60,20 @@ for (let i = 1; i <= 5; i++) {
     precio: "A consultar",
   });
 }
+/* El par del VIDEO de Mateo (21-ago): un alquiler cuyo TÍTULO no dice cuántos
+ * dormitorios tiene (el dato viaja aparte) y una venta en la MISMA zona cuyo
+ * título SÍ dice "2 dormitorios". Antes del arreglo, Marina decía "no tengo
+ * alquileres de 2 dormitorios" (no veía el dato) y le atribuía la búsqueda al
+ * de venta (lo leía del título). Zona inventada para no rozar la cartera. */
+CATALOGO.push(
+  { id: "SONDA-ALQ-SJ", titulo: "PH en alquiler en San Sonda", zona: "San Sonda",
+    categoria: "departamento", operacion: "alquiler", dormitorios: 2, banos: 1, m2: 50,
+    precio: "$ 700.000 por mes" },
+  { id: "SONDA-VTA-SJ", titulo: "PH de 2 dormitorios en Barrio San Sonda", zona: "San Sonda",
+    categoria: "ph", operacion: "venta", dormitorios: 2,
+    precio: "U$S 78.000" },
+);
+
 const ES_VENTA = new Set(CATALOGO.filter((c) => c.operacion === "venta").map((c) => c.id));
 const ES_ALQUILER = new Set(CATALOGO.filter((c) => c.operacion === "alquiler").map((c) => c.id));
 
@@ -140,6 +154,21 @@ chequear("Nunca devuelve un ID que no esté en el catálogo", inventados.length 
 const e = await preguntar("¿?¿?¿? 🏠🏠🏠 asdkjhasd", []);
 chequear("Un mensaje sin sentido tampoco la rompe",
   e.status === 200 && String(e.respuesta ?? "").length > 5, `status ${e.status}`);
+
+/* 6b · 🔴 EL CASO DEL VIDEO (21-ago): "está media gaga". El visitante pide
+ * alquiler de 2 dormitorios TENIENDO uno en pantalla; Marina lo negaba porque
+ * los dormitorios no viajaban en el catálogo, y le discutía la operación
+ * porque el único "2 dormitorios" que veía era el TÍTULO de uno en venta.
+ * Ahora el dato viaja: tiene que encontrar el correcto, a la primera. */
+const sj = await preguntar("Busco alquilar algo de 2 dormitorios en San Sonda, ¿tenés?");
+const idsSJ = Array.isArray(sj.camposIds) ? sj.camposIds : [];
+chequear("🔴 Alquiler 2 dorm: encuentra el que ES (aunque el título no diga los dormitorios)",
+  idsSJ.includes("SONDA-ALQ-SJ"), `devolvió [${idsSJ.join(", ")}] · ${String(sj.respuesta ?? "").slice(0, 90)}`);
+chequear("🔴 …y NO ofrece el de venta con '2 dormitorios' en el título",
+  !idsSJ.includes("SONDA-VTA-SJ"), `devolvió [${idsSJ.join(", ")}]`);
+chequear("…ni niega tener disponibilidad teniéndola",
+  !/no (tengo|hay|contamos|dispongo)/i.test(String(sj.respuesta ?? "").slice(0, 120)),
+  String(sj.respuesta ?? "").slice(0, 90));
 
 /* 7 · Sin catálogo (base lenta) contesta igual, no explota */
 const f = await fetch(APP + "/api/asistente", {

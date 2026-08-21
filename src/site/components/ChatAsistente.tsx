@@ -73,6 +73,10 @@ export default function ChatAsistente() {
         operacion: p.operacion,
         oficina: p.oficina,
         precio: precioPublico(p) + (p.operacion === "alquiler" ? " por mes" : ""),
+        ambientes: p.ambientes,
+        dormitorios: p.dormitorios,
+        banos: p.banos,
+        m2: p.m2totales ?? p.m2cubiertos,
       }));
 
   const enviar = async (textoDirecto?: string) => {

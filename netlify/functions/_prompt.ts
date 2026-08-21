@@ -11,6 +11,12 @@ export type CampoLite = {
   operacion?: string;
   oficina?: "chauvin" | "puntamogotes";
   precio?: string; // campos = "A consultar"; urbanas = precio real formateado
+  // 🔴 21-ago: los datos por los que la gente busca (antes no viajaban y Marina
+  // negaba propiedades que estaban en pantalla — video de Mateo, PH San José).
+  ambientes?: number;
+  dormitorios?: number;
+  banos?: number;
+  m2?: number;
 };
 
 // Arma el system prompt desde la config del cliente + el catálogo real.
@@ -24,6 +30,13 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[]): string
     .map((c) => {
       const op = (c.operacion ?? "").toUpperCase() || "SIN OPERACIÓN";
       const partes = [`[${op}]`, c.id, c.titulo, c.zona, c.categoria];
+      // Los datos por los que la gente busca. Solo si están cargados: una línea
+      // sin "dorm" significa "sin dato", y el prompt le dice a Marina qué hacer
+      // con eso (no descartar).
+      if (c.ambientes) partes.push(`${c.ambientes} amb`);
+      if (c.dormitorios) partes.push(`${c.dormitorios} dorm`);
+      if (c.banos) partes.push(`${c.banos} baño${c.banos > 1 ? "s" : ""}`);
+      if (c.m2) partes.push(`${c.m2} m2`);
       if (c.hectareas) partes.push(`${c.hectareas} ha`);
       if (c.aptitud) partes.push(c.aptitud);
       if (c.precio) partes.push(c.precio);
@@ -42,6 +55,7 @@ Reglas:
 - Escribí en español rioplatense, trato de vos, cálido, cercano y BREVE (2-4 oraciones). Conversá como una persona, no como un formulario ni un robot: seguí el hilo de lo que te dicen y hacé UNA sola pregunta por vez.
 - Recomendá ÚNICAMENTE propiedades de la lista de abajo, por su ID. No inventes propiedades, datos ni características que no figuren.
 - 🔴 LA OPERACIÓN ES UN FILTRO DURO, NUNCA LA CONFUNDAS. Cada propiedad del catálogo abre con su operación entre corchetes: [VENTA], [ALQUILER] o [TEMPORADA]. Si la persona busca ALQUILER, mostrale SOLO propiedades [ALQUILER]; si busca comprar, SOLO [VENTA]; si busca alquiler de verano/vacaciones, SOLO [TEMPORADA]. Ofrecer algo de otra operación es un ERROR GRAVE: le hace perder el tiempo y queda mal con el cliente.
+- 🔴 LOS DORMITORIOS/AMBIENTES DE CADA LÍNEA SON EL DATO REAL: si la persona pide "2 dormitorios", filtrá por el "2 dorm" de la línea, no por lo que diga el título. Y si una línea NO trae dormitorios, significa "sin dato cargado", NO "no tiene": jamás uses la falta del dato para descartar o para afirmar que "no hay" — decí lo que SÍ tenés de esa operación y zona, y ofrecé confirmar el detalle por WhatsApp.
 - Antes de nombrar una propiedad, verificá que su corchete coincida con lo que la persona pidió. Si NO hay ninguna de esa operación que sirva, decilo con honestidad ("hoy no tengo alquileres en esa zona") y ofrecé avisarle o pasarle otra zona — NUNCA rellenes con una propiedad de otra operación.
 - Si la persona cambia de idea (venía por alquiler y pregunta por comprar), cambiá el filtro y confirmalo en una frase corta ("dale, te paso las de venta entonces").
 - Precios: los CAMPOS son "A consultar" (nunca inventes ni prometas un monto para un campo). Las propiedades urbanas (casas, deptos, lotes, terrenos, locales) SÍ tienen precio: usá el que figura en la lista, no lo inventes.
