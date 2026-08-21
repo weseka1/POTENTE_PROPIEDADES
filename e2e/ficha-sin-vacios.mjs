@@ -110,6 +110,27 @@ try {
   chequear("La ficha de la vendida sigue abriendo (prueba social)", vendida.t.includes("ficha vendida de prueba"));
   chequear("…y avisa que está vendida", vendida.t.includes("vendida"));
 
+  /* 🔴 LA OFICINA QUE ATIENDE, NO LAS DOS (21-ago, pedido de Mateo).
+   * La ficha listaba las dos sucursales, así que un interesado por una
+   * propiedad de Chauvín podía terminar llamando a Mogotes. Se mide DENTRO
+   * del <aside> a propósito: el footer del sitio SÍ lista las dos, y eso está
+   * bien — mirar el body entero daría un falso rojo. */
+  console.log("== El pie de la ficha muestra SOLO la oficina de esa propiedad ==");
+  for (const [id, oficina] of [["POT-191694", "chauvin"], ["POT-214582", "puntamogotes"]]) {
+    await ir(URL_APP + "/propiedad/" + id, 4000);
+    const r = JSON.parse(await evaluar(
+      'const a = document.querySelector("aside"); const t = a ? a.innerText : "";' +
+      ' return JSON.stringify({ cordoba: (t.match(/Córdoba 3719/g)||[]).length,' +
+      ' mogotes: (t.match(/Av. de los Trabajadores/g)||[]).length });'
+    ));
+    const total = r.cordoba + r.mogotes;
+    const suya = oficina === "chauvin" ? r.cordoba === 1 && r.mogotes === 0
+                                       : r.mogotes === 1 && r.cordoba === 0;
+    chequear(id + " (" + oficina + "): una sola oficina en la ficha", total === 1, "mostro " + total);
+    chequear(id + ": y es la suya", suya, "Cordoba=" + r.cordoba + " Mogotes=" + r.mogotes);
+  }
+
+
   console.log(`\n==== ${ok} PASS / ${fallos.length} FAIL ====`);
   if (fallos.length) fallos.forEach((f) => console.log(`   · ${f}`));
 } finally {

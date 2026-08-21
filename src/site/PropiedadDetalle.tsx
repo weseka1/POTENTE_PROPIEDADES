@@ -132,6 +132,11 @@ export default function PropiedadDetalle() {
   // directamente al WhatsApp de Mogotes». Los DOS botones de la ficha tienen que
   // marcar el mismo número: el visitante no distingue cuál tocó.
   const waProp = waDigits((esTemporada ? unidadTemp?.oficina : undefined) ?? p.oficina);
+  // El pie de contacto sale del MISMO dato que el botón de WhatsApp: si la
+  // propiedad es de una oficina, se muestra solo esa; si es central, las dos.
+  const oficinaDeLaFicha = (esTemporada ? unidadTemp?.oficina : undefined) ?? p.oficina;
+  const oficinasAMostrar = OFICINAS.filter((o) => o.id === oficinaDeLaFicha);
+  if (oficinasAMostrar.length === 0) oficinasAMostrar.push(...OFICINAS);
 
   // Los datos salen del esquema (src/data/esquemaPropiedad.ts), que decide qué
   // pide cada tipo de propiedad y qué cuenta como "vacío". Pedido textual de
@@ -339,9 +344,19 @@ export default function PropiedadDetalle() {
               </button>
             </div>
 
+            {/* 🔴 LA OFICINA QUE ATIENDE ESTA PROPIEDAD, NO LAS DOS (21-ago).
+                Pedido de Mateo: la ficha listaba las dos sucursales, así que un
+                interesado por una propiedad de Chauvín podía llamar a Mogotes
+                —y al revés—. Cada ficha ya sabe de qué oficina es: se usa
+                EXACTAMENTE el mismo criterio que rutea el botón de WhatsApp
+                (`waProp`, arriba), para que el teléfono del botón y el del pie
+                no puedan contradecirse nunca.
+                Si la propiedad no tiene oficina asignada (las centrales, que
+                atiende Mateo) se muestran las dos: es la única forma honesta
+                de no mandar al visitante a una sucursal que no la tiene. */}
             <div className="mt-6 border-t border-graph/10 pt-6 text-sm text-graph-500">
               <p className="font-medium text-graph">Potente Propiedades</p>
-              {OFICINAS.map((o) => (
+              {oficinasAMostrar.map((o) => (
                 <p key={o.id} className="mt-1">
                   {o.direccion} ({o.nombre}) · {o.telefono} · {o.horario}
                 </p>
