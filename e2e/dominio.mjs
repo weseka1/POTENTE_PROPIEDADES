@@ -146,11 +146,13 @@ for (const basura of ["/api-demo/", "/landing/", "/destacada/ascensor/"]) {
 }
 
 /* Lo que NO está mapeado igual salta al dominio bueno, misma ruta. */
-if (!ES_LOCAL) {
-  const rGen = await comoViejo("/propiedades");
-  chequear("viejo /propiedades salta al dominio bueno",
-    rGen.status === 301 && rGen.location === `https://${CANONICO}/propiedades`, `${rGen.status} → ${rGen.location}`);
-} else console.log("SKIP  (1) salto de dominio — en local no hay dominio al que saltar");
+/* ⚠️ El "salto de dominio con Host forzado" NO se puede verificar desde afuera:
+ * contra HTTPS el proxy de Hostinger valida el Host contra el certificado y
+ * corta la conexión (medido: da 000), y en local no hay dominio al que saltar.
+ * El salto en sí ya está probado arriba con el host `www`, que sí es real. Lo
+ * que importa de este bloque —que las direcciones del WordPress se traduzcan—
+ * se prueba en los MAPEOS, que no dependen del host y SÍ corren en producción. */
+console.log("SKIP  (1) salto con Host forzado — el proxy valida Host contra el certificado");
 
 /* 🔴 10 · ANTI-BUCLE: la ruta que existe en los DOS sitios no puede redirigirse
  * a sí misma. Un 301 a la propia URL es un bucle infinito servido al visitante
