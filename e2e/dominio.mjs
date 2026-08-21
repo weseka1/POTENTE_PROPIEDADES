@@ -35,10 +35,15 @@ console.log(`\n🌐 Un sitio, un dominio · canónico = ${CANONICO}\n`);
 const home = await traer(APP + "/");
 const canonical = (home.texto.match(/<link rel="canonical" href="([^"]+)"/) || [])[1] || "";
 const ogUrl = (home.texto.match(/<meta property="og:url" content="([^"]+)"/) || [])[1] || "";
-chequear("🔴 El canonical apunta al dominio canónico",
-  canonical.includes(CANONICO), canonical || "(sin canonical)");
-chequear("🔴 El og:url apunta al dominio canónico",
-  ogUrl.includes(CANONICO), ogUrl || "(sin og:url)");
+// En local el HTML servido trae el dominio del BUILD (el real), no "localhost":
+// comparar contra CANONICO daría un falso rojo. La aserción es de producción.
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(CANONICO.split(":")[0]);
+if (!LOCAL_HOST) {
+  chequear("🔴 El canonical apunta al dominio canónico",
+    canonical.includes(CANONICO), canonical || "(sin canonical)");
+  chequear("🔴 El og:url apunta al dominio canónico",
+    ogUrl.includes(CANONICO), ogUrl || "(sin og:url)");
+} else console.log("SKIP  (2) canonical/og del home — en local traen el dominio del build");
 
 /* 2 · Ni un rastro de los dominios viejos en el HTML que ve Google.
  * (onrender = el hosting de respaldo; .com.ar = el WordPress viejo.) */
@@ -61,19 +66,23 @@ chequear("El robots apunta al sitemap del dominio canónico",
 
 /* 4 · 🔴 UN solo sitio: www redirige al apex con 301 (o al revés, según cuál
  * sea el canónico). Tener los dos respondiendo 200 es contenido duplicado. */
+// En local no existe `www.localhost`: estas tres aserciones son de dominio real
+// y se saltean solas (la suite tiene que poder correr en las dos partes).
+const ES_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(CANONICO.split(":")[0]);
 const alterno = CANONICO.startsWith("www.") ? CANONICO.replace(/^www\./, "") : "www." + CANONICO;
-const rAlterno = await traer(`https://${alterno}/`);
-chequear(`🔴 ${alterno} redirige (no sirve una copia del sitio)`,
+const rAlterno = ES_LOCAL ? { status: 0, location: "", texto: "" } : await traer(`https://${alterno}/`);
+if (ES_LOCAL) console.log("SKIP  (3) pruebas de www/host alterno — no aplican en localhost");
+if (!ES_LOCAL) chequear(`🔴 ${alterno} redirige (no sirve una copia del sitio)`,
   rAlterno.status === 301 || rAlterno.status === 308,
   `HTTP ${rAlterno.status}${rAlterno.location ? ` → ${rAlterno.location}` : ""}`);
-chequear(`…y redirige AL dominio canónico`,
+if (!ES_LOCAL) chequear(`…y redirige AL dominio canónico`,
   rAlterno.location.includes(CANONICO), rAlterno.location || "(sin Location)");
 
 /* 5 · El 301 PRESERVA la ruta: una ficha vieja aterriza en la misma ficha.
  * Mandar todo al home tira a la basura el SEO por página. */
 const ruta = "/propiedades?operacion=venta";
-const rRuta = await traer(`https://${alterno}${ruta}`);
-chequear("El 301 preserva la ruta y el query (no manda todo al home)",
+const rRuta = ES_LOCAL ? { location: "" } : await traer(`https://${alterno}${ruta}`);
+if (!ES_LOCAL) chequear("El 301 preserva la ruta y el query (no manda todo al home)",
   rRuta.location.includes("/propiedades") && rRuta.location.includes("operacion=venta"),
   rRuta.location || "(sin Location)");
 
@@ -90,7 +99,11 @@ for (const ruta of ["/propiedades", "/temporada", idFicha ? `/propiedad/${idFich
 
 /* 7 · 404 DE VERDAD — sin esto, las URLs muertas del dominio viejo se quedan
  * vivas en el índice de Google compitiendo con el sitio nuevo. */
-for (const ruta of ["/ruta-que-no-existe", "/tipo-propiedad/departamento", "/area/playa-grande"]) {
+// ⚠️ Acá antes estaban /tipo-propiedad/… y /area/… esperando 404. Desde el
+// 21-ago esas rutas las MAPEA el middleware del sitio viejo (301 a su
+// equivalente), que es estrictamente mejor que un 404: conserva la visita y la
+// señal. Se prueban en el bloque 9. Acá quedan las que de verdad no existen.
+for (const ruta of ["/ruta-que-no-existe", "/blog", "/wp-admin"]) {
   const r = await traer(APP + ruta);
   chequear(`${ruta} devuelve 404 (no 200 con el home)`, r.status === 404, `HTTP ${r.status}`);
 }
@@ -100,6 +113,51 @@ for (const ruta of ["/", "/propiedades", "/temporada", "/favoritos", "/campos", 
   const r = await traer(APP + ruta);
   chequear(`${ruta} sigue respondiendo 200`, r.status === 200, `HTTP ${r.status}`);
 }
+
+
+/* 9 · 🔴 EL MAPA DEL SITIO VIEJO (21-ago) — cuando el `.com.ar` apunte acá, sus
+ * direcciones tienen que aterrizar en la equivalente de este sitio, no en un
+ * 404. Se prueba mandando el Host del dominio viejo, que es exactamente lo que
+ * va a pasar el día del cambio de DNS. */
+const VIEJO = "potentepropiedades.com.ar";
+const comoViejo = (ruta) => traer(APP + ruta, { headers: { Host: VIEJO } });
+
+const MAPEOS = [
+  ["/propiedad/153223_terreno-lote-en-venta-de-300m2-ubicado-en-faro-norte/", "/propiedad/POT-153223"],
+  ["/propiedad/153420_departamento-en-venta/", "/propiedad/POT-153420"],
+  ["/estado/en-venta/", "/propiedades?operacion=venta"],
+  ["/estado/en-alquiler/", "/propiedades?operacion=alquiler"],
+  ["/tipo-propiedad/departamento/", "/propiedades?cat=departamento"],
+  ["/area/playa-grande/", "/propiedades?q=playa%20grande"],
+  ["/nosotros/", "/#nosotros"],
+  ["/tasaciones/", "/#tasaciones"],
+  ["/mapa/", "/propiedades"],
+];
+for (const [vieja, esperada] of MAPEOS) {
+  const r = await comoViejo(vieja);
+  chequear(`viejo ${vieja} → ${esperada}`,
+    r.status === 301 && r.location.endsWith(esperada), `HTTP ${r.status} → ${r.location || "(sin Location)"}`);
+}
+
+/* Las páginas de demo del template viejo: 410, no un redirect. */
+for (const basura of ["/api-demo/", "/landing/", "/destacada/ascensor/"]) {
+  const r = await comoViejo(basura);
+  chequear(`viejo ${basura} devuelve 410 (muerta)`, r.status === 410, `HTTP ${r.status}`);
+}
+
+/* Lo que NO está mapeado igual salta al dominio bueno, misma ruta. */
+if (!ES_LOCAL) {
+  const rGen = await comoViejo("/propiedades");
+  chequear("viejo /propiedades salta al dominio bueno",
+    rGen.status === 301 && rGen.location === `https://${CANONICO}/propiedades`, `${rGen.status} → ${rGen.location}`);
+} else console.log("SKIP  (1) salto de dominio — en local no hay dominio al que saltar");
+
+/* 🔴 10 · ANTI-BUCLE: la ruta que existe en los DOS sitios no puede redirigirse
+ * a sí misma. Un 301 a la propia URL es un bucle infinito servido al visitante
+ * — y `/propiedades` es de las más visitadas del catálogo. */
+const rBucle = await traer(APP + "/propiedades");
+chequear("🔴 /propiedades en el dominio bueno NO se redirige a sí misma",
+  rBucle.status === 200, `HTTP ${rBucle.status}${rBucle.location ? ` → ${rBucle.location}` : ""}`);
 
 console.log(`\n==== ${ok} PASS / ${fallos.length} FAIL ====`);
 if (fallos.length) { console.log("FALLARON:"); fallos.forEach((f) => console.log(" - " + f)); }

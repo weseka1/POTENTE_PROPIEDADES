@@ -68,13 +68,75 @@ const CANONICO = (() => {
   catch { return ""; }
 })();
 
+/* ── EL MAPA DEL SITIO VIEJO (WordPress de potentepropiedades.com.ar) ────────
+ *
+ * 21-ago. Mateo quiere apuntar el `.com.ar` directo acá («no podemos hostear el
+ * dominio en Hostinger poniendo sus dns?») y tiene razón: el dominio está en
+ * NIC.ar y él maneja los nameservers, así que NO hace falta el panel del
+ * hosting viejo — al que además no pudimos entrar.
+ *
+ * Pero el middleware de arriba, solo, preserva la ruta TAL CUAL: una ficha
+ * vieja `/propiedad/153223_terreno-lote.../` aterrizaría en una URL que en el
+ * sitio nuevo no existe → 404, y se pierde el posicionamiento de esa página.
+ * Estas reglas traducen las direcciones del WordPress a las de acá.
+ *
+ * Verificado contra el sitemap real del sitio viejo (239 URLs). La regla de oro:
+ * cada dirección va a su equivalente, NUNCA todo al home — un 301 masivo tira a
+ * la basura los años que el `.com.ar` tiene ganados en Google, que hoy es el
+ * único de los dos dominios que aparece en las búsquedas.
+ *
+ * ⚠️ Se aplica a CUALQUIER host, no solo al viejo: si Google ya tiene indexada
+ * una de estas direcciones, alguien puede llegar por acá también. */
+const MAPA_SITIO_VIEJO: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
+  // Las ~98 fichas. El número de propiedad se conserva entre los dos sistemas
+  // (comprobado: 153223, 153220, 153256, 153420 responden en el nuevo).
+  [/^\/propiedad\/(\d+)(?:_[^/]*)?\/?$/, (m) => `/propiedad/POT-${m[1]}`],
+  // Las taxonomías del WordPress, al catálogo con el filtro puesto.
+  [/^\/estado\/en-venta\/?$/, () => "/propiedades?operacion=venta"],
+  [/^\/estado\/en-alquiler\/?$/, () => "/propiedades?operacion=alquiler"],
+  [/^\/tipo-propiedad\/([^/]+)\/?$/, (m) => `/propiedades?cat=${encodeURIComponent(m[1])}`],
+  [/^\/(?:area|ciudad)\/([^/]+)\/?$/, (m) => `/propiedades?q=${encodeURIComponent(m[1].replace(/-/g, " "))}`],
+  // Páginas institucionales: en el sitio nuevo son secciones del home.
+  [/^\/nosotros\/?$/, () => "/#nosotros"],
+  [/^\/tasaciones\/?$/, () => "/#tasaciones"],
+  [/^\/contacto\/?$/, () => "/#contacto"],
+  // 🔴 `/propiedades` NO va acá: en el sitio nuevo ES una ruta real, y mapearla
+  // a sí misma sería un redirect infinito en producción. Solo va `/mapa`, que
+  // era una página del WordPress y acá no existe.
+  [/^\/mapa\/?$/, () => "/propiedades"],
+];
+
+/* Páginas de demo del template de WordPress que nunca fueron contenido real.
+ * Se responden 410 (muerta y no vuelve) en vez de redirigir: le dice a Google
+ * que las saque del índice en lugar de mantenerlas dando vueltas. */
+const BASURA_SITIO_VIEJO =
+  /^\/(?:api-demo|api-web|api-insight|upload-images|property-outside|blog-post-outside|landing|author\/|destacada\/)/;
+
 app.use((req, res, next) => {
   const host = String(req.headers.host ?? "").toLowerCase().split(":")[0];
   const esLocal = !host || host === "localhost" || host === "127.0.0.1" || host === "[::1]" || /^\d+\.\d+\.\d+\.\d+$/.test(host);
-  if (!CANONICO || esLocal || host === CANONICO) return next();
+  const destino = CANONICO && !esLocal ? `https://${CANONICO}` : "";
+
+  // 1 · Direcciones del sitio viejo → su equivalente de acá (venga del host que
+  //     venga). Va ANTES del salto de dominio: así se hace UN solo redirect y
+  //     no dos encadenados, que diluyen la señal y suman latencia.
+  for (const [patron, aDonde] of MAPA_SITIO_VIEJO) {
+    const m = req.path.match(patron);
+    if (!m) continue;
+    const a = aDonde(m);
+    // Cinturón: si el destino es la MISMA ruta y ya estamos en el dominio bueno,
+    // no se redirige — un 301 a uno mismo es un bucle infinito servido al
+    // visitante. Barato de poner, carísimo de descubrir en producción.
+    if (a === req.originalUrl && (host === CANONICO || esLocal)) break;
+    return res.redirect(301, `${destino}${a}`);
+  }
+  if (BASURA_SITIO_VIEJO.test(req.path)) return res.status(410).type("text/plain").send("410 Gone");
+
+  // 2 · Cualquier host que no sea el canónico → el canónico, misma ruta.
+  if (!destino || host === CANONICO) return next();
   // 308 no: los buscadores entienden el 301 como consolidación de autoridad,
   // que es exactamente lo que queremos decirle a Google.
-  return res.redirect(301, `https://${CANONICO}${req.originalUrl}`);
+  return res.redirect(301, `${destino}${req.originalUrl}`);
 });
 
 app.use(express.json({ limit: "256kb" }));
