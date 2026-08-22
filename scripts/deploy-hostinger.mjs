@@ -58,9 +58,17 @@ const api = async (metodo, ruta, body, extraHeaders = {}) => {
 // ── 1 · el ZIP ────────────────────────────────────────────────────────────────
 console.log("1/4 · Empaquetando el código trackeado…");
 const CLAVES_APP = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "ANTHROPIC_API_KEY", "VITE_SHADEMAP_API_KEY"];
+// Los canales de Meta (22-ago). OPCIONALES a propósito: META_APP_SECRET recién
+// existe cuando se crea la app en Meta — sin él, el webhook rechaza todo POST
+// (fail-closed) y el resto del sitio ni se entera. Cuando estén, viajan.
+const CLAVES_CANALES = ["POTENTE_INGESTA_TOKEN", "META_VERIFY_TOKEN", "META_APP_SECRET"];
 const faltan = CLAVES_APP.filter((k) => !envLocal[k]);
 if (faltan.length) { console.error(`🔴 Faltan en .env.local: ${faltan.join(", ")}`); process.exit(1); }
-const contenidoEnv = CLAVES_APP.map((k) => `${k}=${envLocal[k]}`).join("\n") + `\nVITE_SITE_URL=${SITE_URL}\n`;
+const conCanales = CLAVES_CANALES.filter((k) => envLocal[k]);
+if (conCanales.length < CLAVES_CANALES.length) {
+  console.log(`   (canales Meta: viajan ${conCanales.length}/${CLAVES_CANALES.length} claves — el webhook queda fail-closed hasta tener las tres)`);
+}
+const contenidoEnv = [...CLAVES_APP, ...conCanales].map((k) => `${k}=${envLocal[k]}`).join("\n") + `\nVITE_SITE_URL=${SITE_URL}\n`;
 
 const staging = mkdtempSync(path.join(tmpdir(), "potente-deploy-"));
 const tarTmp = path.join(staging, "_src.tar");

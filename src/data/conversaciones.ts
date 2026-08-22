@@ -7,7 +7,7 @@
 // canal con el texto listo— y solo pasa a "enviado" cuando la persona lo confirma.
 // El único canal que el sistema sí controla es el chat de la web propia.
 
-export type CanalConv = "whatsapp" | "instagram" | "messenger" | "web" | "mail" | "telefono";
+export type CanalConv = "whatsapp" | "instagram" | "messenger" | "web" | "mail" | "telefono" | "portal";
 
 /** Quién escribió el mensaje. */
 export type AutorMensaje = "cliente" | "ia" | "humano";
@@ -62,9 +62,25 @@ export const CANALES_CONV: Record<
   web: { label: "Chat en tu web", corto: "Web", color: "#0C4DA2", modo: "widget" },
   mail: { label: "Email", corto: "Mail", color: "#C9A24E", modo: "mail" },
   telefono: { label: "Teléfono", corto: "Teléfono", color: "#9C6B3C", modo: "tel" },
+  // El enum de la base tiene 7 valores y este mapa tenía 6: una conversación
+  // con canal 'portal' (una consulta llegada desde Zonaprop o Argenprop) hacía
+  // `CANALES_CONV[canal] → undefined` y **tumbaba la bandeja entera**. Es el
+  // tipo de bug que aparece recién el día que entra el primer dato distinto.
+  portal: { label: "Portales", corto: "Portal", color: "#6B7A8F", modo: "mail" },
 };
 
-export const ORDEN_CANALES: CanalConv[] = ["whatsapp", "instagram", "messenger", "web", "mail", "telefono"];
+export const ORDEN_CANALES: CanalConv[] = ["whatsapp", "instagram", "messenger", "web", "mail", "telefono", "portal"];
+
+/**
+ * El canal de una conversación, siempre con algo que mostrar.
+ *
+ * Ante un canal que no conocemos (uno nuevo en la base, un dato viejo raro) la
+ * bandeja tiene que seguir abriendo: se pinta con una etiqueta genérica en vez
+ * de romperse. Vale la regla de siempre — nunca se rompe la pantalla del cliente
+ * por un dato inesperado.
+ */
+export const canalDe = (canal: string) =>
+  CANALES_CONV[canal as CanalConv] ?? { label: canal || "Otro", corto: canal || "Otro", color: "#6B7A8F", modo: "mail" as ModoRespuesta };
 
 /* ===== Semilla de demo ===== */
 // Las horas se calculan contra el día real para que la bandeja nunca se vea vieja.

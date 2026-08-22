@@ -438,6 +438,79 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { cancel = true; sub.subscription.unsubscribe(); };
   }, []);
 
+  /* ── LA BANDEJA EN VIVO ──────────────────────────────────────────────────────
+   *
+   * Los mensajes de WhatsApp e Instagram entran por el webhook (`/api/meta/webhook`)
+   * y los escribe el SERVIDOR, no este navegador. Sin esta suscripción, Mateo tiene
+   * la pantalla abierta y no ve nada hasta que recarga — y una bandeja de guardia
+   * que hay que refrescar a mano no se mira, que es la única forma de que esta
+   * función fracase.
+   *
+   * Detalles que importan:
+   * · Solo con sesión: el RLS ya le devuelve vacío a cualquier otro, pero además
+   *   no tiene sentido abrir un socket para el visitante de la web.
+   * · Se actualiza la fila que cambió, no se recarga la tabla entera: si Mateo
+   *   está escribiendo en un hilo, no se le mueve el piso.
+   * · El filtro por oficina lo sigue haciendo `DataScope` — acá entra todo lo que
+   *   el RLS deje pasar, igual que en la carga inicial.
+   */
+  useEffect(() => {
+    if (!supabase) return;
+    let canal: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+    let vivo = true;
+    let n = 0;
+
+    const prender = async () => {
+      /* 🔴 Cicatriz del 21-ago, la MISMA de arriba y la volví a pisar: el
+       * `onAuthStateChange` de abajo dispara solo al suscribirse
+       * (INITIAL_SESSION), así que esto se llamaba DOS veces casi en paralelo.
+       * Las dos pedían `channel("bandeja-conversaciones")` —que devuelve la
+       * MISMA instancia por nombre— y la segunda intentaba agregarle un
+       * callback a un canal ya suscrito: `cannot add postgres_changes
+       * callbacks after subscribe()`. Ese rechazo rompía las 23 rutas del
+       * panel (lo cazó `sweep-final`, 0/23).
+       * Por eso: se descarta el canal anterior antes de crear otro, y el
+       * nombre lleva un contador para no reusar una instancia colgada. */
+      if (canal) { await supabase!.removeChannel(canal); canal = null; }
+      const { data } = await supabase!.auth.getSession();
+      if (!data.session || !vivo) return;              // sin sesión no hay bandeja
+      canal = supabase!
+        .channel(`bandeja-conversaciones-${++n}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "potente_conversaciones" },
+          (payload) => {
+            const fila = payload.new as Conversacion | undefined;
+            if (payload.eventType === "DELETE") {
+              const viejo = payload.old as { id?: string } | undefined;
+              if (viejo?.id) setConversaciones((prev) => prev.filter((c) => c.id !== viejo.id));
+              return;
+            }
+            if (!fila?.id) return;
+            setConversaciones((prev) => {
+              const i = prev.findIndex((c) => c.id === fila.id);
+              if (i === -1) return [fila, ...prev];      // conversación nueva: arriba
+              const copia = [...prev];
+              copia[i] = fila;
+              return copia;
+            });
+          },
+        )
+        .subscribe();
+    };
+
+    // Una sola puerta: este callback dispara al suscribirse (INITIAL_SESSION) y
+    // en cada login/logout. No hace falta —ni conviene— llamar a `prender()`
+    // además por afuera.
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { void prender(); });
+
+    return () => {
+      vivo = false;
+      sub.subscription.unsubscribe();
+      if (canal) void supabase!.removeChannel(canal);
+    };
+  }, []);
+
 
   // ===== mutaciones (actualizan estado local SIEMPRE + DB si hay conexión) =====
   // Las de propiedades DEVUELVEN el resultado: el panel necesita saber si la base
@@ -705,8 +778,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (actualizada) await guardarConv(actualizada);
   };
 
-  const marcarLeida = (convId: string) =>
-    setConversaciones((prev) => prev.map((c) => (c.id === convId && c.noLeida ? { ...c, noLeida: false } : c)));
+  /* 🔴 21-ago: era la ÚNICA de las 7 mutaciones que no persistía — solo tocaba
+   * el estado de React. Mateo abría una conversación, refrescaba, y volvía a
+   * aparecer sin leer junto con el badge del menú. En una bandeja de guardia eso
+   * es fatal: si el "no leído" miente, se deja de mirar. Ahora pasa por
+   * `patchConv` como todas, y se salta sola si ya estaba leída (para no escribir
+   * a la base cada vez que se abre un hilo). */
+  const marcarLeida = async (convId: string) => {
+    if (!conversaciones.some((c) => c.id === convId && c.noLeida)) return;
+    await patchConv(convId, (c) => ({ ...c, noLeida: false }));
+  };
 
   const agregarMensaje = (convId: string, msg: MensajeConv) =>
     patchConv(convId, (c) => ({ ...c, mensajes: [...c.mensajes, msg], noLeida: false }));

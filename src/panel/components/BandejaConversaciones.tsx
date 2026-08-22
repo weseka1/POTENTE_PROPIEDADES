@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "./Toast";
-import { CANALES_CONV, ORDEN_CANALES } from "@/data/conversaciones";
+import { CANALES_CONV, ORDEN_CANALES, canalDe } from "@/data/conversaciones";
 import type { CanalConv, Conversacion, MensajeConv } from "@/data/conversaciones";
 
 const ICONO: Record<CanalConv, typeof MessageCircle> = {
@@ -15,7 +15,10 @@ const ICONO: Record<CanalConv, typeof MessageCircle> = {
   web: Globe,
   mail: Mail,
   telefono: Phone,
+  portal: Building2,
 };
+/** El ícono, con respaldo: un canal desconocido no puede dejar un hueco. */
+const iconoDe = (canal: string) => ICONO[canal as CanalConv] ?? Inbox;
 
 /* ===== Tiempo relativo, en criollo ===== */
 function haceCuanto(iso: string): string {
@@ -33,7 +36,7 @@ const hora = (iso: string) =>
 
 /* ===== Link para responder según el canal ===== */
 function linkDe(conv: Conversacion, texto: string): string | null {
-  const { modo } = CANALES_CONV[conv.canal];
+  const { modo } = canalDe(conv.canal);
   const digitos = conv.contacto.replace(/\D/g, "");
   if (modo === "wa") return digitos.length >= 8 ? `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}` : null;
   if (modo === "mail")
@@ -47,7 +50,7 @@ function linkDe(conv: Conversacion, texto: string): string | null {
 }
 
 function labelEnvio(canal: CanalConv): string {
-  switch (CANALES_CONV[canal].modo) {
+  switch (canalDe(canal).modo) {
     case "wa": return "Abrir WhatsApp";
     case "mail": return "Abrir el mail";
     case "tel": return "Llamar";
@@ -61,8 +64,8 @@ function BurbujaCanal({
   canal, activo, total, sinLeer, onClick, conectado,
 }: { canal: CanalConv | "todos"; activo: boolean; total: number; sinLeer: number; onClick: () => void; conectado?: boolean }) {
   const esTodos = canal === "todos";
-  const meta = esTodos ? null : CANALES_CONV[canal];
-  const Icon = esTodos ? Inbox : ICONO[canal];
+  const meta = esTodos ? null : canalDe(canal);
+  const Icon = esTodos ? Inbox : iconoDe(canal);
   const nombre = esTodos ? "Todos los canales" : conectado ? `${meta!.label} · conectado` : `${meta!.label} · sin conectar`;
   return (
     <button
@@ -138,7 +141,7 @@ function Burbuja({
       {pendiente && (
         <div className="mt-1 flex flex-wrap items-center gap-1.5 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-1.5">
           <span className="text-[11px] font-medium text-amber-800">
-            Abrimos {CANALES_CONV[canal].label} con este texto. ¿Lo mandaste?
+            Abrimos {canalDe(canal).label} con este texto. ¿Lo mandaste?
           </span>
           {/* Alto de 32px: con py-1 quedaban en 22px y el dedo no les acertaba. */}
           <button
@@ -247,7 +250,7 @@ export default function BandejaConversaciones({
   const enviar = async () => {
     if (!sel) return;
     const t = texto.trim();
-    const { modo } = CANALES_CONV[sel.canal];
+    const { modo } = canalDe(sel.canal);
     if (!t && modo !== "tel") return;
 
     const href = linkDe(sel, t);
@@ -287,7 +290,7 @@ export default function BandejaConversaciones({
         ? "Mensaje enviado por el chat de tu web"
         : modo === "app"
         ? "Texto copiado. Pegalo en la conversación que se abrió."
-        : `Se abrió ${CANALES_CONV[sel.canal].label} con el mensaje listo`,
+        : `Se abrió ${canalDe(sel.canal).label} con el mensaje listo`,
       modo === "widget" ? "success" : "info"
     );
   };
@@ -300,8 +303,8 @@ export default function BandejaConversaciones({
     push("Anotado. Queda registrado como enviado.", "success");
   };
 
-  const canalMeta = sel ? CANALES_CONV[sel.canal] : null;
-  const IconCanal = sel ? ICONO[sel.canal] : Inbox;
+  const canalMeta = sel ? canalDe(sel.canal) : null;
+  const IconCanal = sel ? iconoDe(sel.canal) : Inbox;
   const conectado = sel ? !!canalesConectados[sel.canal] : false;
   const iaAtiende = sel?.estado === "ia" && iaActiva && conectado;
   const prop = sel?.propiedadId ? propiedades.find((p) => p.id === sel.propiedadId) : undefined;
@@ -351,7 +354,7 @@ export default function BandejaConversaciones({
             </div>
           ) : (
             visibles.map((c) => {
-              const Icon = ICONO[c.canal];
+              const Icon = iconoDe(c.canal);
               const ultimo = c.mensajes[c.mensajes.length - 1];
               const activa = sel?.id === c.id;
               return (
@@ -368,7 +371,7 @@ export default function BandejaConversaciones({
                     </span>
                     <span
                       className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full text-white ring-2 ring-paper"
-                      style={{ background: CANALES_CONV[c.canal].color }}
+                      style={{ background: canalDe(c.canal).color }}
                     >
                       <Icon size={11} />
                     </span>

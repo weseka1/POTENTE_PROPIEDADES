@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { atenderAsistente, chatGenerico } from "../netlify/functions/_core";
 import { geocodificar } from "../netlify/functions/_geocodificar";
 import { pasaElCupo, ipDe, tieneSesionDePanel, CABECERAS_SEGURIDAD } from "../netlify/functions/_seguridad";
+import { firmaValida, respuestaDeVerificacion, parsearEntrada } from "../netlify/functions/_meta";
+import { guardarMensajes } from "../netlify/functions/_ingesta";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -40,6 +42,60 @@ app.set("trust proxy", true);
 app.use((_req, res, next) => {
   for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
   next();
+});
+
+/* ── LOS CANALES DE MATEO: WhatsApp e Instagram entran por acá ───────────────
+ *
+ * Mateo (13-ago): «registrará los WhatsApp de su misma empresa, supervisará que
+ * no quede ningún mensaje colgado». Sus tres líneas viven en tres celulares y él
+ * no ve nada; la bandeja del panel está construida y vacía. Esto la llena.
+ *
+ * 🔴 LA UBICACIÓN DE ESTE BLOQUE NO ES NEGOCIABLE — las tres razones, medidas
+ * contra producción antes de escribirlo:
+ *
+ *  1. Va ANTES del redirect de dominio canónico (más abajo): ese middleware
+ *     manda 301 a cualquier host que no sea el canónico, y **Meta no sigue
+ *     redirects** — ni en la verificación ni al entregar mensajes. Un 301 acá
+ *     es el webhook muerto sin que nadie se entere.
+ *  2. Va ANTES del `express.json()` global: la firma `X-Hub-Signature-256` se
+ *     calcula sobre el body CRUDO byte por byte, y `express.json()` lo consume
+ *     y lo tira. Por eso este POST trae su propio `express.raw()`.
+ *  3. Va ANTES del catch-all de la SPA: comprobado en producción, un
+ *     `GET /api/meta/webhook` registrado después devuelve **404 con HTML**, y
+ *     Meta lo lee como verificación fallida.
+ *
+ * v1 ESCUCHA Y NADA MÁS: no hay una sola respuesta saliente. El bot es una
+ * pieza que se enchufa después sobre las mismas tablas.
+ */
+app.get("/api/meta/webhook", (req, res) => {
+  const { status, texto } = respuestaDeVerificacion(req.query as Record<string, unknown>, process.env.META_VERIFY_TOKEN);
+  res.status(status).type("text/plain").send(texto);
+});
+
+app.post("/api/meta/webhook", express.raw({ type: "application/json", limit: "1mb" }), (req, res) => {
+  const crudo = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+  if (!firmaValida(crudo, req.header("x-hub-signature-256"), process.env.META_APP_SECRET)) {
+    // Sin firma válida no se mira siquiera el contenido.
+    return res.status(401).type("text/plain").send("firma invalida");
+  }
+
+  /* 🔴 200 PRIMERO, TRABAJO DESPUÉS. Meta reintenta si tardás más de ~20 s, y
+   * cada reintento es un mensaje repetido en la bandeja de Mateo. Se acusa
+   * recibo al instante y el guardado sigue por su cuenta: la idempotencia de la
+   * migración 018 cubre igual el caso de que un reintento gane la carrera. */
+  res.status(200).type("text/plain").send("ok");
+
+  let cuerpo: unknown = null;
+  try { cuerpo = JSON.parse(crudo.toString("utf8")); }
+  catch { console.error("Webhook Meta · body ilegible"); return; }
+
+  const mensajes = parsearEntrada(cuerpo);
+  if (!mensajes.length) return; // acuses de entrega, "leído", etc.: se ignoran en silencio
+
+  void guardarMensajes(mensajes).then((r) => {
+    // Se loguea SIEMPRE: si un día dejan de entrar mensajes, esto es lo que lo cuenta.
+    console.log(`Webhook Meta · ${r.guardados} guardados · ${r.repetidos} repetidos · ${r.fallados} fallados`);
+  });
 });
 
 /* ── UN SITIO, UN DOMINIO: 301 de todo host que no sea el canónico ───────────
