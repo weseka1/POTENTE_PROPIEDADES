@@ -7,6 +7,7 @@ import { geocodificar } from "../netlify/functions/_geocodificar";
 import { pasaElCupo, ipDe, tieneSesionDePanel, CABECERAS_SEGURIDAD } from "../netlify/functions/_seguridad";
 import { firmaValida, respuestaDeVerificacion, parsearEntrada } from "../netlify/functions/_meta";
 import { guardarMensajes } from "../netlify/functions/_ingesta";
+import { conectarCuenta } from "../netlify/functions/_conectar";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -200,6 +201,32 @@ app.use(express.json({ limit: "256kb" }));
 // ── Marina, el asistente de la web ───────────────────────────────────────────
 // Público a la fuerza: lo usa cualquier visitante. Se limita por IP para que
 // nadie lo use de canilla libre contra la cuenta de Anthropic.
+/* ── /conectar: el registro integrado de Meta (Coexistence) ──────────────────
+ * Meta ofrece "conectar la app WhatsApp Business existente" (el QR) SOLO dentro
+ * del Embedded Signup, que corre en una página nuestra con su botón oficial.
+ * El "Agregar número" del panel de Meta registra números nuevos por SMS y rompe
+ * la app del celular (cicatriz 25-ago 04:00). Por eso existe esta página.
+ * El porqué de cada candado está en `netlify/functions/_conectar.ts`. */
+const CONECTAR_HTML = path.resolve(__dirname, "conectar.html");
+app.get("/conectar", (_req, res) => {
+  let html: string;
+  try { html = readFileSync(CONECTAR_HTML, "utf8"); }
+  catch { return res.status(404).type("text/plain").send("no disponible"); }
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.type("html").send(
+    html.replace(/__APP_ID__/g, process.env.META_APP_ID ?? "").replace(/__CONFIG_ID__/g, process.env.META_ES_CONFIG_ID ?? ""),
+  );
+});
+
+app.post("/api/meta/conectar", async (req, res) => {
+  const cupo = pasaElCupo(ipDe(req.headers), "conectar");
+  if (!cupo.ok) return res.status(429).json({ ok: false, mensaje: `Demasiados intentos. Espere ${cupo.esperarS} segundos.` });
+  const cuerpo = (req.body && typeof req.body === "object" ? req.body : {}) as { code?: unknown; wabaId?: unknown };
+  const r = await conectarCuenta(cuerpo);
+  res.status(r.status).json({ ok: r.ok, mensaje: r.mensaje, numeros: r.numeros ?? [], cuentas: r.cuentas ?? [] });
+});
+
 app.post("/api/asistente", async (req, res) => {
   const cupo = pasaElCupo(ipDe(req.headers), "asistente");
   if (!cupo.ok) {

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Conectar WhatsApp · Potente Propiedades</title>
+<style>
+  :root { --azul: #0C4DA2; --tinta: #14202E; --gris: #5B6B7F; --linea: #D9E1EA; --fondo: #F5F7FA; --ok: #1E7F4B; --ok-bg: #E3F3EA; --espera: #9A6A12; --espera-bg: #FBF0D9; --mal: #B3261E; --mal-bg: #FBE7E5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--tinta); font-family: "Segoe UI", -apple-system, system-ui, sans-serif; font-size: 17px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  main { max-width: 620px; margin: 0 auto; padding: 40px 20px 80px; display: flex; flex-direction: column; gap: 28px; }
+  .marca { display: flex; align-items: center; gap: 12px; }
+  .marca img { height: 40px; width: auto; }
+  .marca span { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--gris); }
+  h1 { font-size: 28px; line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  .lede { color: var(--gris); }
+  ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+  .tarjeta { background: #fff; border: 1px solid var(--linea); border-radius: 14px; padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+  button.principal { align-self: flex-start; font: 600 16px "Segoe UI", system-ui, sans-serif; color: #fff; background: var(--azul); border: 0; border-radius: 999px; padding: 13px 22px; cursor: pointer; }
+  button.principal:disabled { background: #9DB4D6; cursor: default; }
+  button.principal:focus-visible { outline: 2px solid var(--azul); outline-offset: 3px; }
+  .estado { border-left: 3px solid var(--azul); background: var(--fondo); padding: 12px 16px; border-radius: 0 8px 8px 0; }
+  .estado.mal { border-color: var(--mal); background: var(--mal-bg); }
+  .estado.ok { border-color: var(--ok); background: var(--ok-bg); }
+  ul.numeros { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  ul.numeros li { display: flex; align-items: center; gap: 10px; }
+  .chip { font-size: 12px; font-weight: 600; letter-spacing: .04em; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .chip.ok { background: var(--ok-bg); color: var(--ok); } .chip.espera { background: var(--espera-bg); color: var(--espera); }
+  .aviso { font-size: 15px; color: var(--gris); }
+  .aviso b { color: var(--tinta); }
+  code { font-family: Consolas, monospace; font-size: .9em; }
+</style>
+</head>
+<body>
+<main>
+  <div class="marca"><img src="/img/marca/pp-azul.png" alt="Potente Propiedades"><span>Panel · conexión de WhatsApp</span></div>
+
+  <div>
+    <h1>Conectar el WhatsApp de una oficina al panel</h1>
+    <p class="lede">El número sigue funcionando igual en el celular. Lo único que cambia es que las conversaciones también se ven en el panel.</p>
+  </div>
+
+  <div class="tarjeta">
+    <p><b>Antes de empezar</b></p>
+    <ol>
+      <li>Tenga a mano el <b>celular de esa oficina</b>, con WhatsApp Business actualizado.</li>
+      <li>Ingrese con el Facebook que administra el negocio (el suyo).</li>
+      <li>En la ventana de Meta elija <b>"Ya tengo WhatsApp Business"</b> (no "crear cuenta nueva" ni "migrar").</li>
+      <li>Escanee el QR desde el celular y acepte <b>compartir el historial</b>: así el panel arranca con las conversaciones anteriores.</li>
+    </ol>
+    <button class="principal" id="btn" type="button" disabled>Conectar WhatsApp</button>
+    <div class="estado" id="estado">Cargando la ventana de Meta…</div>
+    <ul class="numeros" id="numeros" hidden></ul>
+  </div>
+
+  <p class="aviso">Un número por vez. Al conectar, <b>WhatsApp Web se desloguea</b> en ese celular (se vuelve a vincular en el momento) y las listas de difusión de ese número dejan de funcionar. Si algo no coincide con lo descripto, no fuerce nada: avise a WESEKA.</p>
+</main>
+
+<script>
+  const APP_ID = "__APP_ID__";
+  const CONFIG_ID = "__CONFIG_ID__";
+  const btn = document.getElementById("btn");
+  const caja = document.getElementById("estado");
+  const lista = document.getElementById("numeros");
+  const sesion = { evento: null, waba_id: null, phone_number_id: null, paso: null, error: null };
+
+  function estado(texto, clase) { caja.textContent = texto; caja.className = "estado" + (clase ? " " + clase : ""); }
+
+  if (!CONFIG_ID) {
+    estado("La conexión todavía no está habilitada por WESEKA. Vuelva a intentar más tarde.", "mal");
+  }
+
+  window.fbAsyncInit = function () {
+    FB.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: true, version: "v21.0" });
+    if (CONFIG_ID) { btn.disabled = false; estado("Listo. Toque el botón y siga los pasos en la ventana de Meta."); }
+  };
+  (function () {
+    const s = document.createElement("script");
+    s.src = "https://connect.facebook.net/es_LA/sdk.js"; s.async = true; s.defer = true; s.crossOrigin = "anonymous";
+    s.onerror = () => estado("No se pudo cargar la ventana de Meta. Revise la conexión o un bloqueador de anuncios.", "mal");
+    document.head.appendChild(s);
+  })();
+
+  // Lo que Meta cuenta mientras el flujo avanza (id de la cuenta, del número, en qué paso se cerró).
+  window.addEventListener("message", (event) => {
+    if (!/^https:\/\/(www|web|business)\.facebook\.com$/.test(event.origin)) return;
+    let data; try { data = JSON.parse(event.data); } catch { return; }
+    if (!data || data.type !== "WA_EMBEDDED_SIGNUP") return;
+    sesion.evento = data.event;
+    const d = data.data || {};
+    if (d.waba_id) sesion.waba_id = String(d.waba_id);
+    if (d.phone_number_id) sesion.phone_number_id = String(d.phone_number_id);
+    if (data.event === "CANCEL") { sesion.paso = d.current_step; estado("Se cerró la ventana antes de terminar" + (d.current_step ? " (paso: " + d.current_step + ")" : "") + ". Puede volver a intentar.", "mal"); }
+    if (data.event === "ERROR") { sesion.error = d.error_message; estado("Meta informó un error: " + (d.error_message || "sin detalle") + ".", "mal"); }
+  });
+
+  function fbLoginCallback(response) {
+    const code = response && response.authResponse && response.authResponse.code;
+    if (!code) { if (!sesion.error && sesion.evento !== "CANCEL") estado("No se completó la conexión. Puede volver a intentar.", "mal"); btn.disabled = false; return; }
+    estado("Confirmando la conexión con Meta…");
+    // El aviso con el id de la cuenta puede llegar un instante después que el código.
+    let intentos = 0;
+    const esperar = () => { if (sesion.waba_id || intentos++ >= 6) enviar(code); else setTimeout(esperar, 250); };
+    esperar();
+  }
+
+  async function enviar(code) {
+    try {
+      const r = await fetch("/api/meta/conectar", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code, wabaId: sesion.waba_id, evento: sesion.evento }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) { estado(j.mensaje || "No se pudo confirmar la conexión.", "mal"); btn.disabled = false; return; }
+      estado(j.mensaje, (j.numeros || []).some((n) => n.conectado) ? "ok" : "");
+      lista.innerHTML = "";
+      for (const n of j.numeros || []) {
+        const li = document.createElement("li");
+        const chip = document.createElement("span");
+        chip.className = "chip " + (n.conectado ? "ok" : "espera");
+        chip.textContent = n.conectado ? "conectado" : "pendiente";
+        li.appendChild(chip); li.appendChild(document.createTextNode(" " + n.numero));
+        lista.appendChild(li);
+      }
+      lista.hidden = !lista.children.length;
+      btn.disabled = false;
+      btn.textContent = "Conectar otro número";
+    } catch {
+      estado("No se pudo hablar con el servidor. Revise la conexión y vuelva a intentar.", "mal");
+      btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener("click", () => {
+    btn.disabled = true;
+    sesion.evento = sesion.waba_id = sesion.phone_number_id = sesion.paso = sesion.error = null;
+    lista.hidden = true;
+    estado("Siga los pasos en la ventana de Meta…");
+    FB.login(fbLoginCallback, {
+      config_id: CONFIG_ID,
+      response_type: "code",
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
+    });
+  });
+</script>
+</body>
+</html>

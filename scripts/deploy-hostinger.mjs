@@ -61,12 +61,15 @@ const CLAVES_APP = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "ANTHROPIC_AP
 // Los canales de Meta (22-ago). OPCIONALES a propósito: META_APP_SECRET recién
 // existe cuando se crea la app en Meta — sin él, el webhook rechaza todo POST
 // (fail-closed) y el resto del sitio ni se entera. Cuando estén, viajan.
-const CLAVES_CANALES = ["POTENTE_INGESTA_TOKEN", "META_VERIFY_TOKEN", "META_APP_SECRET"];
+// + los del registro integrado (/conectar, 25-ago): META_APP_ID y META_BUSINESS_ID
+// son públicos; META_ES_CONFIG_ID es la "configuración" del botón de Meta, que
+// se crea en el panel de la app. Sin ella la página avisa que no está habilitada.
+const CLAVES_CANALES = ["POTENTE_INGESTA_TOKEN", "META_VERIFY_TOKEN", "META_APP_SECRET", "META_APP_ID", "META_BUSINESS_ID", "META_ES_CONFIG_ID"];
 const faltan = CLAVES_APP.filter((k) => !envLocal[k]);
 if (faltan.length) { console.error(`🔴 Faltan en .env.local: ${faltan.join(", ")}`); process.exit(1); }
 const conCanales = CLAVES_CANALES.filter((k) => envLocal[k]);
 if (conCanales.length < CLAVES_CANALES.length) {
-  console.log(`   (canales Meta: viajan ${conCanales.length}/${CLAVES_CANALES.length} claves — el webhook queda fail-closed hasta tener las tres)`);
+  console.log(`   (canales Meta: viajan ${conCanales.length}/${CLAVES_CANALES.length} claves — lo que falte queda apagado, fail-closed)`);
 }
 const contenidoEnv = [...CLAVES_APP, ...conCanales].map((k) => `${k}=${envLocal[k]}`).join("\n") + `\nVITE_SITE_URL=${SITE_URL}\n`;
 

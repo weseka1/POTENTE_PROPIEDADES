@@ -27,6 +27,7 @@
 const CUPOS = {
   asistente: { pedidos: 40, ventanaMs: 60_000 },
   chat: { pedidos: 30, ventanaMs: 60_000 },
+  conectar: { pedidos: 10, ventanaMs: 60_000 }, // /conectar: canjes de código de Meta, nunca en ráfaga
 } as const;
 
 type Balde = { hasta: number; usados: number };
