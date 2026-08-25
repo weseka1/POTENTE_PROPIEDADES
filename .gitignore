@@ -15,3 +15,4 @@ dist-ssr
 
 # Artefacto del build del server (npm run build:server) — se genera, no se versiona.
 server/index.mjs
+.cache/

@@ -1,6 +1,6 @@
 import express from "express";
 import path from "node:path";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { atenderAsistente, chatGenerico } from "../netlify/functions/_core";
 import { geocodificar } from "../netlify/functions/_geocodificar";
@@ -301,8 +301,32 @@ app.post("/api/geocodificar", async (req, res) => {
 // 11-ago: sin Access-Control-Allow-Origin para onrender.com). Server a server
 // no hay CORS, así que el sitio pide acá. Es PÚBLICO (lo usa el visitante que
 // abre las sombras/3D) pero con cupo por IP y cache: cada vista son 1-4 tiles.
-const EDIFICIOS_ORIGEN = "https://cfw.shademap.app/buildings20260617";
-const cacheEdificios = new Map<string, Buffer>(); // ~200 KB por tile
+/* 🔴 25-ago · EL 3D SE CAYÓ ENTERO Y NADIE SE ENTERÓ.
+ * La constante apuntaba a `buildings20260617`, un nombre CON FECHA. ShadeMap
+ * rotó el dataset al nombre sin fecha (`buildings`) y el viejo pasó a devolver
+ * un 403 de Cloudflare. Resultado: TODOS los tiles fallaban, en todas las
+ * propiedades, y el visor caía al respaldo de OSM — que en pueblos chicos casi
+ * no tiene edificios. Por eso la ficha de Mar del Sur mostraba "en esta zona
+ * los edificios todavía no están relevados": el cartel era honesto sobre lo que
+ * veía, pero la causa era esto. El tile de Mar del Sur tiene 20 KB de edificios.
+ *
+ * Ya estaba anotado como riesgo ("archivo DATADO: si rota, actualizar la
+ * constante") y aun así tardamos en verlo, porque **nada lo vigilaba**. Por eso
+ * ahora, además del nombre nuevo, hay dos cosas:
+ *   · `e2e/edificios.mjs`, que le pide al proxy dos tiles conocidos y falla si
+ *     no vuelven con bytes de verdad;
+ *   · cache en DISCO, para que una caída del proveedor no apague la función:
+ *     un tile ya visto se sigue sirviendo aunque el CDN esté muerto.
+ * El nombre sin fecha puede volver a rotar: si un día vuelve a fallar, la prueba
+ * lo grita y se cambia acá. */
+const EDIFICIOS_ORIGEN = process.env.EDIFICIOS_ORIGEN || "https://cfw.shademap.app/buildings";
+const cacheEdificios = new Map<string, Buffer>(); // ~35 KB por tile (medido)
+/* En disco: sobrevive al reinicio y, sobre todo, a que el proveedor se caiga.
+ * Va dentro del propio directorio de la app; si no se puede escribir (hosting
+ * de solo lectura), se sigue con la memoria y no se rompe nada. */
+const DIR_EDIFICIOS = path.resolve(__dirname, "..", ".cache", "edificios");
+try { mkdirSync(DIR_EDIFICIOS, { recursive: true }); } catch { /* solo memoria */ }
+const enDisco = (x: number, y: number) => path.join(DIR_EDIFICIOS, `${x}_${y}.mlt`);
 app.get("/api/edificios/:x/:y", async (req, res) => {
   const cupo = pasaElCupo(ipDe(req.headers), "chat");
   if (!cupo.ok) {
@@ -317,6 +341,14 @@ app.get("/api/edificios/:x/:y", async (req, res) => {
   const clave = `${x}/${y}`;
   try {
     let bytes = cacheEdificios.get(clave);
+    // Disco antes que red: un tile ya visto se sirve al instante y sigue
+    // sirviéndose aunque el proveedor esté caído.
+    if (!bytes) {
+      try {
+        const guardado = readFileSync(enDisco(x, y));
+        if (guardado.length > 0) { bytes = guardado; cacheEdificios.set(clave, guardado); }
+      } catch { /* no estaba en disco */ }
+    }
     if (!bytes) {
       // Cabeceras de navegador: el CDN es un worker de Cloudflare y a un fetch
       // pelado desde la IP de un datacenter lo mira feo (502 medido en Render;
@@ -331,12 +363,18 @@ app.get("/api/edificios/:x/:y", async (req, res) => {
       });
       // El estado del origen viaja en el error: sin esto, diagnosticar un 502
       // en producción es adivinar (cicatriz del 11-ago).
-      if (!r.ok) return res.status(502).json({ error: "El proveedor de edificios no contestó.", origen: r.status });
+      if (!r.ok) {
+        // 🔴 Se loguea SIEMPRE: la vez que el dataset rotó, el 3D se cayó en
+        // todas las propiedades y no quedó rastro en ningún lado.
+        console.error(`Edificios · el proveedor devolvió ${r.status} para ${clave} (origen ${EDIFICIOS_ORIGEN})`);
+        return res.status(502).json({ error: "El proveedor de edificios no contestó.", origen: r.status });
+      }
       bytes = Buffer.from(await r.arrayBuffer());
-      // Tope de memoria: ~50 tiles ≈ 10 MB. El archivo es datado (inmutable),
-      // así que el navegador cachea 30 días y casi nunca vuelve a pedir.
+      // Tope de memoria: ~50 tiles ≈ 2 MB. Y copia en disco, que es lo que
+      // convierte una caída del proveedor en algo que el visitante no nota.
       if (cacheEdificios.size >= 50) cacheEdificios.delete(cacheEdificios.keys().next().value!);
       cacheEdificios.set(clave, bytes);
+      try { writeFileSync(enDisco(x, y), bytes); } catch { /* sin disco: solo memoria */ }
     }
     res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
