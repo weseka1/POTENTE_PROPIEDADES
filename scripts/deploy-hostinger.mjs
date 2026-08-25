@@ -55,6 +55,25 @@ const api = async (metodo, ruta, body, extraHeaders = {}) => {
   try { return JSON.parse(texto); } catch { return texto; }
 };
 
+/* ── 0 · el candado del código sin commitear (cicatriz 25-ago) ───────────────
+ * Este deploy empaqueta con `git archive`, o sea **solo lo COMMITEADO**. Editar
+ * un archivo, deployar y probar contra producción da un resultado que no tiene
+ * nada que ver con lo que hay en el disco: se deploya la versión vieja y el
+ * cambio "no anda" sin ningún error. Pasó con el eco de Instagram y costó un
+ * deploy + una batería entera hasta darse cuenta.
+ * `robots.txt` y `sitemap.xml` los regenera el build en cada corrida: siempre
+ * están sucios y no cuentan. */
+const GENERADOS = ["public/robots.txt", "public/sitemap.xml"];
+const sucios = execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { encoding: "utf8" })
+  .split("\n").map((l) => l.slice(3).trim()).filter(Boolean)
+  .filter((f) => !GENERADOS.includes(f));
+if (sucios.length && !process.argv.includes("--igual")) {
+  console.error("🔴 Hay cambios SIN COMMITEAR y el deploy empaqueta solo lo commiteado:");
+  for (const f of sucios) console.error(`   · ${f}`);
+  console.error("   → commiteá antes de deployar (o `npm run deploy:hostinger -- --igual` para ignorarlo a sabiendas).");
+  process.exit(1);
+}
+
 // ── 1 · el ZIP ────────────────────────────────────────────────────────────────
 console.log("1/4 · Empaquetando el código trackeado…");
 const CLAVES_APP = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "ANTHROPIC_API_KEY", "VITE_SHADEMAP_API_KEY"];

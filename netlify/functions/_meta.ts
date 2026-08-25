@@ -156,19 +156,26 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
     // ── Instagram Messaging ─────────────────────────────────────────────────
     for (const ev of Array.isArray(entrada?.messaging) ? entrada.messaging : []) {
       const m = ev?.message;
-      const de = String(ev?.sender?.id ?? "");
-      if (!m?.mid || !de) continue;
-      // `is_echo` son NUESTROS propios mensajes rebotando. Sin este filtro, cada
-      // respuesta del vendedor se guardaría como si la hubiera escrito el cliente.
-      if (m?.is_echo) continue;
+      if (!m?.mid) continue;
+      /* `is_echo` es un mensaje que salió DEL NEGOCIO: lo que la oficina contesta
+       * desde la app de Instagram. Antes se descartaba, y la bandeja mostraba solo
+       * media conversación — el mismo agujero que los ecos de WhatsApp.
+       * 🔴 En un eco, quién manda es el negocio: el hilo sigue siendo del cliente,
+       * así que el contacto es el DESTINATARIO (`recipient`), no el remitente.
+       * ⚠️ El día que Marina conteste DMs por API, su propio mensaje va a volver
+       * como eco: hay que guardarlo con el `mid` que devuelve el envío para que la
+       * idempotencia lo reconozca, o se verá dos veces. */
+      const eco = m?.is_echo === true;
+      const contacto = String((eco ? ev?.recipient?.id : ev?.sender?.id) ?? "");
+      if (!contacto) continue;
       salida.push({
         canal: "instagram",
         mensajeId: String(m.mid),
-        contacto: de,
-        nombre: String(ev?.sender?.username ?? ""),
+        contacto,
+        nombre: eco ? "" : String(ev?.sender?.username ?? ""),
         texto: String(m?.text ?? "") || descripcionDeAdjunto(m?.attachments?.[0]?.type),
         hora: horaDe(ev?.timestamp),
-        de: "cliente",
+        de: eco ? "humano" : "cliente",
       });
     }
   }

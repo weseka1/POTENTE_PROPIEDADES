@@ -55,6 +55,8 @@ const SELLO = `E2E-${Date.now()}`;
 const TEL_SONDA = `54900000${String(Date.now()).slice(-6)}`;
 const TEL_SONDA_2 = `54900001${String(Date.now()).slice(-6)}`; // el número al que la oficina escribe primero
 const TEL_OFICINA = "5492235129032"; // Chauvín: el `from` de los ecos
+const IG_SONDA = `179000000${String(Date.now()).slice(-7)}`; // IGSID del visitante
+const IG_NEGOCIO = "17841404222256569";      // @potentepropiedades
 
 const firmar = (cuerpo) => "sha256=" + createHmac("sha256", APP_SECRET).update(cuerpo).digest("hex");
 
@@ -120,6 +122,22 @@ const payloadHistoria = (mensajes, tel = TEL_SONDA) => ({
   }],
 });
 
+/** Un DM de Instagram. `eco: true` = lo que la oficina responde desde la app de IG:
+ *  ahí el que manda es el negocio y el hilo es del DESTINATARIO. */
+const payloadIG = (mid, texto, { eco = false } = {}) => ({
+  object: "instagram",
+  entry: [{
+    id: IG_NEGOCIO,
+    time: Date.now(),
+    messaging: [{
+      sender: { id: eco ? IG_NEGOCIO : IG_SONDA, ...(eco ? {} : { username: "sonda_ig" }) },
+      recipient: { id: eco ? IG_SONDA : IG_NEGOCIO },
+      timestamp: Date.now(),
+      message: { mid, text: texto, ...(eco ? { is_echo: true } : {}) },
+    }],
+  }],
+});
+
 // ── Cliente de base para VERIFICAR lo guardado (entra como la dirección) ─────
 const sb = createClient(leer("VITE_SUPABASE_URL"), leer("VITE_SUPABASE_ANON_KEY"));
 const { error: eLogin } = await sb.auth.signInWithPassword({
@@ -132,6 +150,10 @@ const convsDeLaSonda = async () => {
   const { data } = await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,estado,noLeida").eq("contacto", TEL_SONDA);
   return data ?? [];
 };
+const convsDeIG = async () => {
+  const { data } = await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,estado,noLeida").eq("contacto", IG_SONDA);
+  return data ?? [];
+};
 const convsDeLaSonda2 = async () => {
   const { data } = await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,estado,noLeida").eq("contacto", TEL_SONDA_2);
   return data ?? [];
@@ -140,7 +162,7 @@ const convsDeLaSonda2 = async () => {
 /** Barrido: al arrancar Y en el finally. Una corrida cortada no puede dejar
  *  basura en la bandeja de un cliente que la mira todos los días. */
 const limpiar = async () => {
-  const filas = [...(await convsDeLaSonda()), ...(await convsDeLaSonda2())];
+  const filas = [...(await convsDeLaSonda()), ...(await convsDeLaSonda2()), ...(await convsDeIG())];
   for (const f of filas) await sb.from("potente_conversaciones").delete().eq("id", f.id);
 };
 
@@ -264,6 +286,24 @@ try {
     ids.indexOf(`${SELLO}-H1`) === 0 && ids.indexOf(`${SELLO}-H2`) === 1 && ids.indexOf(`${SELLO}-1`) > 1,
     ids.join(" → "));
   chequear("…y NO marca la conversación como no leída (es pasado, no novedad)", convs[0]?.noLeida === false, `noLeida=${convs[0]?.noLeida}`);
+  /* 10 · 📸 INSTAGRAM: un DM entra a la bandeja como cualquier consulta */
+  await postear(payloadIG(`${SELLO}-IG1`, "Hola! vi el depto de Playa Grande en el feed"));
+  await new Promise((r) => setTimeout(r, 2500));
+  let ig = await convsDeIG();
+  chequear("📸 Un DM de Instagram entra a la bandeja, marcado como del cliente",
+    ig.length === 1 && ig[0]?.canal === "instagram" && ig[0]?.mensajes?.[0]?.de === "cliente" && ig[0]?.noLeida === true,
+    JSON.stringify({ n: ig.length, canal: ig[0]?.canal, de: ig[0]?.mensajes?.[0]?.de, noLeida: ig[0]?.noLeida }));
+  chequear("…con el usuario de Instagram como nombre", ig[0]?.nombre === "sonda_ig", `nombre=${ig[0]?.nombre}`);
+
+  /* 11 · 🔴 El eco de IG (la oficina contesta desde Instagram) va al MISMO hilo */
+  await postear(payloadIG(`${SELLO}-IG2`, "¡Hola! Sí, sigue disponible. Te paso los valores por acá.", { eco: true }));
+  await new Promise((r) => setTimeout(r, 2500));
+  ig = await convsDeIG();
+  const igEco = ig[0]?.mensajes?.find((m) => m.id === `${SELLO}-IG2`);
+  chequear("🔴 La respuesta desde Instagram (eco) entra al MISMO hilo como 'humano', no abre otro",
+    ig.length === 1 && igEco?.de === "humano" && ig[0]?.estado === "vos",
+    `${ig.length} conversaciones · de=${igEco?.de ?? "no entró"} · estado=${ig[0]?.estado}`);
+
 } finally {
   await limpiar();
   console.log("  (conversaciones de sonda borradas)");
