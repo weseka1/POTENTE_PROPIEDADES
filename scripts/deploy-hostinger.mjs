@@ -83,7 +83,16 @@ const CLAVES_APP = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "ANTHROPIC_AP
 // + los del registro integrado (/conectar, 25-ago): META_APP_ID y META_BUSINESS_ID
 // son públicos; META_ES_CONFIG_ID es la "configuración" del botón de Meta, que
 // se crea en el panel de la app. Sin ella la página avisa que no está habilitada.
-const CLAVES_CANALES = ["POTENTE_INGESTA_TOKEN", "META_VERIFY_TOKEN", "META_APP_SECRET", "META_APP_ID", "META_BUSINESS_ID", "META_ES_CONFIG_ID"];
+const CLAVES_CANALES = ["POTENTE_INGESTA_TOKEN", "META_VERIFY_TOKEN", "META_APP_SECRET", "META_APP_ID", "META_BUSINESS_ID", "META_ES_CONFIG_ID",
+  // Instagram (25-ago): el módulo de lectura periódica está escrito y probado, pero
+  // 🔴 META_PAGE_TOKEN NO viaja a propósito, así que la sincronización nace APAGADA.
+  // Medido: con la app sin publicar, Meta solo deja ver los hilos de gente CON ROL en
+  // la app — se ven 2 hilos (los de Juani) sobre una cuenta de 3.291 seguidores,
+  // mientras Messenger devuelve 25 con el mismo token. O sea que prendida no traería
+  // un solo DM de un cliente real y quemaría llamadas cada 2 minutos.
+  // Se enciende sumando "META_PAGE_TOKEN" a esta lista el día que la app esté
+  // publicada y con acceso avanzado aprobado. Ver netlify/functions/_instagram.ts.
+  "META_PAGE_ID", "META_IG_ID"];
 const faltan = CLAVES_APP.filter((k) => !envLocal[k]);
 if (faltan.length) { console.error(`🔴 Faltan en .env.local: ${faltan.join(", ")}`); process.exit(1); }
 const conCanales = CLAVES_CANALES.filter((k) => envLocal[k]);

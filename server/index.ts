@@ -8,6 +8,7 @@ import { pasaElCupo, ipDe, tieneSesionDePanel, CABECERAS_SEGURIDAD } from "../ne
 import { firmaValida, respuestaDeVerificacion, parsearEntrada } from "../netlify/functions/_meta";
 import { guardarMensajes } from "../netlify/functions/_ingesta";
 import { conectarCuenta } from "../netlify/functions/_conectar";
+import { sincronizarInstagram, arrancarSincronizacionInstagram } from "../netlify/functions/_instagram";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -225,6 +226,20 @@ app.post("/api/meta/conectar", async (req, res) => {
   const cuerpo = (req.body && typeof req.body === "object" ? req.body : {}) as { code?: unknown; wabaId?: unknown };
   const r = await conectarCuenta(cuerpo);
   res.status(r.status).json({ ok: r.ok, mensaje: r.mensaje, numeros: r.numeros ?? [], cuentas: r.cuentas ?? [] });
+});
+
+/* ── Instagram: traerlo por lectura, porque el aviso de Meta no llega ────────
+ * El porqué completo está en `netlify/functions/_instagram.ts`. Este endpoint
+ * es para poder dispararlo a mano (pruebas y vigía); el latido normal lo pone
+ * `arrancarSincronizacionInstagram()` más abajo, al levantar el server.
+ * Lo protege el mismo secreto de la ingesta: no es una ruta pública. */
+app.post("/api/meta/sincronizar", async (req, res) => {
+  const esperado = process.env.POTENTE_INGESTA_TOKEN;
+  const dado = req.header("x-ingesta-token");
+  if (!esperado || !dado || dado !== esperado) return res.status(401).json({ ok: false, mensaje: "no autorizado" });
+  const horas = Number((req.body as any)?.horas);
+  const r = await sincronizarInstagram(Number.isFinite(horas) ? { horas } : {});
+  res.status(r.error ? 502 : 200).json({ ok: !r.error, ...r });
 });
 
 app.post("/api/asistente", async (req, res) => {
@@ -569,4 +584,6 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Potente Propiedades sirviendo en :${PORT} (dist: ${DIST})`);
+  // Los DM de Instagram entran por acá mientras el webhook de IG no llegue.
+  arrancarSincronizacionInstagram(Number(process.env.META_IG_SEGUNDOS) || 120);
 });

@@ -179,10 +179,10 @@ interface DataCtx {
   conversaciones: Conversacion[];
   conversacionesNoLeidas: number;
   marcarLeida: (convId: string) => void;
-  agregarMensaje: (convId: string, msg: MensajeConv) => Promise<void>;
-  actualizarMensaje: (convId: string, msgId: string, patch: Partial<MensajeConv>) => Promise<void>;
-  borrarMensaje: (convId: string, msgId: string) => Promise<void>;
-  setEstadoConversacion: (convId: string, estado: EstadoConv) => Promise<void>;
+  agregarMensaje: (convId: string, msg: MensajeConv) => Promise<Resultado>;
+  actualizarMensaje: (convId: string, msgId: string, patch: Partial<MensajeConv>) => Promise<Resultado>;
+  borrarMensaje: (convId: string, msgId: string) => Promise<Resultado>;
+  setEstadoConversacion: (convId: string, estado: EstadoConv) => Promise<Resultado>;
   setOficinaConversacion: (convId: string, oficina?: "chauvin" | "puntamogotes") => void;
   // derivados
   kpis: ReturnType<typeof computeKpis>;
@@ -761,50 +761,102 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return r;
   };
 
-  // ===== Bandeja de conversaciones =====
-  // Toda edición reescribe la conversación completa (los mensajes viven adentro).
-  const guardarConv = async (conv: Conversacion) => {
-    if (supabase) await aviso("upsert en potente_conversaciones", supabase.from("potente_conversaciones").upsert(conv));
-  };
-  const patchConv = async (convId: string, fn: (c: Conversacion) => Conversacion) => {
-    let actualizada: Conversacion | undefined;
-    setConversaciones((prev) =>
-      prev.map((c) => {
-        if (c.id !== convId) return c;
-        actualizada = fn(c);
-        return actualizada;
-      })
+  /* ===== Bandeja de conversaciones =====
+   *
+   * 🔴 25-ago · POR QUÉ ACÁ NO HAY UN `upsert` DE LA FILA ENTERA.
+   * Hasta hoy el panel era el ÚNICO que escribía en un hilo, así que reescribir
+   * la conversación completa desde la memoria del navegador era inofensivo.
+   * Desde que existe la ingesta de canales hay DOS escritores: la RPC de la
+   * migración 019 appendea del lado del servidor cada mensaje que entra de
+   * WhatsApp o Instagram.
+   *
+   * Con dos escritores, ese upsert es "el último que escribe, gana": **borra sin
+   * ningún error** todo lo que entró y este navegador no tiene en memoria. Y no
+   * hace falta una carrera de milisegundos: alcanza con ABRIR un hilo, porque
+   * marcarlo como leído también reescribía la fila. Pestaña dormida o wifi que
+   * se cortó, y el primer clic se lleva puestas las consultas que llegaron
+   * mientras tanto. Irrecuperable: el id ya quedó en `potente_mensajes_vistos`,
+   * así que el reintento de Meta lo descarta como repetido.
+   *
+   * Por eso las escrituras se parten en dos, y NINGUNA manda el array completo:
+   *   · las columnas que gobierna el panel  → `update` de esa columna sola;
+   *   · los mensajes                        → `potente_mensajes_editar` (020),
+   *     que hace el append/patch/borrado en el servidor, con candado de fila y
+   *     `security invoker` para que siga rigiendo el RLS de la 015.
+   * Si alguna vez volvés a necesitar un upsert acá: no. */
+
+  /** Cambia SOLO columnas del hilo. Nunca toca `mensajes`. */
+  const actualizarColumnas = async (convId: string, campos: Partial<Conversacion>) => {
+    setConversaciones((prev) => prev.map((c) => (c.id === convId ? { ...c, ...campos } : c)));
+    if (!supabase) return SIN_BASE;
+    return aviso(
+      "update en potente_conversaciones",
+      supabase.from("potente_conversaciones").update(campos).eq("id", convId)
     );
-    if (actualizada) await guardarConv(actualizada);
+  };
+
+  /** Toca los mensajes del hilo DEL LADO DEL SERVIDOR (migración 020).
+   *  El estado local se actualiza con la lista que devuelve la base, que es la
+   *  verdadera: así el navegador se entera de lo que entró mientras no miraba. */
+  const editarMensajes = async (
+    convId: string,
+    accion: "agregar" | "actualizar" | "borrar",
+    datos: { mensaje?: MensajeConv; mensajeId?: string; patch?: Partial<MensajeConv> },
+    optimista: (c: Conversacion) => Conversacion
+  ) => {
+    setConversaciones((prev) => prev.map((c) => (c.id === convId ? optimista(c) : c)));
+    if (!supabase) return SIN_BASE;
+    const { data, error } = await supabase.rpc("potente_mensajes_editar", {
+      p_conv_id: convId,
+      p_accion: accion,
+      p_mensaje_id: datos.mensajeId ?? null,
+      p_mensaje: datos.mensaje ?? null,
+      p_patch: datos.patch ?? null,
+    });
+    if (error) {
+      console.error("Base de datos · mensajes de potente_conversaciones:", error);
+      return { ok: false, error: error.message, codigo: (error as { code?: string }).code };
+    }
+    if (Array.isArray(data)) {
+      setConversaciones((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, mensajes: data as MensajeConv[], noLeida: accion === "agregar" ? false : c.noLeida } : c))
+      );
+    }
+    return { ok: true } as Resultado;
   };
 
   /* 🔴 21-ago: era la ÚNICA de las 7 mutaciones que no persistía — solo tocaba
    * el estado de React. Mateo abría una conversación, refrescaba, y volvía a
    * aparecer sin leer junto con el badge del menú. En una bandeja de guardia eso
    * es fatal: si el "no leído" miente, se deja de mirar. Ahora pasa por
-   * `patchConv` como todas, y se salta sola si ya estaba leída (para no escribir
-   * a la base cada vez que se abre un hilo). */
+   * la base como las demás, y se salta sola si ya estaba leída (para no escribir
+   * cada vez que se abre un hilo). Desde la 020 va por `update` de la columna:
+   * abrir un hilo NO puede tocar los mensajes. */
   const marcarLeida = async (convId: string) => {
     if (!conversaciones.some((c) => c.id === convId && c.noLeida)) return;
-    await patchConv(convId, (c) => ({ ...c, noLeida: false }));
+    await actualizarColumnas(convId, { noLeida: false });
   };
 
   const agregarMensaje = (convId: string, msg: MensajeConv) =>
-    patchConv(convId, (c) => ({ ...c, mensajes: [...c.mensajes, msg], noLeida: false }));
+    editarMensajes(convId, "agregar", { mensaje: msg }, (c) => ({ ...c, mensajes: [...c.mensajes, msg], noLeida: false }));
 
   const actualizarMensaje = (convId: string, msgId: string, patch: Partial<MensajeConv>) =>
-    patchConv(convId, (c) => ({ ...c, mensajes: c.mensajes.map((m) => (m.id === msgId ? { ...m, ...patch } : m)) }));
+    editarMensajes(convId, "actualizar", { mensajeId: msgId, patch }, (c) => ({
+      ...c, mensajes: c.mensajes.map((m) => (m.id === msgId ? { ...m, ...patch } : m)),
+    }));
 
   const borrarMensaje = (convId: string, msgId: string) =>
-    patchConv(convId, (c) => ({ ...c, mensajes: c.mensajes.filter((m) => m.id !== msgId) }));
+    editarMensajes(convId, "borrar", { mensajeId: msgId }, (c) => ({
+      ...c, mensajes: c.mensajes.filter((m) => m.id !== msgId),
+    }));
 
   // Al cerrar o devolver a la IA, el motivo de derivación deja de aplicar.
   const setEstadoConversacion = (convId: string, estado: EstadoConv) =>
-    patchConv(convId, (c) => ({ ...c, estado, noLeida: false, ...(estado === "ia" ? { motivo: undefined } : {}) }));
+    actualizarColumnas(convId, { estado, noLeida: false, ...(estado === "ia" ? { motivo: undefined } : {}) });
 
   // Derivación del orquestador: mover la conversación a una oficina (o traerla al central).
   const setOficinaConversacion = (convId: string, oficina?: "chauvin" | "puntamogotes") =>
-    patchConv(convId, (c) => ({ ...c, oficina }));
+    actualizarColumnas(convId, { oficina });
 
   const conversacionesNoLeidas = useMemo(() => conversaciones.filter((c) => c.noLeida).length, [conversaciones]);
 
