@@ -6,7 +6,6 @@ import PropiedadDetalle from "./site/PropiedadDetalle";
 import Temporada from "./site/Temporada";
 import TemporadaBarrio from "./site/TemporadaBarrio";
 import Favoritos from "./site/Favoritos";
-import { AuthProvider } from "./site/context/AuthContext";
 import { FavoritesProvider } from "./site/context/FavoritesContext";
 import { DataProvider } from "./lib/DataProvider";
 
@@ -61,7 +60,6 @@ function SiteChat() {
 export default function App() {
   return (
     <DataProvider>
-    <AuthProvider>
       <FavoritesProvider>
       <PanelAuthProvider>
         <ScrollToTop />
@@ -99,7 +97,6 @@ export default function App() {
         </ErrorBoundary>
       </PanelAuthProvider>
       </FavoritesProvider>
-    </AuthProvider>
     </DataProvider>
   );
 }
