@@ -82,11 +82,34 @@ async function sync(id) {
   console.log("Los datos llegan por el webhook (campos smb_app_state_sync / history), no en esta respuesta.");
 }
 
+/**
+ * ¿Ya nos habilitó Meta? Todo el conector quedó esperando UNA cosa (25-ago): la
+ * verificación del negocio del cliente. Mientras está en `pending`, el registro
+ * integrado no incorpora números, el botón "Añadir número" sale gris y los
+ * webhooks de Instagram no se entregan. Este comando contesta eso en 3 segundos,
+ * sin entrar a ningún panel.
+ */
+async function verificacion() {
+  const neg = await api(`${BUSINESS}?fields=name,verification_status`);
+  const waba = await api(`295097261637590?fields=name,business_verification_status,account_review_status,health_status`);
+  const listo = neg.verification_status === "verified";
+  console.log(`\n🏢 ${neg.name}: verificacion = ${neg.verification_status} ${listo ? "✅" : "⏳"}`);
+  console.log(`📱 cuenta de WhatsApp: ${waba.business_verification_status} · revision ${waba.account_review_status}`);
+  for (const e of waba.health_status?.entities ?? []) {
+    if (e.entity_type !== "WABA") continue;
+    for (const err of e.errors ?? []) console.log(`   ⚠️  ${err.error_code}: ${err.error_description}`);
+  }
+  console.log(listo
+    ? "\n✅ HABILITADO: ya se pueden escanear los QR en potentepropiedades.com/conectar\n"
+    : "\n⏳ Todavia no. Mientras siga en pending, ninguna pantalla de Meta va a dejar conectar un numero.\n");
+}
+
 const [cmd, arg] = process.argv.slice(2);
 try {
   if (cmd === "estado") await estado();
+  else if (cmd === "verificacion") await verificacion();
   else if (cmd === "sync") await sync(arg);
-  else { console.log("Uso: node scripts/meta.mjs estado | sync <phone_number_id>"); process.exit(1); }
+  else { console.log("Uso: node scripts/meta.mjs estado | verificacion | sync <phone_number_id>"); process.exit(1); }
 } catch (e) {
   console.error("🔴", e.message);
   process.exit(1);
