@@ -63,6 +63,8 @@ export async function guardarMensajes(mensajes: MensajeEntrante[]): Promise<Resu
           p_mensaje_id: m.mensajeId,
           p_texto: m.texto,
           p_hora: m.hora,
+          p_de: m.de ?? "cliente",          // 019: la oficina desde la app = 'humano'
+          p_historico: m.historico === true, // 019: pasado, no novedad
         }),
       });
 

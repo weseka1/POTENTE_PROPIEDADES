@@ -36,6 +36,10 @@ export type MensajeEntrante = {
   nombre: string;
   texto: string;
   hora: string;
+  /** Quién lo escribió: el cliente, o una persona de la oficina desde la app (eco). */
+  de: "cliente" | "humano";
+  /** Viene del historial (sincronización tras el QR): pasado, no novedad. */
+  historico?: boolean;
 };
 
 /**
@@ -102,7 +106,50 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
           nombre: perfiles.get(de) ?? "",
           texto: textoDeWhatsApp(m),
           hora: horaDe(m?.timestamp),
+          de: "cliente",
         });
+      }
+
+      /* ── Coexistence (25-ago): las DOS cosas que la primera versión tiraba ──
+       * `message_echoes` = lo que la oficina contesta DESDE LA APP del celular.
+       * Sin esto, en la bandeja toda conversación parece colgada. El contacto
+       * es el destinatario (`to`): el hilo es del cliente, no del negocio. */
+      for (const e of Array.isArray(valor?.message_echoes) ? valor.message_echoes : []) {
+        const para = String(e?.to ?? "");
+        if (!e?.id || !para) continue;
+        salida.push({
+          canal: "whatsapp",
+          mensajeId: String(e.id),
+          contacto: para,
+          nombre: "",
+          texto: textoDeWhatsApp(e),
+          hora: horaDe(e?.timestamp),
+          de: "humano",
+        });
+      }
+
+      /* `history` = los chats viejos, en trozos, una sola vez (ventana de 24 h
+       * tras el QR). Cada hilo es un cliente (`thread.id` = su teléfono); lo
+       * que viene `from` ese teléfono es del cliente, el resto es de la oficina.
+       * Se marcan históricos: entran con su fecha real y no cuentan como novedad. */
+      for (const trozo of Array.isArray(valor?.history) ? valor.history : []) {
+        for (const hilo of Array.isArray(trozo?.threads) ? trozo.threads : []) {
+          const cliente = String(hilo?.id ?? "");
+          if (!cliente) continue;
+          for (const m of Array.isArray(hilo?.messages) ? hilo.messages : []) {
+            if (!m?.id) continue;
+            salida.push({
+              canal: "whatsapp",
+              mensajeId: String(m.id),
+              contacto: cliente,
+              nombre: "",
+              texto: textoDeWhatsApp(m),
+              hora: horaDe(m?.timestamp),
+              de: String(m?.from ?? "") === cliente ? "cliente" : "humano",
+              historico: true,
+            });
+          }
+        }
       }
     }
 
@@ -121,6 +168,7 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
         nombre: String(ev?.sender?.username ?? ""),
         texto: String(m?.text ?? "") || descripcionDeAdjunto(m?.attachments?.[0]?.type),
         hora: horaDe(ev?.timestamp),
+        de: "cliente",
       });
     }
   }

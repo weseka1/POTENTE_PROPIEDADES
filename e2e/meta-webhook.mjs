@@ -53,6 +53,8 @@ if (!APP_SECRET || !VERIFY_TOKEN) {
  * con datos reales. */
 const SELLO = `E2E-${Date.now()}`;
 const TEL_SONDA = `54900000${String(Date.now()).slice(-6)}`;
+const TEL_SONDA_2 = `54900001${String(Date.now()).slice(-6)}`; // el número al que la oficina escribe primero
+const TEL_OFICINA = "5492235129032"; // Chauvín: el `from` de los ecos
 
 const firmar = (cuerpo) => "sha256=" + createHmac("sha256", APP_SECRET).update(cuerpo).digest("hex");
 
@@ -83,6 +85,41 @@ const payloadWhatsApp = (mensajeId, texto, tel = TEL_SONDA) => ({
   }],
 });
 
+/** Lo que manda Meta cuando la oficina contesta DESDE LA APP (Coexistence). */
+const payloadEco = (mensajeId, texto, tel = TEL_SONDA) => ({
+  object: "whatsapp_business_account",
+  entry: [{
+    id: "SONDA",
+    changes: [{
+      field: "smb_message_echoes",
+      value: {
+        messaging_product: "whatsapp",
+        metadata: { display_phone_number: TEL_OFICINA, phone_number_id: "961292850997751" },
+        message_echoes: [{ from: TEL_OFICINA, to: tel, id: mensajeId, timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: texto } }],
+      },
+    }],
+  }],
+});
+
+/** Un trozo de historial: mensajes viejos de un hilo, en el orden que a Meta se le ocurra. */
+const payloadHistoria = (mensajes, tel = TEL_SONDA) => ({
+  object: "whatsapp_business_account",
+  entry: [{
+    id: "SONDA",
+    changes: [{
+      field: "history",
+      value: {
+        messaging_product: "whatsapp",
+        metadata: { display_phone_number: TEL_OFICINA, phone_number_id: "961292850997751" },
+        history: [{
+          metadata: { phase: "0", chunk_order: "1", progress: "100" },
+          threads: [{ id: tel, messages: mensajes.map((m) => ({ from: m.deOficina ? TEL_OFICINA : tel, to: m.deOficina ? tel : TEL_OFICINA, id: m.id, timestamp: String(m.ts), type: "text", text: { body: m.texto }, history_context: { status: "read" } })) }],
+        }],
+      },
+    }],
+  }],
+});
+
 // ── Cliente de base para VERIFICAR lo guardado (entra como la dirección) ─────
 const sb = createClient(leer("VITE_SUPABASE_URL"), leer("VITE_SUPABASE_ANON_KEY"));
 const { error: eLogin } = await sb.auth.signInWithPassword({
@@ -92,14 +129,18 @@ const { error: eLogin } = await sb.auth.signInWithPassword({
 if (eLogin) { console.log(`\n⏭️  No se pudo entrar como la dirección (${eLogin.message}) — la suite se saltea.\n`); process.exit(0); }
 
 const convsDeLaSonda = async () => {
-  const { data } = await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,estado").eq("contacto", TEL_SONDA);
+  const { data } = await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,estado,noLeida").eq("contacto", TEL_SONDA);
+  return data ?? [];
+};
+const convsDeLaSonda2 = async () => {
+  const { data } = await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,estado,noLeida").eq("contacto", TEL_SONDA_2);
   return data ?? [];
 };
 
 /** Barrido: al arrancar Y en el finally. Una corrida cortada no puede dejar
  *  basura en la bandeja de un cliente que la mira todos los días. */
 const limpiar = async () => {
-  const filas = await convsDeLaSonda();
+  const filas = [...(await convsDeLaSonda()), ...(await convsDeLaSonda2())];
   for (const f of filas) await sb.from("potente_conversaciones").delete().eq("id", f.id);
 };
 
@@ -187,6 +228,42 @@ try {
   } else {
     console.log("      (no se pudo probar la oficina: sin PANEL_CHAUVIN_PASS)");
   }
+  /* 7 · 🔴 ECOS (019): lo que la oficina contesta desde la app entra al MISMO hilo como 'humano' */
+  await postear(payloadEco(`${SELLO}-ECO`, "Sí, sigue disponible. ¿Cuándo le queda cómodo verla?"));
+  await new Promise((r) => setTimeout(r, 2500));
+  convs = await convsDeLaSonda();
+  const eco = convs[0]?.mensajes?.find((m) => m.id === `${SELLO}-ECO`);
+  chequear("💬 La respuesta de la oficina desde la app (eco) entra al MISMO hilo como 'humano'",
+    convs.length === 1 && eco?.de === "humano" && eco?.texto?.includes("disponible"),
+    `${convs.length} conversaciones · de=${eco?.de ?? "no entró"}`);
+  chequear("…y la conversación pasa a 'vos' (la está atendiendo una persona)", convs[0]?.estado === "vos", `estado=${convs[0]?.estado}`);
+
+  /* 8 · Un eco a un número NUEVO (la oficina escribe primero) abre la conversación LEÍDA */
+  await postear(payloadEco(`${SELLO}-ECO-NUEVO`, "Buen día, le escribo por la tasación", TEL_SONDA_2));
+  await new Promise((r) => setTimeout(r, 2500));
+  const convs2 = await convsDeLaSonda2();
+  chequear("📤 Un eco a un número nuevo abre su conversación, en 'vos' y sin marcar no leída",
+    convs2.length === 1 && convs2[0]?.estado === "vos" && convs2[0]?.noLeida === false && convs2[0]?.mensajes?.[0]?.de === "humano",
+    JSON.stringify({ n: convs2.length, estado: convs2[0]?.estado, noLeida: convs2[0]?.noLeida }));
+
+  /* 9 · 🔴 HISTORIAL (019): entra con su fecha real, ordenado, y no cuenta como novedad */
+  const hace30d = Math.floor(Date.now() / 1000) - 30 * 86400;
+  await sb.from("potente_conversaciones").update({ noLeida: false }).eq("id", convs[0].id);
+  await postear(payloadHistoria([
+    { id: `${SELLO}-H2`, ts: hace30d + 600, texto: "Le paso las fotos por acá", deOficina: true },
+    { id: `${SELLO}-H1`, ts: hace30d, texto: "Hola, ¿tienen algo en Playa Grande?", deOficina: false },
+  ]));
+  await new Promise((r) => setTimeout(r, 3000));
+  convs = await convsDeLaSonda();
+  const ids = (convs[0]?.mensajes ?? []).map((m) => m.id);
+  const h1 = convs[0]?.mensajes?.find((m) => m.id === `${SELLO}-H1`);
+  chequear("🕰️ El historial entra con su fecha real (hace 30 días), no con la de hoy",
+    h1 && Math.abs(new Date(h1.horaISO).getTime() / 1000 - hace30d) < 5 && h1.de === "cliente",
+    h1 ? `${h1.horaISO} · de=${h1.de}` : "no entró");
+  chequear("…queda ORDENADO por hora aunque Meta lo mande desordenado (H1 antes que H2, y ambos antes que lo de hoy)",
+    ids.indexOf(`${SELLO}-H1`) === 0 && ids.indexOf(`${SELLO}-H2`) === 1 && ids.indexOf(`${SELLO}-1`) > 1,
+    ids.join(" → "));
+  chequear("…y NO marca la conversación como no leída (es pasado, no novedad)", convs[0]?.noLeida === false, `noLeida=${convs[0]?.noLeida}`);
 } finally {
   await limpiar();
   console.log("  (conversaciones de sonda borradas)");
