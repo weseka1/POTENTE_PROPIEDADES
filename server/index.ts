@@ -9,6 +9,7 @@ import { firmaValida, respuestaDeVerificacion, parsearEntrada } from "../netlify
 import { guardarMensajes } from "../netlify/functions/_ingesta";
 import { conectarCuenta } from "../netlify/functions/_conectar";
 import { sincronizarInstagram, arrancarSincronizacionInstagram } from "../netlify/functions/_instagram";
+import { paginaPrivacidad, paginaEliminacion } from "./legales";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -208,6 +209,19 @@ app.use(express.json({ limit: "256kb" }));
  * El "Agregar número" del panel de Meta registra números nuevos por SMS y rompe
  * la app del celular (cicatriz 25-ago 04:00). Por eso existe esta página.
  * El porqué de cada candado está en `netlify/functions/_conectar.ts`. */
+/* ── Las dos páginas legales, servidas del lado del servidor ─────────────────
+ * Meta abre estas URLs de verdad para revisar la app, y los revisores y los
+ * robots no siempre ejecutan JavaScript: una pantalla de la SPA les llegaría
+ * vacía. El porqué y de dónde sale cada afirmación, en `server/legales.ts`. */
+app.get("/privacidad", (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("html").send(paginaPrivacidad());
+});
+app.get("/eliminacion-de-datos", (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("html").send(paginaEliminacion());
+});
+
 const CONECTAR_HTML = path.resolve(__dirname, "conectar.html");
 app.get("/conectar", (_req, res) => {
   let html: string;
@@ -604,6 +618,7 @@ const RUTAS_PUBLICAS = [
   /^\/propiedad\/[^/]+\/?$/, // las inexistentes ya las filtra su propia ruta
   /^\/campos\/?$/,           // redirect interno a /propiedades?cat=campo
   /^\/campo\/[^/]+\/?$/,     // redirect interno de la era "campos"
+  /^\/(privacidad|eliminacion-de-datos)\/?$/, // legales: las sirve el server, no la SPA
   /^\/(panel|admin|ingresar|cuenta)(\/|$)/, // privadas: no son 404 ni llevan canonical
 ];
 
