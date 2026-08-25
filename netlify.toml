@@ -6,6 +6,8 @@
 
 # Fija la versión de Node para que el auto-deploy de Netlify use la misma que probamos localmente.
 [build.environment]
+  # La cabecera de IP que pone el proxy de Netlify (ver _seguridad.ts / ipDe)
+  IP_CABECERA = "x-nf-client-connection-ip"
   NODE_VERSION = "22"
 
 [functions]
