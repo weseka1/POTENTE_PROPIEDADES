@@ -102,7 +102,17 @@ const conCanales = CLAVES_CANALES.filter((k) => envLocal[k]);
 if (conCanales.length < CLAVES_CANALES.length) {
   console.log(`   (canales Meta: viajan ${conCanales.length}/${CLAVES_CANALES.length} claves — lo que falte queda apagado, fail-closed)`);
 }
-const contenidoEnv = [...CLAVES_APP, ...conCanales].map((k) => `${k}=${envLocal[k]}`).join("\n") + `\nVITE_SITE_URL=${SITE_URL}\n`;
+/* El commit que se está publicando viaja al build: el hosting no tiene git, así
+ * que sin esto `/version.json` sale con una marca inventada. Con el commit, ese
+ * archivo dice EXACTAMENTE qué código está sirviendo — y el panel puede avisarle
+ * a una pestaña que se quedó con el JavaScript viejo (src/lib/version.ts). */
+const COMMIT = (() => {
+  try { return execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: RAIZ }).toString().trim(); }
+  catch { return ""; }
+})();
+const contenidoEnv = [...CLAVES_APP, ...conCanales].map((k) => `${k}=${envLocal[k]}`).join("\n")
+  + `\nVITE_SITE_URL=${SITE_URL}\n`
+  + (COMMIT ? `VITE_BUILD=${COMMIT}\n` : "");
 
 const staging = mkdtempSync(path.join(tmpdir(), "potente-deploy-"));
 const tarTmp = path.join(staging, "_src.tar");
