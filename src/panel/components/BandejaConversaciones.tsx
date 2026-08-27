@@ -51,12 +51,36 @@ function linkDe(conv: Conversacion, texto: string): string | null {
   return null; // widget: sale del propio sistema
 }
 
-/** ¿Este hilo se puede responder DESDE el panel? (021: entró por ManyChat y
- *  tenemos su id de contacto). Si no, queda el camino de siempre: copiar y abrir. */
+/* ── QUIÉN MANDA CADA MENSAJE ────────────────────────────────────────────────
+ * Instagram y WhatsApp entran por ManyChat, y por ahí también SALEN: el panel
+ * los manda por API y al contacto le llega en su app, sin que nadie abra nada.
+ * Pedido de Juani (27-ago): «no se abre Instagram para enviar el mensaje».
+ *
+ * `esCanalDeEnvio` = el sistema sabe mandar por este canal.
+ * `sePuedeEnviar`  = además tiene el contacto enlazado y puede hacerlo YA.
+ *
+ * 🔴 La diferencia importa: si es canal de envío pero falta el enlace, NO se
+ * cae al camino viejo en silencio (eso fue lo que hizo que Mateo viera abrirse
+ * Instagram). El server intenta resolver el contacto y, si no puede, el panel
+ * dice POR QUÉ. */
+/* 🔒 SOLO INSTAGRAM. Decisión de Juani (27-ago): «wpp no debe responder, lo van
+ * a manejar ellos; lo valioso es que puedan VER los mensajes en el panel».
+ * WhatsApp es espejo: se mira, no se contesta desde acá. Habilitarlo es una
+ * decisión de negocio, no un detalle técnico — por eso está en una constante. */
+const CANALES_QUE_SE_ENVIAN: CanalConv[] = ["instagram"];
+
+const esCanalDeEnvio = (c: Conversacion | null | undefined): boolean =>
+  Boolean(c && CANALES_QUE_SE_ENVIAN.includes(c.canal));
+
 const sePuedeEnviar = (c: Conversacion | null | undefined): boolean =>
-  Boolean(c && (c.canal === "instagram" || c.canal === "whatsapp") && /^\d+$/.test(c.externo?.manychat_subscriber_id ?? ""));
+  Boolean(esCanalDeEnvio(c) && /^\d+$/.test(c?.externo?.manychat_subscriber_id ?? ""));
 
 function labelEnvio(canal: CanalConv, directo = false): string {
+  // El chat de la web no recibe respuestas fuera de la visita (ver `enviar`).
+  if (canalDe(canal).modo === "widget") return "Ver cómo seguirla";
+  // En un canal de envío el botón dice "Enviar" aunque falte el enlace: el
+  // sistema lo intenta y, si no puede, lo explica. Prometer "copiar y abrir"
+  // cuando el camino real es otro es justamente lo que confundió.
   if (directo) return canal === "instagram" ? "Enviar por Instagram" : "Enviar por WhatsApp";
   switch (canalDe(canal).modo) {
     case "wa": return "Abrir WhatsApp";
@@ -173,18 +197,20 @@ function Burbuja({
 
 /* ===================================================================== */
 export default function BandejaConversaciones({
-  iaNombre, iaActiva, canalesConectados, redactar, irACanales,
+  iaNombre, iaActiva, iaModo, canalesConectados, redactar, irACanales,
 }: {
   iaNombre: string;
   iaActiva: boolean;
+  /** 023 · En supervisado la IA NO manda sola: el aviso del hilo no puede decir que sí. */
+  iaModo: "automatico" | "supervisado";
   canalesConectados: Record<string, boolean>;
   /** Pide a la IA un borrador con el cerebro cargado. Devuelve el texto. */
   redactar: (conv: Conversacion) => Promise<string>;
   irACanales: () => void;
 }) {
   const {
-    conversaciones, propiedades, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje,
-    setEstadoConversacion, setOficinaConversacion, updateLead,
+    conversaciones, propiedades, leads, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje,
+    setEstadoConversacion, setOficinaConversacion, updateLead, limpiarBorrador,
   } = useData();
   const { push } = useToast();
 
@@ -259,6 +285,25 @@ export default function BandejaConversaciones({
     push("Conversación cerrada", "info");
   };
 
+  /* 023 · En modo supervisado Marina redacta y NO envía: deja su propuesta en el
+   * hilo (`borrador`). Al abrir la conversación aparece escrita, lista para leer,
+   * corregir y mandar con un botón. Si la persona ya empezó a escribir lo suyo,
+   * no se le pisa el texto. */
+  useEffect(() => {
+    const propuesta = sel?.borrador?.trim();
+    setTexto((actual) => (propuesta && !actual.trim() ? propuesta : actual));
+    // Cambiar de conversación limpia lo que había quedado de la anterior.
+  }, [selId]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* 🔴 Un lead que ya está en "visita" o "negociación" NO vuelve a "contactado"
+   * porque alguien respondió un mensaje: el Embudo mentiría hacia atrás. Solo
+   * avanza desde "nueva". */
+  const marcarLeadContactado = async (leadId: string) => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (lead && lead.estado !== "nueva") return;
+    await updateLead(leadId, { estado: "contactado" });
+  };
+
   const pedirBorrador = async () => {
     if (!sel || redactando) return;
     setRedactando(true);
@@ -282,7 +327,7 @@ export default function BandejaConversaciones({
      * rebota por el puente, así que no se duplica). Si ManyChat lo rechaza
      * (lo típico: pasaron 24 h desde su último mensaje), se avisa con el motivo
      * y el texto queda escrito para que se mande por el camino de siempre. */
-    if (sePuedeEnviar(sel)) {
+    if (esCanalDeEnvio(sel)) {
       setEnviando(true);
       try {
         const { data: { session } } = await supabase!.auth.getSession();
@@ -293,18 +338,45 @@ export default function BandejaConversaciones({
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.ok) {
-          push(j.mensaje || "No se pudo enviar. Probá con 'Copiar y abrir'.", "error");
+          // El motivo REAL, no un genérico: la ventana de 24 h, el contacto sin
+          // enlazar, o la sesión vencida. Y el texto queda escrito.
+          push(j.mensaje || (r.status === 401
+            ? "Se venció tu sesión. Entrá de nuevo al panel y volvé a intentarlo."
+            : "No se pudo enviar el mensaje."), "error");
           return;
         }
-        await agregarMensaje(sel.id, {
+        // 🔴 Si la base rechaza el mensaje, NO se pinta como si estuviera: se
+        // avisa. (El mensaje ya SALIÓ por ManyChat, así que se dice exactamente
+        // eso.) Errores de base nunca silenciosos.
+        const guardado = await agregarMensaje(sel.id, {
           id: "MSG-" + Date.now(), de: "humano", texto: t, horaISO: new Date().toISOString(), envio: "enviado",
         });
+        if (guardado && guardado.ok === false) {
+          push("El mensaje salió, pero no se pudo guardar en el hilo. Recargá el panel.", "error");
+        }
         if (sel.estado === "ia") await setEstadoConversacion(sel.id, "vos");
+        // El server ya limpió el borrador en la base (023); acá se limpia la vista
+        // para que el texto enviado no vuelva a aparecer como propuesta pendiente.
+        if (sel.borrador) await limpiarBorrador(sel.id);
         setTexto("");
         push(j.mensaje || "Enviado.", "success");
       } finally {
         setEnviando(false);
       }
+      return;
+    }
+
+    /* 🔴 El chat de la web es de ida: el visitante lo ve mientras está en la
+     * página, y su navegador NO escucha la bandeja. Escribirle acá guardaba el
+     * mensaje como "enviado" y no lo recibía nadie. Se dice la verdad y se
+     * ofrece el camino que sí llega. */
+    if (modo === "widget") {
+      push(
+        sel.contacto && !sel.contacto.startsWith("visita-")
+          ? "El chat de la web no recibe respuestas después de la visita. Escribile por WhatsApp con el contacto que dejó."
+          : "Esta persona charló con Marina en la web y no dejó contacto: no hay por dónde responderle todavía.",
+        "info",
+      );
       return;
     }
 
@@ -334,19 +406,20 @@ export default function BandejaConversaciones({
       de: "humano",
       texto: t,
       horaISO: new Date().toISOString(),
-      // El chat de nuestra web sí lo controla el sistema; los demás canales, no.
-      envio: modo === "widget" ? "enviado" : "abierto",
+      // Acá solo llegan los canales que se abren afuera (mail, teléfono, apps):
+      // el sistema NO controla ese envío, así que nace "abierto" y alguien
+      // confirma. Instagram sale por API más arriba; el chat de la web no
+      // recibe respuestas fuera de la visita y ni llega hasta acá.
+      envio: "abierto",
     });
     if (sel.estado === "ia") await setEstadoConversacion(sel.id, "vos");
     setTexto("");
 
     push(
-      modo === "widget"
-        ? "Mensaje enviado por el chat de tu web"
-        : modo === "app"
+      modo === "app"
         ? "Texto copiado. Pegalo en la conversación que se abrió."
         : `Se abrió ${canalDe(sel.canal).label} con el mensaje listo`,
-      modo === "widget" ? "success" : "info"
+      "info"
     );
   };
 
@@ -354,7 +427,7 @@ export default function BandejaConversaciones({
   const confirmar = async (msgId: string) => {
     if (!sel) return;
     await actualizarMensaje(sel.id, msgId, { envio: "enviado" });
-    if (sel.leadId) await updateLead(sel.leadId, { estado: "contactado" });
+    if (sel.leadId) await marcarLeadContactado(sel.leadId);
     push("Anotado. Queda registrado como enviado.", "success");
   };
 
@@ -463,7 +536,8 @@ export default function BandejaConversaciones({
                           return <span data-colgada="no" className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-500/20">Respondido</span>;
                         if (c.estado === "vos")
                           return <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-500/25">Te toca a vos</span>;
-                        if (canalesConectados[c.canal])
+                        // 🔴 Prometía "{ia} responde" aunque estuviera EN PAUSA.
+                        if (iaActiva && canalesConectados[c.canal])
                           return <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700 ring-1 ring-inset ring-brand/20">{iaNombre} responde</span>;
                         return null;
                       })()}
@@ -561,7 +635,9 @@ export default function BandejaConversaciones({
               {iaAtiende && (
                 <p className="flex items-center gap-2 border-b border-brand/15 bg-brand/[0.05] px-4 py-2.5 text-[12px] text-brand-700">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-                  {iaNombre} está respondiendo sola en {canalMeta!.label}. Si escribís vos, toma el control.
+                  {iaModo === "supervisado"
+                    ? `${iaNombre} redacta la respuesta acá y te la deja lista: la mandás vos.`
+                    : `${iaNombre} está respondiendo sola en ${canalMeta!.label}. Si escribís vos, toma el control.`}
                 </p>
               )}
               {sel.estado === "ia" && !conectado && (
@@ -594,6 +670,16 @@ export default function BandejaConversaciones({
 
               {/* Redactar y responder */}
               <div className="border-t border-graph/[0.08] px-4 py-3">
+                {/* Modo supervisado: se ve de quién es el texto ANTES de mandarlo. */}
+                {sel.borrador?.trim() && (
+                  <div data-borrador-ia className="mb-2 flex items-start gap-2 rounded-xl border border-brand/25 bg-brand/[0.06] px-3 py-2">
+                    <Sparkles size={13} className="mt-0.5 shrink-0 text-brand" />
+                    <p className="text-[11.5px] leading-snug text-graph-600">
+                      <strong className="font-semibold text-brand-700">{iaNombre} redactó esta respuesta</strong> y la dejó esperando tu OK
+                      (modo supervisado). Revisala, corregila si querés y mandala.
+                    </p>
+                  </div>
+                )}
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <button
                     onClick={pedirBorrador}
@@ -627,12 +713,17 @@ export default function BandejaConversaciones({
                     className="inline-flex h-[52px] shrink-0 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {modo === "tel" ? <PhoneCall size={16} /> : <Send size={16} />}
-                    <span className="hidden sm:inline">{labelEnvio(sel.canal, sePuedeEnviar(sel))}</span>
+                    <span className="hidden sm:inline">{labelEnvio(sel.canal, esCanalDeEnvio(sel))}</span>
                   </button>
                 </div>
+                {/* 🔴 Este pie decía SIEMPRE "el panel abre Instagram…", aunque el
+                    botón ya enviara de verdad. Un texto fijo que contradice al
+                    botón es peor que no tenerlo: es lo que leyó Juani. */}
                 <p className="mt-1.5 text-[10.5px] leading-snug text-graph-400">
-                  {modo === "widget"
-                    ? "El chat de tu web sale desde acá: se envía de verdad."
+                  {esCanalDeEnvio(sel)
+                    ? `Se envía desde acá: le llega a ${sel.nombre} en ${canalMeta!.label}. No hace falta abrir nada.`
+                    : modo === "widget"
+                    ? "El chat de la web es de ida: Marina contesta ahí en el momento. Después, se sigue por WhatsApp con el contacto que dejó."
                     : modo === "tel"
                     ? "Se abre el teléfono. La nota queda registrada en el hilo."
                     : `El panel abre ${canalMeta!.label} con el texto listo — el mensaje lo mandás vos y después confirmás acá.`}

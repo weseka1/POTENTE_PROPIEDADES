@@ -43,8 +43,22 @@ const real = (pubs ?? []).find((p) => p.operacion === "venta") ?? pubs?.[0];
 if (!real) { console.log("⏭️  No hay propiedades publicadas: la suite se saltea."); process.exit(0); }
 const CATALOGO = [{ id: real.id, titulo: real.titulo, zona: real.zona, categoria: real.categoria, operacion: real.operacion, oficina: real.oficina, precio: real.precioUSD ? `U$S ${real.precioUSD}` : "A consultar", dormitorios: real.dormitorios, ambientes: real.ambientes }];
 
-const postAsistente = (body) => fetch(`${APP}/api/asistente`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
-  .then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) }));
+/* El cupo del asistente es por IP y por minuto, y lo COMPARTEN todas las suites
+ * (marina.mjs lo agota a propósito). Si esta corre detrás, Marina contesta el
+ * mensaje de "estoy atendiendo a varias personas" — que es lo correcto, no un
+ * bug. Se espera el minuto y se reintenta. */
+const postAsistente = async (body, reintentos = 2) => {
+  const r = await fetch(`${APP}/api/asistente`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const json = await r.json().catch(() => ({}));
+  // `pausada` también se reintenta acá: otra suite pudo haberla apagado recién
+  // (su caché dura 20 s) y esta corrida no tiene por qué heredar ese estado.
+  if (json?.degradado && reintentos > 0) {
+    console.log(json?.pausada ? "   (Marina en pausa por otra suite: espero y reintento)" : "   (cupo compartido agotado: espero el minuto y reintento)");
+    await new Promise((x) => setTimeout(x, json?.pausada ? 22_000 : 62_000));
+    return postAsistente(body, reintentos - 1);
+  }
+  return { status: r.status, json };
+};
 
 let leadId = null;
 const limpiar = async () => {
@@ -110,6 +124,26 @@ try {
   const hiloAbierto = await evaluar(`return (document.body.innerText||'').includes(${JSON.stringify("sigue disponible")}) && (document.body.innerText||'').includes(${JSON.stringify(guardado?.nombre ?? NOMBRE)});`);
   chequear("🧵 …y el hilo de esa persona queda abierto (se lee su primera pregunta)", hiloAbierto === true, "");
   await captura("bandeja-desde-consulta");
+
+  // ── El área de envío no promete abrir Instagram ───────────────────────────
+  // 🔴 27-ago: el pie decía SIEMPRE "el panel abre Instagram con el texto listo",
+  // aunque el botón ya enviara por API. Juani lo leyó y creyó que seguía roto.
+  {
+    const hilosIG = (await sb.from("potente_conversaciones").select("id").eq("canal", "instagram").limit(1)).data ?? [];
+    if (hilosIG.length) {
+      await ir(`${APP}/panel/asistente?conv=${encodeURIComponent(hilosIG[0].id)}`, 5000);
+      const envio = await evaluar(`
+        const btn = [...document.querySelectorAll('button')].find(b => /Enviar por|Copiar y abrir|Abrir /.test(b.textContent||''));
+        const pies = [...document.querySelectorAll('p')].map(p => (p.textContent||'').trim()).filter(t => /panel abre|Se envía desde acá/.test(t));
+        return { boton: (btn?.textContent||'').trim(), pie: pies[0] || '', borrador: Boolean(document.querySelector('[data-borrador-ia]')) };
+      `);
+      chequear("📤 En un hilo de Instagram el botón dice ENVIAR (no 'copiar y abrir')",
+        /Enviar por Instagram/.test(envio.boton), `botón: "${envio.boton}"`);
+      chequear("…y el pie no promete abrir Instagram: dice que se manda desde acá",
+        /Se envía desde acá/.test(envio.pie) && !/panel abre/.test(envio.pie), `pie: "${envio.pie}"`);
+      await captura("envio-instagram");
+    }
+  }
 
   // ── Canales: Instagram según la bandeja real, y Marina responde ────────────
   const hayIG = ((await sb.from("potente_conversaciones").select("id").eq("canal", "instagram").limit(1)).data ?? []).length > 0;

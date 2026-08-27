@@ -21,7 +21,8 @@ import type { Conversacion } from "@/data/conversaciones";
 /* ===================== Configuración del cerebro de la IA (self-service) ===================== */
 type IAConfig = {
   activa: boolean;
-  modo: "auto" | "supervisado";
+  /** 023 · Real: en automático Marina responde y envía; en supervisado redacta y espera tu OK. */
+  modo: "automatico" | "supervisado";
   nombre: string;
   tono: "cercano" | "formal";
   idioma: string;
@@ -99,7 +100,7 @@ const CANALES: Canal[] = [
 const WA_WESEKA = "5492915512515";
 
 const DEFAULT_IA: IAConfig = {
-  activa: true, modo: "auto",
+  activa: true, modo: "automatico",
   nombre: "Marina", tono: "cercano", idioma: "Español (rioplatense)", firma: "Equipo Potente Propiedades", emojis: true,
   reglas: { ofrecerVisita: true, pedirContacto: true, noPrecioFinal: true, derivarNegociacion: true, derivarLegal: true },
   acciones: { agendarVisitas: true, enviarFichas: true, calificarLeads: true, pedirDatos: true, responderPrecios: false },
@@ -339,15 +340,23 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand/15 text-brand ring-1 ring-inset ring-brand/25"><Bot size={24} /></span>
             <div>
               <p className="flex items-center gap-2 font-display text-xl font-semibold text-graph">
-                {cfg.nombre || "Tu IA"} está {cfg.activa ? "respondiendo sola" : "en pausa"}
-                {cfg.activa && <span className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand-700 ring-1 ring-inset ring-brand/30"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" /> en vivo</span>}
+                {/* 🔴 Decía SIEMPRE "está respondiendo sola", también en supervisado,
+                    donde no manda un solo mensaje sin que alguien apriete enviar. */}
+                {cfg.nombre || "Tu IA"} está {!cfg.activa ? "en pausa" : cfg.modo === "supervisado" ? "redactando para vos" : "respondiendo sola"}
+                {cfg.activa && <span data-ia-modo={cfg.modo} className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand-700 ring-1 ring-inset ring-brand/30"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" /> en vivo</span>}
               </p>
-              <p className="mt-1 max-w-xl text-sm text-graph-500">Atiende {conectados > 0 ? `${conectados} canal${conectados > 1 ? "es" : ""} conectado${conectados > 1 ? "s" : ""}` : "tus canales"} con la info que cargás, y te deriva solo lo que necesita una persona.</p>
+              <p className="mt-1 max-w-xl text-sm text-graph-500">
+                {!cfg.activa
+                  ? "Está en pausa: no contesta en ningún canal. Los mensajes siguen entrando a la bandeja y los respondés vos."
+                  : cfg.modo === "supervisado"
+                  ? `Escribe la respuesta y te la deja lista en la bandeja: la mandás vos con un botón, sin salir del panel. Atiende ${conectados > 0 ? `${conectados} canal${conectados > 1 ? "es" : ""} conectado${conectados > 1 ? "s" : ""}` : "tus canales"}.`
+                  : `Atiende ${conectados > 0 ? `${conectados} canal${conectados > 1 ? "es" : ""} conectado${conectados > 1 ? "s" : ""}` : "tus canales"} con la info que cargás, y te deriva solo lo que necesita una persona.`}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm font-semibold text-graph-500">{cfg.activa ? "Activada" : "Pausada"}</span>
-            <Switch size="lg" on={cfg.activa} onChange={(v) => { set({ activa: v }); push(v ? "IA activada · responde sola" : "IA en pausa", v ? "success" : "info"); }} />
+            <Switch size="lg" on={cfg.activa} onChange={(v) => { set({ activa: v }); push(v ? (cfg.modo === "supervisado" ? `${cfg.nombre || "La IA"} activada · redacta y espera tu OK` : `${cfg.nombre || "La IA"} activada · responde sola`) : `${cfg.nombre || "La IA"} en pausa · no contesta en ningún canal`, v ? "success" : "info"); }} />
             <Power size={18} className={cfg.activa ? "text-brand" : "text-graph-400"} />
           </div>
         </div>
@@ -395,6 +404,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
           <BandejaConversaciones
             iaNombre={cfg.nombre || "la IA"}
             iaActiva={cfg.activa}
+            iaModo={cfg.modo}
             canalesConectados={{ ...cfg.canales, ...Object.fromEntries(conMarina.map((c) => [c.key, recibiendo(c.key)])) }}
             redactar={redactarRespuesta}
             irACanales={() => setTab("canales")}
@@ -563,13 +573,13 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
             </label>
             {/* modo */}
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <button onClick={() => set({ modo: "auto" })} className={`rounded-xl border p-3 text-left transition ${cfg.modo === "auto" ? "border-brand bg-brand/[0.06] ring-1 ring-brand/30" : "border-graph/12 hover:border-graph/25"}`}>
+              <button onClick={() => set({ modo: "automatico" })} className={`rounded-xl border p-3 text-left transition ${cfg.modo === "automatico" ? "border-brand bg-brand/[0.06] ring-1 ring-brand/30" : "border-graph/12 hover:border-graph/25"}`}>
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-graph"><Sparkles size={14} className="text-brand" /> Automático</span>
-                <span className="mt-0.5 block text-[12px] text-graph-500">Responde sola, sin aprobar nada. (Recomendado)</span>
+                <span className="mt-0.5 block text-[12px] text-graph-500">Contesta ella y el mensaje sale al instante por Instagram.</span>
               </button>
               <button onClick={() => set({ modo: "supervisado" })} className={`rounded-xl border p-3 text-left transition ${cfg.modo === "supervisado" ? "border-brand bg-brand/[0.06] ring-1 ring-brand/30" : "border-graph/12 hover:border-graph/25"}`}>
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-graph"><MessageSquare size={14} className="text-graph-500" /> Supervisado</span>
-                <span className="mt-0.5 block text-[12px] text-graph-500">Deja el borrador y vos lo soltás.</span>
+                <span className="mt-0.5 block text-[12px] text-graph-500">Redacta la respuesta y espera tu OK: la mandás vos desde la bandeja, con un botón.</span>
               </button>
             </div>
           </div>
@@ -612,13 +622,30 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
           {/* min-w-0 en las columnas: sin eso el grid les da min-width:auto, no ceden
               y estiran la página entera en pantallas angostas. */}
           <div className={`${card} min-w-0`}>
-            <h3 className="flex items-center gap-2 font-display text-base font-semibold text-graph"><Activity size={16} className="text-brand" /> Lo que respondió la IA</h3>
-            <p className="mt-0.5 text-xs text-graph-400">Las últimas conversaciones de la bandeja (solo para mirar)</p>
+            <h3 className="flex items-center gap-2 font-display text-base font-semibold text-graph"><Activity size={16} className="text-brand" /> Qué pasó con cada conversación</h3>
+            <p className="mt-0.5 text-xs text-graph-400">Lo último de la bandeja, con lo que REALMENTE ocurrió en cada hilo</p>
             <div className="mt-3 space-y-2.5">
               {recientes.map((c) => {
                 const p = propiedades.find((x) => x.id === c.propiedadId);
                 const meta = CANALES_CONV[c.canal];
-                const derivada = c.estado === "vos";
+                /* 🔴 27-ago, Juani: «acá no está resuelto por IA porque no respondió,
+                 * o lo que respondió nunca se envió». El rótulo salía del ESTADO del
+                 * hilo, no de lo que pasó: un hilo en 'ia' sin una sola respuesta suya
+                 * se cantaba "Resuelta por IA". Ahora se mira el hilo:
+                 *   · respondió = hay un mensaje 'ia' que SALIÓ de verdad;
+                 *   · propuso   = hay borrador esperando OK (modo supervisado);
+                 *   · lo demás  = te toca a vos / sin responder. */
+                const respondioIA = c.mensajes.some((m) => m.de === "ia");
+                const contestoAlguien = c.mensajes.some((m) => m.de === "humano" && m.envio === "enviado");
+                const propone = Boolean(c.borrador?.trim());
+                const ultimo = c.mensajes[c.mensajes.length - 1];
+                const esperando = ultimo?.de === "cliente";
+                const rotulo = c.estado === "cerrada" ? "Cerrada"
+                  : propone ? `${cfg.nombre || "La IA"} propuso una respuesta`
+                  : respondioIA ? `Respondió ${cfg.nombre || "la IA"}`
+                  : contestoAlguien ? "Respondida por el equipo"
+                  : esperando ? "Sin responder" : "Te toca a vos";
+                const tono = c.estado === "cerrada" ? "cerrada" : respondioIA && !esperando ? "ia" : esperando ? "alerta" : "vos";
                 return (
                   <div key={c.id} className="flex items-start gap-3 rounded-xl border border-graph/[0.06] bg-graph/[0.02] p-3">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white" style={{ background: meta.color }}>
@@ -628,8 +655,15 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
                       <p className="truncate text-sm font-semibold text-graph">{c.nombre}</p>
                       <p className="truncate text-[12px] text-graph-400">{p ? p.titulo : "Consulta general"} · {meta.label}</p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${derivada ? "bg-amber-500/12 text-amber-700 ring-amber-500/25" : "bg-brand/10 text-brand-700 ring-brand/20"}`}>
-                      {derivada ? "Derivada a vos" : c.estado === "cerrada" ? "Cerrada" : "Resuelta por IA"}
+                    <span
+                      data-actividad={tono}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${
+                        tono === "alerta" ? "bg-red-500/10 text-red-700 ring-red-500/20"
+                        : tono === "ia" ? "bg-brand/10 text-brand-700 ring-brand/20"
+                        : tono === "cerrada" ? "bg-graph/8 text-graph-500 ring-graph/15"
+                        : "bg-amber-500/12 text-amber-700 ring-amber-500/25"}`}
+                    >
+                      {rotulo}
                     </span>
                   </div>
                 );

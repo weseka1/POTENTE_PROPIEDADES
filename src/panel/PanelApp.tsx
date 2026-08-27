@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { cn } from "./ui/cn";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
+import AvisoVersion from "./components/AvisoVersion";
 import ProfileGate from "./components/ProfileGate";
 import { ProfilesProvider, useProfiles, canAccess } from "./profiles";
 import { DataScope } from "@/lib/DataProvider";
@@ -86,6 +87,9 @@ export default function PanelApp() {
           <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
           <div className={cn("transition-[padding] duration-300", collapsed ? "lg:pl-[100px]" : "lg:pl-[276px]")}>
+            {/* Una pestaña vieja se delata sola: sin esto, un deploy deja al
+                cliente con botones que ya no existen y parece que fallamos. */}
+            <AvisoVersion />
             <Topbar onMenu={() => setSidebarOpen(true)} />
             <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
               <PermGuard />

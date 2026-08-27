@@ -18,6 +18,10 @@
 export type Cerebro = {
   /** El interruptor del panel. En pausa, Marina no atiende en ningún canal. */
   activa: boolean;
+  /** 023 · Qué hace cuando entra un mensaje que ella atiende:
+   *   automatico  = responde y ENVÍA sola.
+   *   supervisado = redacta, deja el borrador y lo pasa a una persona. No envía. */
+  modo: "automatico" | "supervisado";
   nombre: string;
   tono: "cercano" | "formal";
   emojis: boolean;
@@ -28,7 +32,7 @@ export type Cerebro = {
   reglas: Record<string, boolean>;
 };
 
-const BASE: Cerebro = { activa: true, nombre: "Marina", tono: "cercano", emojis: true, firma: "", contexto: "", conocimiento: [], reglas: {} };
+const BASE: Cerebro = { activa: true, modo: "automatico", nombre: "Marina", tono: "cercano", emojis: true, firma: "", contexto: "", conocimiento: [], reglas: {} };
 
 const TTL_MS = 20_000;
 let cache: { hasta: number; datos: Cerebro } | null = null;
@@ -47,8 +51,12 @@ export function normalizarCerebro(cfg: unknown): Cerebro {
   const reglas = c.reglas && typeof c.reglas === "object"
     ? Object.fromEntries(Object.entries(c.reglas as Record<string, unknown>).map(([k, v]) => [k, v === true]))
     : {};
+  // El panel guardó "auto" desde el día uno: se acepta y se normaliza. Cualquier
+  // valor que no sea supervisado cae en automático — el default es atender.
+  const modoCrudo = texto(c.modo, 20).toLowerCase();
   return {
     activa: c.activa !== false,
+    modo: modoCrudo.startsWith("super") ? "supervisado" : "automatico",
     nombre: texto(c.nombre, 40) || BASE.nombre,
     tono: c.tono === "formal" ? "formal" : "cercano",
     emojis: c.emojis !== false,

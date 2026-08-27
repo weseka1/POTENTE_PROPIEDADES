@@ -183,7 +183,9 @@ interface DataCtx {
   actualizarMensaje: (convId: string, msgId: string, patch: Partial<MensajeConv>) => Promise<Resultado>;
   borrarMensaje: (convId: string, msgId: string) => Promise<Resultado>;
   setEstadoConversacion: (convId: string, estado: EstadoConv) => Promise<Resultado>;
-  setOficinaConversacion: (convId: string, oficina?: "chauvin" | "puntamogotes") => void;
+  setOficinaConversacion: (convId: string, oficina?: "chauvin" | "puntamogotes") => Promise<Resultado>;
+  /** 023 · Descarta la propuesta que Marina dejó sin enviar. */
+  limpiarBorrador: (convId: string) => Promise<Resultado>;
   // derivados
   kpis: ReturnType<typeof computeKpis>;
   consultasPorMes: typeof seedConsultasMes;
@@ -850,13 +852,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ...c, mensajes: c.mensajes.filter((m) => m.id !== msgId),
     }));
 
-  // Al cerrar o devolver a la IA, el motivo de derivación deja de aplicar.
+  /* 🔴 `undefined` NO viaja en un PATCH: JSON.stringify le borra la clave y la
+   * base contesta 204 sin cambiar nada. Medido el 27-ago: derivar un hilo a
+   * "Central (Mateo)" no hacía NADA — Mateo creía que se lo había traído y la
+   * oficina lo seguía viendo. Y el motivo de Marina no se borraba nunca, así que
+   * al tomar un hilo a mano la pantalla seguía diciendo "te la pasé porque…".
+   * Para borrar un valor va `null` explícito. */
   const setEstadoConversacion = (convId: string, estado: EstadoConv) =>
-    actualizarColumnas(convId, { estado, noLeida: false, ...(estado === "ia" ? { motivo: undefined } : {}) });
+    actualizarColumnas(convId, { estado, noLeida: false, ...(estado !== "vos" ? { motivo: null } : {}) });
 
   // Derivación del orquestador: mover la conversación a una oficina (o traerla al central).
   const setOficinaConversacion = (convId: string, oficina?: "chauvin" | "puntamogotes") =>
-    actualizarColumnas(convId, { oficina });
+    actualizarColumnas(convId, { oficina: oficina ?? null });
+
+  /** 023 · La propuesta de Marina se descarta cuando se envía (o cuando no sirve). */
+  const limpiarBorrador = (convId: string) => actualizarColumnas(convId, { borrador: null });
 
   const conversacionesNoLeidas = useMemo(() => conversaciones.filter((c) => c.noLeida).length, [conversaciones]);
 
@@ -902,7 +912,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addVisita, updateVisita, deleteVisita, addTasacion, updateTasacion, deleteTasacion, addArrendamiento, updateArrendamiento, deleteArrendamiento,
         llaves, movimientosLlave, addLlave, updateLlave, deleteLlave, addMovimientoLlave, deleteMovimientoLlave,
         unidadesTemporada, reservasTemporada, addUnidadTemporada, updateUnidadTemporada, deleteUnidadTemporada, addReservaTemporada, updateReservaTemporada, deleteReservaTemporada,
-        conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion, setOficinaConversacion,
+        conversaciones, conversacionesNoLeidas, marcarLeida, agregarMensaje, actualizarMensaje, borrarMensaje, setEstadoConversacion, setOficinaConversacion, limpiarBorrador,
         kpis, consultasPorMes, leadsPorCanal, embudo, carteraPorAptitud,
       }}
     >

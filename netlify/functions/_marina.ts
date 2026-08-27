@@ -40,6 +40,7 @@ type Hilo = {
   externo?: Record<string, string> | null;
   propiedadId?: string | null;
   leadId?: string | null;
+  borrador?: string | null;
 };
 
 const sha = (s: string) => createHash("sha1").update(s).digest("hex").slice(0, 24);
@@ -75,7 +76,12 @@ export const leerHilo = (id: string) => rpc<Hilo | null>("potente_conversacion_l
 
 export const actualizarHilo = (
   id: string,
-  patch: { leadId?: string; propiedadId?: string; estado?: "ia" | "vos" | "cerrada"; motivo?: string; nombre?: string },
+  patch: {
+    leadId?: string; propiedadId?: string; estado?: "ia" | "vos" | "cerrada"; motivo?: string; nombre?: string;
+    externo?: Record<string, string>;
+    /** 023 · La propuesta de Marina sin enviar. Cadena vacía = limpiarla. */
+    borrador?: string;
+  },
 ) =>
   rpc<boolean>("potente_conversacion_actualizar", {
     p_id: id,
@@ -84,6 +90,8 @@ export const actualizarHilo = (
     p_estado: patch.estado ?? null,
     p_motivo: patch.motivo ?? null,
     p_nombre: patch.nombre ?? null,
+    p_externo: patch.externo ?? null,
+    p_borrador: patch.borrador ?? null,
   });
 
 export const registrarLead = (l: { id: string; nombre: string; contacto: string; canal: "web" | "instagram"; campoId?: string | null; notas: string }) =>
@@ -132,9 +140,12 @@ export async function responderEnInstagram(convId: string): Promise<void> {
   const cerebro = await leerCerebro();
   if (!cerebro.activa) { console.log(`Marina · en pausa desde el panel: no contesta ${convId}`); return; }
 
+  /* 023 · En SUPERVISADO no hace falta poder enviar: Marina redacta y una
+   * persona decide. El id de ManyChat solo se exige en automático, que es el
+   * modo en el que ella misma manda. */
   const subscriber = String(hilo.externo?.manychat_subscriber_id ?? "");
-  if (!/^\d+$/.test(subscriber)) {
-    await actualizarHilo(convId, { estado: "vos", motivo: "Marina no puede responder este hilo: no tiene el id de ManyChat del contacto." });
+  if (cerebro.modo === "automatico" && !/^\d+$/.test(subscriber)) {
+    await actualizarHilo(convId, { estado: "vos", motivo: "Marina no puede responder este hilo: todavía no tiene el contacto enlazado en ManyChat." });
     return;
   }
 
@@ -148,9 +159,32 @@ export async function responderEnInstagram(convId: string): Promise<void> {
 
   const camposIds = Array.isArray(data.camposIds) ? data.camposIds : [];
   const texto = textoParaCanal(data.respuesta, camposIds, catalogo);
+  const propiedadId = camposIds[0];
+
+  /* ── SUPERVISADO: propone, no manda ────────────────────────────────────────
+   * Pedido de Juani (27-ago): «cuando está en automático que responda en
+   * automático» — y en supervisado, que la respuesta la mande una persona desde
+   * el panel, sin abrir Instagram. Así que acá Marina deja el borrador, pasa el
+   * hilo a manos de una persona y dice por qué. NO se guarda como mensaje del
+   * hilo: el hilo es lo que realmente se dijo. */
+  if (cerebro.modo === "supervisado") {
+    await actualizarHilo(convId, {
+      estado: "vos",
+      motivo: `${cerebro.nombre} redactó una respuesta y espera tu OK (modo supervisado).`,
+      borrador: texto,
+      propiedadId,
+    });
+    return;
+  }
+
   const envio = await enviarTextoPorManychat(subscriber, "instagram", texto);
   if (!envio.ok) {
-    await actualizarHilo(convId, { estado: "vos", motivo: `Marina redactó una respuesta pero no se pudo enviar por Instagram: ${envio.mensaje}` });
+    // No se pudo mandar: queda como borrador para que una persona lo mande.
+    await actualizarHilo(convId, {
+      estado: "vos",
+      motivo: `${cerebro.nombre} redactó una respuesta pero no se pudo enviar por Instagram: ${envio.mensaje}`,
+      borrador: texto,
+    });
     return;
   }
 
@@ -161,7 +195,6 @@ export async function responderEnInstagram(convId: string): Promise<void> {
     texto, hora: new Date().toISOString(), de: "ia",
   }]);
 
-  const propiedadId = camposIds[0];
   if (data.lead?.contacto) {
     const leadId = idCorto("IG");
     const titulo = catalogo.find((c) => c.id === propiedadId)?.titulo;

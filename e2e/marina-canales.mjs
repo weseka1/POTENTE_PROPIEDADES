@@ -59,7 +59,7 @@ const postAsistente = async (body, reintentos = 2) => {
 };
 const postManychat = (body) => fetch(`${APP}/api/ingesta/manychat`, { method: "POST", headers: { "content-type": "application/json", "x-manychat-token": env.MANYCHAT_TOKEN }, body: JSON.stringify(body) })
   .then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) }));
-const leerConv = async (contacto) => (await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,estado,motivo,mensajes,leadId,propiedadId").eq("contacto", contacto)).data ?? [];
+const leerConv = async (contacto) => (await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,estado,motivo,mensajes,leadId,propiedadId,borrador,externo").eq("contacto", contacto)).data ?? [];
 
 // Catálogo de sonda (IDs irreales: no toca la cartera). Marina necesita algo que recomendar.
 const CATALOGO = [
@@ -142,6 +142,59 @@ try {
     hiloWA && hiloWA.estado === "ia" && !hiloWA.motivo && hiloWA.mensajes.length === 1,
     hiloWA ? `estado=${hiloWA.estado} · ${hiloWA.mensajes.length} msgs` : "sin hilo");
 
+  // ── 4b · 023 · EL MODO MANDA (solo local: cambiar el modo afecta al cliente) ─
+  // En supervisado Marina redacta y NO envía: deja el borrador y pasa el hilo a
+  // una persona. Es el pedido textual de Juani del 27-ago.
+  const localModo = /localhost|127\.0\.0\.1/.test(APP);
+  if (!localModo && process.env.PERMITIR_PAUSA !== "1") {
+    console.log("⏭️  La prueba del modo supervisado se saltea contra producción (cambiaría el modo del cliente ~20 s).");
+  } else {
+    const IG2 = `sonda_sup_${SELLO}`;
+    try {
+      seTocoLaConfig = true;
+      await sb.from("potente_ia_config").upsert({ id: true, cfg: { ...cfgOriginal, activa: true, modo: "supervisado" } });
+      await espera(21_000);                                  // la caché del cerebro dura 20 s
+      const dm = await postManychat({ canal: "instagram", contacto: `@${IG2}`, nombre: "Sonda Supervisada", texto: "Hola, ¿tienen algo en alquiler en Chauvín?", subscriber_id: "999999997" });
+      chequear("📸 En supervisado, el DM entra igual", dm.status === 200 && dm.json.guardados === 1, `HTTP ${dm.status}`);
+      let hiloSup = null;
+      for (let i = 0; i < 12 && !hiloSup?.borrador; i++) { await espera(2000); hiloSup = (await leerConv(IG2))[0] ?? null; }
+      chequear("✍️  Marina REDACTA y deja el borrador esperando el OK",
+        Boolean(hiloSup?.borrador && hiloSup.borrador.length > 20), `borrador: ${String(hiloSup?.borrador ?? "").slice(0, 70)}`);
+      chequear("…y NO envía nada (ningún mensaje de la IA en el hilo)",
+        hiloSup && !hiloSup.mensajes.some((m) => m.de === "ia"), `mensajes: ${hiloSup?.mensajes?.map((m) => m.de).join(",")}`);
+      chequear("…y el hilo queda en manos de una persona, con el motivo",
+        hiloSup?.estado === "vos" && /supervisado|OK/i.test(hiloSup?.motivo ?? ""), `estado=${hiloSup?.estado} · ${String(hiloSup?.motivo ?? "").slice(0, 60)}`);
+    } finally {
+      for (const f of await leerConv(IG2)) await sb.from("potente_conversaciones").delete().eq("id", f.id);
+      await sb.from("potente_ia_config").upsert({ id: true, cfg: cfgOriginal });
+    }
+  }
+
+  // ── 4c · Un contacto SIN enlazar avisa por qué; nunca "abre Instagram" ─────
+  // Se siembra un hilo de Instagram sin subscriber_id (como los que entraron
+  // antes de la 021): el server lo busca en ManyChat, no lo encuentra, y lo dice.
+  {
+    const SIN = `sonda_sin_${SELLO}`;
+    try {
+      await postManychat({ canal: "instagram", contacto: `@${SIN}`, nombre: "Sonda Sin Enlace", texto: "hola" });
+      await espera(1000);
+      const hilo = (await leerConv(SIN))[0];
+      chequear("El hilo de sonda entró sin id de ManyChat (como los viejos)",
+        Boolean(hilo) && !hilo.externo?.manychat_subscriber_id, JSON.stringify(hilo?.externo ?? null));
+      const { data: { session: s2 } } = await sb.auth.getSession();
+      const r = await fetch(`${APP}/api/enviar`, {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${s2.access_token}` },
+        body: JSON.stringify({ convId: hilo.id, texto: "hola" }),
+      });
+      const j = await r.json().catch(() => ({}));
+      chequear("🔗 Sin el contacto enlazado: 409 explicando por qué (jamás un genérico)",
+        r.status === 409 && /enlazad/i.test(j.mensaje ?? ""), `HTTP ${r.status} · ${j.mensaje}`);
+    } finally {
+      for (const f of await leerConv(SIN)) await sb.from("potente_conversaciones").delete().eq("id", f.id);
+    }
+  }
+
   // ── 5 · El interruptor es real ────────────────────────────────────────────
   // 🔴 Apagar a Marina en el sitio del cliente, aunque sean 25 s, no se hace por
   // una prueba: se corre en local (o forzado a mano).
@@ -162,6 +215,18 @@ try {
   if (cfgOriginal && seTocoLaConfig) {
     const { error } = await sb.from("potente_ia_config").upsert({ id: true, cfg: cfgOriginal });
     console.log(error ? `  🔴 NO SE PUDO RESTAURAR LA CONFIG: ${error.message}` : "  (config de Marina restaurada)");
+    /* 🔴 Y se espera a que el server la vea. La caché del cerebro dura 20 s: sin
+     * esta espera, la suite siguiente le pregunta a una Marina todavía apagada y
+     * se pone roja acusando a un código sano (pasó el 27-ago con marina.mjs y con
+     * consultas.mjs). Quien apaga algo, lo deja andando antes de irse. */
+    for (let i = 0; i < 15; i++) {
+      const r = await fetch(`${APP}/api/asistente`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mensaje: "hola", historial: [], catalogo: [] }),
+      }).then((x) => x.json()).catch(() => ({}));
+      if (!r?.pausada) { console.log("  (Marina volvió a atender)"); break; }
+      await espera(3000);
+    }
   }
   await limpiar();
   console.log("  (sondas borradas)");

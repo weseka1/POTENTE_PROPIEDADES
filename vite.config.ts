@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from "vite";
+import { execSync } from "node:child_process";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { DOMINIO_POR_DEFECTO } from "./src/config/dominio.js";
@@ -20,12 +21,35 @@ import { DOMINIO_POR_DEFECTO } from "./src/config/dominio.js";
 // con el host real del pedido — por eso el bug era invisible salvo mirando el
 // canonical del HTML servido. `loadEnv` lee los .env explícitamente y arregla
 // las dos rutas (shell y archivo).
+
+/* ── LA VERSIÓN QUE ESTÁ CORRIENDO ───────────────────────────────────────────
+ * 27-ago. Mateo dejó el panel abierto todo el día; deployamos; su pestaña siguió
+ * con el JavaScript viejo y el sistema "no andaba" — el botón nuevo no existía
+ * en su navegador. Nadie tiene por qué darse cuenta de eso solo.
+ * Se estampa el commit en el bundle Y en /version.json: si difieren, el panel
+ * avisa que hay una versión nueva. */
+const BUILD = (() => {
+  try { return execSync("git rev-parse --short HEAD").toString().trim(); }
+  catch { return "sin-git-" + Math.random().toString(36).slice(2, 8); }
+})();
+
+/** Deja /version.json en el dist, con la misma marca que viaja en el bundle. */
+const versionPlugin = () => ({
+  name: "wsk-version",
+  generateBundle(this: any) {
+    this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build: BUILD }) });
+  },
+});
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   process.env.VITE_SITE_URL = env.VITE_SITE_URL || process.env.VITE_SITE_URL || DOMINIO_POR_DEFECTO;
 
   return {
-    plugins: [react()],
+    plugins: [react(), versionPlugin()],
+    // La misma marca viaja adentro del bundle: el panel compara lo que ESTÁ
+    // corriendo contra lo que hay publicado.
+    define: { __BUILD__: JSON.stringify(BUILD) },
     base: "/",
     resolve: {
       alias: { "@": path.resolve(__dirname, "src") },

@@ -32,7 +32,7 @@ export type CanalManychat = "instagram" | "whatsapp";
 export type PedidoEnvio = { convId?: unknown; texto?: unknown };
 export type ResultadoEnvio = { status: number; ok: boolean; mensaje: string; canal?: string };
 
-type Conv = { id: string; canal: string; nombre: string; externo?: Record<string, string> | null; estado?: string };
+type Conv = { id: string; canal: string; nombre: string; contacto: string; externo?: Record<string, string> | null; estado?: string };
 
 /** Un texto largo, en trozos que ManyChat acepta, cortando en los párrafos. */
 export function partirParaEnviar(texto: string, tope = TOPE_POR_MENSAJE): string[] {
@@ -94,12 +94,43 @@ export async function enviarTextoPorManychat(
   }
 }
 
+/**
+ * El id de ManyChat de un contacto de Instagram, cuando el hilo no lo trae.
+ *
+ * Pasa con los hilos que entraron antes de la 021 y con los que ManyChat manda
+ * sin `subscriber_id`. ManyChat no deja buscar por usuario de Instagram
+ * (`findBySystemField` solo acepta telefono o mail), pero `findByName` devuelve
+ * contactos con su `ig_username`: se busca y se toma el que coincide EXACTO.
+ * Si no hay coincidencia clara devuelve null, y entonces el panel dice por que
+ * no puede enviar — nunca abre Instagram por la espalda.
+ */
+export async function buscarSubscriber(igUsername: string, nombre: string): Promise<string | null> {
+  const apiKey = process.env.MANYCHAT_API_KEY;
+  const usuario = (igUsername || "").trim().toLowerCase();
+  if (!apiKey || !usuario) return null;
+  for (const consulta of [nombre, usuario].map((x) => (x ?? "").trim()).filter(Boolean)) {
+    try {
+      const r = await fetch(`${MANYCHAT}/fb/subscriber/findByName?name=${encodeURIComponent(consulta)}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!r.ok) continue;
+      const j: any = await r.json().catch(() => ({}));
+      const hallado = (j?.data ?? []).find((s: any) => String(s?.ig_username ?? "").toLowerCase() === usuario);
+      if (hallado?.id) return String(hallado.id);
+    } catch (e: any) {
+      console.error("Enviar · buscando el contacto en ManyChat:", e?.message ?? e);
+    }
+  }
+  return null;
+}
+
 /** Lee la conversación CON EL TOKEN DEL USUARIO: si el RLS no lo deja, no existe. */
 async function leerConversacion(convId: string, jwt: string): Promise<Conv | null> {
   const base = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const anon = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
   if (!base || !anon) return null;
-  const r = await fetch(`${base}/rest/v1/potente_conversaciones?id=eq.${encodeURIComponent(convId)}&select=id,canal,nombre,externo,estado`, {
+  const r = await fetch(`${base}/rest/v1/potente_conversaciones?id=eq.${encodeURIComponent(convId)}&select=id,canal,nombre,contacto,externo,estado`, {
     headers: { apikey: anon, Authorization: `Bearer ${jwt}` },
     signal: AbortSignal.timeout(15_000),
   });
@@ -107,6 +138,31 @@ async function leerConversacion(convId: string, jwt: string): Promise<Conv | nul
   const filas = (await r.json().catch(() => [])) as Conv[];
   return filas[0] ?? null;
 }
+
+/** Escribe en el hilo por la puerta del server (RPC con el token de ingesta). */
+async function tocarHilo(convId: string, params: Record<string, unknown>): Promise<void> {
+  const base = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const anon = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const token = process.env.POTENTE_INGESTA_TOKEN;
+  if (!base || !anon || !token) { console.error("Enviar · sin credenciales para tocar el hilo"); return; }
+  try {
+    const r = await fetch(`${base}/rest/v1/rpc/potente_conversacion_actualizar`, {
+      method: "POST",
+      headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_token: token, p_id: convId, ...params }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) console.error(`Enviar · la base rechazo tocar ${convId}: HTTP ${r.status} ${(await r.text()).slice(0, 160)}`);
+  } catch (e: any) {
+    console.error("Enviar · error tocando el hilo:", e?.message ?? e);
+  }
+}
+
+const guardarSubscriber = (convId: string, subscriber: string) =>
+  tocarHilo(convId, { p_externo: { manychat_subscriber_id: subscriber } });
+
+/** 023 · Cadena vacia = LIMPIAR (asi se distingue de "no toques"). */
+const limpiarBorrador = (convId: string) => tocarHilo(convId, { p_borrador: "" });
 
 /** Una persona del panel responde un hilo. Cada envío nace de alguien apretando "Enviar". */
 export async function enviarPorManychat(pedido: PedidoEnvio, authorization: string | undefined): Promise<ResultadoEnvio> {
@@ -123,14 +179,38 @@ export async function enviarPorManychat(pedido: PedidoEnvio, authorization: stri
   if (!conv) return { status: 404, ok: false, mensaje: "No se encontró la conversación (o no tenés permiso para verla)." };
   if (conv.estado === "cerrada") return { status: 409, ok: false, mensaje: "La conversación está cerrada. Reabrila para responder." };
 
-  const subscriber = String(conv.externo?.manychat_subscriber_id ?? "").trim();
-  if (!/^\d+$/.test(subscriber)) {
-    return { status: 400, ok: false, mensaje: "Esta conversación no entró por ManyChat: no hay por dónde enviar. Usá 'Copiar y abrir'." };
+  /* 🔒 El server tiene el MISMO candado que el panel: WhatsApp es supervisión
+   * (decisión 27-ago). Si el botón alguna vez se equivoca, acá no sale igual. */
+  const canal: CanalManychat | null = conv.canal === "instagram" ? "instagram" : null;
+  if (!canal) {
+    return {
+      status: 400, ok: false, canal: conv.canal,
+      mensaje: conv.canal === "whatsapp"
+        ? "WhatsApp es solo supervisión: las respuestas las mandan las oficinas desde su celular."
+        : `Por ${conv.canal} no se envía desde acá.`,
+    };
   }
-  const canal: CanalManychat | null = conv.canal === "instagram" ? "instagram" : conv.canal === "whatsapp" ? "whatsapp" : null;
-  if (!canal) return { status: 400, ok: false, mensaje: `Por ${conv.canal} no se envía desde acá.` };
+
+  let subscriber = String(conv.externo?.manychat_subscriber_id ?? "").trim();
+  if (!/^\d+$/.test(subscriber)) {
+    // Segunda chance antes de rendirse: buscarlo en ManyChat y dejarlo guardado
+    // para la próxima. Recién si no aparece se dice que no se puede.
+    const hallado = canal === "instagram"
+      ? await buscarSubscriber(String(conv.externo?.ig_username ?? conv.contacto ?? ""), conv.nombre ?? "")
+      : null;
+    if (!hallado) {
+      return {
+        status: 409, ok: false, canal: conv.canal,
+        mensaje: "Todavía no puedo escribirle por acá: este contacto no está enlazado en ManyChat. Se enlaza solo cuando la persona vuelve a escribirte.",
+      };
+    }
+    subscriber = hallado;
+    await guardarSubscriber(conv.id, subscriber);
+  }
 
   const envio = await enviarTextoPorManychat(subscriber, canal, texto);
   if (!envio.ok) return { status: 502, ok: false, canal: conv.canal, mensaje: envio.mensaje };
+  // Enviado: si venía de un borrador de Marina, ya no hay nada pendiente.
+  await limpiarBorrador(conv.id);
   return { status: 200, ok: true, mensaje: `Enviado por ${canal === "instagram" ? "Instagram" : "WhatsApp"}.`, canal: conv.canal };
 }
