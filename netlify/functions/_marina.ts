@@ -112,9 +112,27 @@ export function textoParaCanal(respuesta: string, camposIds: string[], catalogo:
     .filter((c): c is CampoLite => Boolean(c))
     .slice(0, 3);
   const partes = [respuesta.trim()];
-  for (const f of fichas) partes.push(`${f.titulo}${f.precio ? ` · ${f.precio}` : ""}\n${SITIO}/propiedad/${f.id}`);
-  const oficina = fichas.find((f) => f.oficina)?.oficina;
-  if (oficina && /whats?app/i.test(respuesta)) partes.push(`WhatsApp de la oficina: ${waUrl(oficina)}`);
+
+  /* 🔴 27-ago, pedido de Juani: desde Instagram se deriva al WhatsApp de la
+   * OFICINA QUE ATIENDE ESA PROPIEDAD. Antes el link se adjuntaba SOLO si la
+   * respuesta mencionaba la palabra "WhatsApp", o sea que dependía de cómo
+   * redactara Marina ese día: la mitad de los DM salían sin número.
+   *
+   * Y si las recomendadas son de oficinas DISTINTAS, el número va pegado a cada
+   * una: un solo link al final le daría el teléfono equivocado para las otras.
+   * Misma regla que la ficha pública (21-ago). Sin propiedad no se inventa un
+   * número: el central es el personal de Mateo. */
+  const oficinas = [...new Set(fichas.map((f) => f.oficina).filter(Boolean))] as ("chauvin" | "puntamogotes")[];
+  const unaSola = oficinas.length === 1;
+
+  for (const f of fichas) {
+    const linea = `${f.titulo}${f.precio ? ` · ${f.precio}` : ""}\n${SITIO}/propiedad/${f.id}`;
+    partes.push(!unaSola && f.oficina ? `${linea}\nConsultas: ${waUrl(f.oficina)}` : linea);
+  }
+
+  if (unaSola) {
+    partes.push(`Para coordinar una visita o pedir más detalles, escribinos por WhatsApp: ${waUrl(oficinas[0])}`);
+  }
   return partes.join("\n\n");
 }
 

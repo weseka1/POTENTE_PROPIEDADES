@@ -164,6 +164,19 @@ try {
         hiloSup && !hiloSup.mensajes.some((m) => m.de === "ia"), `mensajes: ${hiloSup?.mensajes?.map((m) => m.de).join(",")}`);
       chequear("…y el hilo queda en manos de una persona, con el motivo",
         hiloSup?.estado === "vos" && /supervisado|OK/i.test(hiloSup?.motivo ?? ""), `estado=${hiloSup?.estado} · ${String(hiloSup?.motivo ?? "").slice(0, 60)}`);
+
+      /* 🔴 La derivación por oficina (pedido de Juani): si Marina recomienda una
+       * propiedad, el DM tiene que llevar el WhatsApp de la oficina QUE LA
+       * ATIENDE. Se afirma la invariante, no un número fijo: la cartera es viva
+       * y no se sabe de antemano qué va a recomendar. */
+      const borrador = String(hiloSup?.borrador ?? "");
+      const recomienda = /\/propiedad\//.test(borrador);
+      const OFICIALES = ["5492235129032", "5492235851198", "5492233029591"];   // Chauvín · Mogotes · central
+      const wa = borrador.match(/wa\.me\/(\d+)/g)?.map((x) => x.replace("wa.me/", "")) ?? [];
+      chequear("📞 Si recomienda una propiedad, el DM lleva WhatsApp para derivar",
+        !recomienda || wa.length > 0, recomienda ? `wa: ${wa.join(", ") || "NINGUNO"}` : "no recomendó (no aplica)");
+      chequear("…y es un número REAL de Potente, nunca uno inventado",
+        wa.every((n) => OFICIALES.includes(n)), `wa: ${wa.join(", ") || "sin links"}`);
     } finally {
       for (const f of await leerConv(IG2)) await sb.from("potente_conversaciones").delete().eq("id", f.id);
       await sb.from("potente_ia_config").upsert({ id: true, cfg: cfgOriginal });
