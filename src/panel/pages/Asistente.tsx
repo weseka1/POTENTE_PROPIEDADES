@@ -13,7 +13,7 @@ import { canalLabel } from "../ui/estados";
 import Modal from "../components/Modal";
 import Select from "@/components/Select";
 import BandejaConversaciones from "../components/BandejaConversaciones";
-import { CANALES_CONV } from "@/data/conversaciones";
+import { CANALES_CONV, esperaSinRespuestaMin, COLGADO_MIN } from "@/data/conversaciones";
 import type { Conversacion } from "@/data/conversaciones";
 
 /* ===================== Configuración del cerebro de la IA (self-service) ===================== */
@@ -269,9 +269,11 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
 
   // Métricas: todas salen de la bandeja real, ninguna está inventada.
   const teEsperan = conversaciones.filter((c) => c.estado === "vos").length;
-  const totalConv = Math.max(conversaciones.length, 1);
-  const sinIntervencion = conversaciones.filter((c) => !c.mensajes.some((m) => m.de === "humano")).length;
-  const sinHumano = Math.round((sinIntervencion / totalConv) * 100);
+  // 27-ago: la métrica que Mateo pidió — "que si quedó algo colgado lo pueda ver".
+  // Se cuenta sobre los mensajes reales: último mensaje del cliente sin respuesta
+  // hace más de COLGADO_MIN. Reemplaza a "resueltas sin que intervengas", que en
+  // un canal espejo (WhatsApp) no significaba nada.
+  const colgadas = conversaciones.filter((c) => (esperaSinRespuestaMin(c) ?? -1) >= COLGADO_MIN).length;
   // 🔴 Solo cuenta lo que ANDA de verdad: un canal sin integración no suma al
   // contador aunque haya quedado en `true` de antes (ver la nota en CANALES).
   const canalAndando = (key: string) => {
@@ -295,7 +297,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
     // entender que faltan cinco toggles cuando en realidad hay integraciones
     // por hacer.
     { icon: Link2, label: "Canales atendidos por Marina", value: `${conectados}/${canalesReales.length}` },
-    { icon: ShieldCheck, label: "Resueltas sin que intervengas", value: sinHumano + "%" },
+    { icon: ShieldCheck, label: colgadas ? "Sin responder — atendé ya" : "Sin responder", value: colgadas },
   ];
 
   const card = "pcard p-5";

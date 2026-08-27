@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "./Toast";
-import { CANALES_CONV, ORDEN_CANALES, canalDe } from "@/data/conversaciones";
+import { CANALES_CONV, ORDEN_CANALES, canalDe, esperaSinRespuestaMin, COLGADO_MIN } from "@/data/conversaciones";
 import type { CanalConv, Conversacion, MensajeConv } from "@/data/conversaciones";
 
 const ICONO: Record<CanalConv, typeof MessageCircle> = {
@@ -187,10 +187,22 @@ export default function BandejaConversaciones({
   const [verHiloMobile, setVerHiloMobile] = useState(false);
   const finRef = useRef<HTMLDivElement>(null);
 
+  /* Orden: lo COLGADO primero (el que más espera, arriba), después el resto por
+   * última actividad. 27-ago: el panel es el espejo de WhatsApp y nadie contesta
+   * por API — lo único que no puede pasar es que una consulta quede abajo de todo
+   * porque llegó hace dos horas. La espera se recalcula cada minuto. */
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 60_000); return () => clearInterval(t); }, []);
   const ordenadas = useMemo(() => {
     const ultima = (c: Conversacion) => new Date(c.mensajes[c.mensajes.length - 1]?.horaISO ?? 0).getTime();
-    return [...conversaciones].sort((a, b) => ultima(b) - ultima(a));
-  }, [conversaciones]);
+    const espera = (c: Conversacion) => esperaSinRespuestaMin(c, ahora) ?? -1;
+    return [...conversaciones].sort((a, b) => {
+      const ea = espera(a), eb = espera(b);
+      if ((ea >= 0) !== (eb >= 0)) return eb >= 0 ? 1 : -1; // colgadas antes que no colgadas
+      if (ea >= 0 && eb >= 0 && ea !== eb) return eb - ea;     // la que más espera, primero
+      return ultima(b) - ultima(a);
+    });
+  }, [conversaciones, ahora]);
 
   const visibles = useMemo(
     () => (filtro === "todos" ? ordenadas : ordenadas.filter((c) => c.canal === filtro)),
@@ -389,17 +401,29 @@ export default function BandejaConversaciones({
                       <span className={`truncate text-[12px] ${c.noLeida ? "text-graph" : "text-graph-400"}`}>{ultimo?.texto}</span>
                     </span>
                     <span className="mt-1.5 flex items-center gap-1.5">
-                      {c.estado === "vos" ? (
-                        <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-500/25">
-                          Te toca a vos
-                        </span>
-                      ) : c.estado === "cerrada" ? (
-                        <span className="rounded-full bg-graph/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-graph-400">Cerrada</span>
-                      ) : (
-                        <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700 ring-1 ring-inset ring-brand/20">
-                          {iaNombre} responde
-                        </span>
-                      )}
+                      {(() => {
+                        /* El rótulo dice lo que PASA, no lo que el sistema promete.
+                         * "Marina responde" solo si Marina atiende ese canal de verdad;
+                         * en WhatsApp e Instagram (espejo) lo que importa es si el
+                         * último mensaje del cliente ya tuvo respuesta, y hace cuánto. */
+                        const espera = esperaSinRespuestaMin(c, ahora);
+                        if (c.estado === "cerrada")
+                          return <span className="rounded-full bg-graph/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-graph-400">Cerrada</span>;
+                        if (espera !== null && espera >= COLGADO_MIN)
+                          return <span data-colgada="si" className="rounded-full bg-red-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-700 ring-1 ring-inset ring-red-500/25">Sin responder · {haceCuanto(ultimo!.horaISO)}</span>;
+                        if (espera !== null)
+                          return <span data-colgada="espera" className="rounded-full bg-amber-500/12 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-500/25">Esperando respuesta</span>;
+                        // "Respondido" gana a "Te toca a vos": si la oficina ya contestó desde
+                        // el celular, el hilo pasa a 'vos' (019) pero NO le toca a nadie — la
+                        // pelota está en el cliente. Cazado por bandeja-colgados.mjs.
+                        if (ultimo?.de === "humano")
+                          return <span data-colgada="no" className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-500/20">Respondido</span>;
+                        if (c.estado === "vos")
+                          return <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-500/25">Te toca a vos</span>;
+                        if (canalesConectados[c.canal])
+                          return <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-700 ring-1 ring-inset ring-brand/20">{iaNombre} responde</span>;
+                        return null;
+                      })()}
                       {c.noLeida && <span className="h-2 w-2 rounded-full bg-amber-500" />}
                     </span>
                   </span>

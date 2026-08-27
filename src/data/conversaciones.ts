@@ -82,6 +82,29 @@ export const ORDEN_CANALES: CanalConv[] = ["whatsapp", "instagram", "messenger",
 export const canalDe = (canal: string) =>
   CANALES_CONV[canal as CanalConv] ?? { label: canal || "Otro", corto: canal || "Otro", color: "#6B7A8F", modo: "mail" as ModoRespuesta };
 
+/* ===== Lo colgado: la métrica que Mateo pidió ===== */
+/**
+ * Minutos que lleva un hilo esperando respuesta: el último mensaje es del
+ * cliente y nadie —ni persona ni IA— contestó todavía. `null` si no está colgado.
+ *
+ * 🔴 27-ago. Decisión de Juani: en WhatsApp Marina NO contesta; las oficinas
+ * atienden desde el celular y el panel es el espejo. Entonces lo valioso del
+ * panel es una sola cosa: que Mateo vea AL INSTANTE qué quedó sin responder.
+ * Esta función es esa alerta. Se calcula sobre los mensajes reales, nunca sobre
+ * un contador aparte que pueda desincronizarse.
+ */
+export function esperaSinRespuestaMin(c: Conversacion, ahora: number = Date.now()): number | null {
+  if (c.estado === "cerrada") return null;
+  const ultimo = c.mensajes[c.mensajes.length - 1];
+  if (!ultimo || ultimo.de !== "cliente") return null;
+  const t = new Date(ultimo.horaISO).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.round((ahora - t) / 60_000));
+}
+
+/** Umbral a partir del cual "esperando" pasa a "colgado" y se pinta en rojo. */
+export const COLGADO_MIN = 30;
+
 /* ===== Semilla de demo ===== */
 // Las horas se calculan contra el día real para que la bandeja nunca se vea vieja.
 const hace = (minutos: number) => new Date(Date.now() - minutos * 60_000).toISOString();
