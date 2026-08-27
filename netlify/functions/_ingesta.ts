@@ -28,6 +28,8 @@ export type ResultadoIngesta = {
   guardados: number;
   repetidos: number;
   fallados: number;
+  /** Ids de las conversaciones que recibieron un mensaje NUEVO (022: para que Marina conteste). */
+  conversaciones: string[];
 };
 
 /**
@@ -35,7 +37,7 @@ export type ResultadoIngesta = {
  * reintente en loop. Los problemas se loguean del lado del servidor y se cuentan.
  */
 export async function guardarMensajes(mensajes: MensajeEntrante[]): Promise<ResultadoIngesta> {
-  const res: ResultadoIngesta = { guardados: 0, repetidos: 0, fallados: 0 };
+  const res: ResultadoIngesta = { guardados: 0, repetidos: 0, fallados: 0, conversaciones: [] };
 
   const base = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const anon = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
@@ -81,7 +83,7 @@ export async function guardarMensajes(mensajes: MensajeEntrante[]): Promise<Resu
       // La función devuelve el id de la conversación, o null si era repetido.
       const conv = await r.json().catch(() => null);
       if (conv === null) res.repetidos++;
-      else res.guardados++;
+      else { res.guardados++; if (typeof conv === "string" && !res.conversaciones.includes(conv)) res.conversaciones.push(conv); }
     } catch (e: any) {
       console.error(`Ingesta · error guardando ${m.mensajeId}:`, e?.message ?? e);
       res.fallados++;

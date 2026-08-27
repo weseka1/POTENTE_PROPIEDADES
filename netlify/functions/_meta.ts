@@ -36,8 +36,8 @@ export type MensajeEntrante = {
   nombre: string;
   texto: string;
   hora: string;
-  /** Quién lo escribió: el cliente, o una persona de la oficina desde la app (eco). */
-  de: "cliente" | "humano";
+  /** Quién lo escribió: el cliente, una persona de la oficina (eco) o Marina (022). */
+  de: "cliente" | "humano" | "ia";
   /** Viene del historial (sincronización tras el QR): pasado, no novedad. */
   historico?: boolean;
   /** Ids de afuera para poder RESPONDER por el mismo canal (021):

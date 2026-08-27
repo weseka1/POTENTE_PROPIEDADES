@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { supabase } from "@/lib/supabase";
+import { useSearchParams } from "react-router-dom";
 import { useToast } from "./Toast";
 import { CANALES_CONV, ORDEN_CANALES, canalDe, esperaSinRespuestaMin, COLGADO_MIN } from "@/data/conversaciones";
 import type { CanalConv, Conversacion, MensajeConv } from "@/data/conversaciones";
@@ -188,11 +189,13 @@ export default function BandejaConversaciones({
   const { push } = useToast();
 
   const [filtro, setFiltro] = useState<CanalConv | "todos">("todos");
-  const [selId, setSelId] = useState<string | null>(null);
+  // 27-ago · Llegar con ?conv=<id> (desde una consulta) abre ese hilo directo.
+  const [params] = useSearchParams();
+  const [selId, setSelId] = useState<string | null>(() => params.get("conv"));
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [redactando, setRedactando] = useState(false);
-  const [verHiloMobile, setVerHiloMobile] = useState(false);
+  const [verHiloMobile, setVerHiloMobile] = useState(() => Boolean(params.get("conv")));
   const finRef = useRef<HTMLDivElement>(null);
 
   /* Orden: lo COLGADO primero (el que más espera, arriba), después el resto por

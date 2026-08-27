@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { AlertCircle, UserPlus, MapPin, Trash2 } from "lucide-react";
+import { AlertCircle, UserPlus, MapPin, Trash2, Eye } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import type { EstadoLead, Lead } from "@/data/types";
 import { desde } from "@/lib/format";
@@ -9,6 +9,7 @@ import Badge from "../components/Badge";
 import Select from "@/components/Select";
 import ChannelIcon from "../components/ChannelIcon";
 import { useConfirmar } from "../components/Confirmar";
+import ConsultaDrawer from "../components/ConsultaDrawer";
 import { useToast } from "../components/Toast";
 import { estadoLead, ESTADOS_LEAD, canalLabel } from "../ui/estados";
 import { cn } from "../ui/cn";
@@ -24,6 +25,10 @@ export default function Leads() {
   const { leads, getProp, updateLead, deleteLead } = useData();
   const [estado, setEstado] = useState("todos");
   const [canal, setCanal] = useState("todos");
+  // 27-ago · La consulta abierta: qué preguntó, por qué propiedad, la charla.
+  // Se guarda el id (no el objeto) para que el drawer vea las ediciones en vivo.
+  const [abiertaId, setAbiertaId] = useState<string | null>(null);
+  const abierta = abiertaId ? leads.find((l) => l.id === abiertaId) ?? null : null;
 
   const setEstadoLead_ = (id: string, nuevo: EstadoLead) => {
     updateLead(id, { estado: nuevo });
@@ -70,7 +75,7 @@ export default function Leads() {
     <div>
       <PageHeader
         title="Bandeja IA · Consultas"
-        subtitle="La IA intercepta y unifica las conversaciones de todos los canales (WhatsApp, web, mail, teléfono, portales)."
+        subtitle="Todo lo que entra por cualquier canal, con lo que preguntó cada persona. Tocá una consulta para leerla entera."
         actions={
           <FilterSelect
             value={canal}
@@ -115,7 +120,14 @@ export default function Leads() {
                 )}
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                  <div className="flex flex-1 items-start gap-3">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    data-consulta={l.id}
+                    onClick={() => setAbiertaId(l.id)}
+                    onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setAbiertaId(l.id); } }}
+                    className="flex flex-1 cursor-pointer items-start gap-3 rounded-xl text-left transition hover:bg-graph/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                  >
                     <ChannelIcon canal={l.canal} />
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -162,6 +174,13 @@ export default function Leads() {
                       />
                     </div>
                     <button
+                      onClick={() => setAbiertaId(l.id)}
+                      title="Ver la consulta"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-graph/10 text-graph-400 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand"
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <button
                       onClick={() => eliminar(l)}
                       title="Eliminar consulta"
                       className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-graph/10 text-graph-400 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-600"
@@ -175,6 +194,8 @@ export default function Leads() {
           })}
         </div>
       )}
+
+      <ConsultaDrawer lead={abierta} onClose={() => setAbiertaId(null)} />
 
       {/* Confirmación de borrado — del sistema, no del navegador. */}
       {dialogo}

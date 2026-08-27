@@ -29,6 +29,7 @@
 import { createHash } from "node:crypto";
 import type { MensajeEntrante } from "./_meta";
 import { guardarMensajes, type ResultadoIngesta } from "./_ingesta";
+import { responderEnInstagram } from "./_marina";
 
 export type EntradaManychat = {
   canal?: unknown;        // "instagram" | "whatsapp"
@@ -110,5 +111,13 @@ export async function ingresarDesdeManychat(entrada: EntradaManychat, tokenDado:
 
   const resultado = await guardarMensajes([n.mensaje]);
   if (resultado.fallados) return { status: 502, ok: false, mensaje: "La base rechazó el mensaje.", resultado };
+
+  // 27-ago · Marina contesta los DM de Instagram que entraron NUEVOS (no los
+  // repetidos: ManyChat reintenta, y a nadie se le escribe dos veces). Corre
+  // DESPUÉS de responderle a ManyChat, para no colgar su timeout; WhatsApp no
+  // pasa por acá (`_marina.ts` lo filtra: es supervisión, no atención).
+  for (const id of resultado.conversaciones) {
+    setImmediate(() => responderEnInstagram(id).catch((e) => console.error("Marina · Instagram:", e?.message ?? e)));
+  }
   return { status: 200, ok: true, mensaje: resultado.repetidos ? "Ya estaba." : "Guardado.", resultado };
 }

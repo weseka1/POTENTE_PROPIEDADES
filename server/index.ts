@@ -12,6 +12,7 @@ import { sincronizarInstagram, arrancarSincronizacionInstagram } from "../netlif
 import { paginaPrivacidad, paginaEliminacion } from "./legales";
 import { ingresarDesdeManychat } from "../netlify/functions/_manychat";
 import { enviarPorManychat } from "../netlify/functions/_enviar";
+import { registrarCharlaWeb } from "../netlify/functions/_marina";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -301,7 +302,10 @@ app.post("/api/asistente", async (req, res) => {
     });
   }
   const { status, data } = await atenderAsistente(req.body);
-  res.status(status).json(data);
+  // 27-ago · La charla queda en la bandeja (canal Web, un hilo por visita) y,
+  // si dejó contacto, la consulta nace vinculada a ese hilo. Ver `_marina.ts`.
+  const registro = status === 200 ? await registrarCharlaWeb(req.body, data) : {};
+  res.status(status).json({ ...data, ...registro });
 });
 
 // ── El Probador del panel ────────────────────────────────────────────────────

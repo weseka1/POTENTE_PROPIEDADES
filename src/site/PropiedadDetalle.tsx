@@ -8,6 +8,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropiedadCard from "./components/PropiedadCard";
 import GaleriaPropiedad from "./components/GaleriaPropiedad";
+import CompartirPropiedad from "./components/CompartirPropiedad";
 import MapaPropiedad from "./components/MapaPropiedad";
 import OrientacionYSol from "./components/OrientacionYSol";
 import { useLenis } from "./lib/useLenis";
@@ -339,9 +340,22 @@ export default function PropiedadDetalle() {
               <a href={`https://wa.me/${waProp}?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn-primary w-full">
                 <Phone size={16} /> Consultar por WhatsApp
               </a>
-              <button onClick={() => toggle(p.id)} className={`flex w-full items-center justify-center gap-2 rounded-full border py-2.5 text-sm font-semibold transition ${fav ? "border-brand bg-brand-50 text-brand" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>
-                <Heart size={15} fill={fav ? "currentColor" : "none"} /> {fav ? "En favoritos" : "Guardar en favoritos"}
-              </button>
+              {/* Favoritos + compartir (pedido de Mateo, 27-ago): en el celu abre
+                  la hoja del sistema (WhatsApp, Instagram…); en escritorio, menú. */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto]">
+                <button onClick={() => toggle(p.id)} className={`flex w-full items-center justify-center gap-2 rounded-full border py-2.5 text-sm font-semibold transition ${fav ? "border-brand bg-brand-50 text-brand" : "border-graph/20 text-graph-500 hover:border-brand hover:text-brand"}`}>
+                  <Heart size={15} fill={fav ? "currentColor" : "none"} />
+                  {/* En celu el rótulo largo partía en dos líneas al lado de "Compartir". */}
+                  <span className="sm:hidden">{fav ? "En favoritos" : "Favoritos"}</span>
+                  <span className="hidden sm:inline">{fav ? "En favoritos" : "Guardar en favoritos"}</span>
+                </button>
+                <CompartirPropiedad
+                  id={p.id}
+                  titulo={p.titulo}
+                  zona={p.zona}
+                  className="flex h-full items-center justify-center gap-2 rounded-full border border-graph/20 px-4 text-sm font-semibold text-graph-500 transition hover:border-brand hover:text-brand"
+                />
+              </div>
             </div>
 
             {/* 🔴 LA OFICINA QUE ATIENDE ESTA PROPIEDAD, NO LAS DOS (21-ago).

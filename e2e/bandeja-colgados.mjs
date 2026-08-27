@@ -85,7 +85,12 @@ try {
   let lista = JSON.parse(await leerLista());
   const fila = lista.find((x) => x.nombre === "Sonda Colgada");
   chequear("La conversación aparece en la bandeja de Mateo", Boolean(fila), fila ? "sí" : `no está (hay ${lista.length})`);
-  chequear("🔴 …está PRIMERA en la lista (lo colgado va arriba)", lista[0]?.nombre === "Sonda Colgada", `primera: "${lista[0]?.nombre}"`);
+  // 27-ago · Con hilos reales colgados hace más tiempo (Instagram de Mateo), la
+  // sonda no es la primera: lo que se afirma es que está en el BLOQUE de arriba
+  // (todo lo que la precede también está colgado) — no que le gane a un cliente.
+  const pos = lista.findIndex((x) => x.nombre === "Sonda Colgada");
+  const antes = pos > 0 ? lista.slice(0, pos) : [];
+  chequear("🔴 …está en el bloque de arriba (todo lo que la precede también está colgado)", pos >= 0 && antes.every((x) => x.colgada === "si"), `posición ${pos + 1}; antes: ${antes.map((x) => `${x.nombre}=${x.colgada}`).join(", ") || "nada"}`);
   chequear("🔴 …con el rótulo rojo 'Sin responder'", fila?.colgada === "si" && /Sin responder/i.test(fila?.rotulo ?? ""), `rótulo: "${fila?.rotulo}"`);
 
   const metrica = await evaluar(`return (document.body.innerText.match(/Sin responder[^\\n]*\\n?\\s*(\\d+)/) || [])[1] || (document.body.innerText.match(/(\\d+)\\s*\\n?\\s*Sin responder/) || [])[1] || ''`);
@@ -105,8 +110,11 @@ try {
   await new Promise((r) => setTimeout(r, 800));
   const tarjetaWA = await estadoTarjeta("WhatsApp");
   chequear("📡 En Canales, WhatsApp figura 'Conectado · en el panel' (deducido de la bandeja real)", tarjetaWA === "conectado", `estado: ${tarjetaWA}`);
+  // 27-ago · Instagram YA entra (ManyChat): su chip dice lo que diga la bandeja
+  // real, no lo que decía esta prueba cuando se escribió (verde/rojo falso).
+  const hayIG = ((await sb.from("potente_conversaciones").select("id").eq("canal", "instagram").limit(1)).data ?? []).length > 0;
   const tarjetaIG = await estadoTarjeta("Instagram");
-  chequear("…e Instagram sigue 'A conectar' (no entró nada suyo)", tarjetaIG === "pendiente", `estado: ${tarjetaIG}`);
+  chequear(`…e Instagram figura ${hayIG ? "'Conectado'" : "'A conectar'"} porque eso dice la bandeja real`, tarjetaIG === (hayIG ? "conectado" : "pendiente"), `estado: ${tarjetaIG}`);
   await clickTab("Conversaciones");
   await new Promise((r) => setTimeout(r, 800));
 

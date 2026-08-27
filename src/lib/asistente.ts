@@ -27,6 +27,11 @@ export type RespuestaAsistente = {
   respuesta: string;
   camposIds: string[];
   lead: { nombre: string; contacto: string } | null;
+  /** 27-ago · Si el server ya registró la consulta (vinculada a la charla), su id. */
+  leadId?: string;
+  conversacionId?: string;
+  /** Marina está en pausa desde el panel: la respuesta es el aviso, no una atención. */
+  pausada?: boolean;
 };
 
 /**
@@ -40,7 +45,9 @@ export type RespuestaAsistente = {
 export async function consultarAsistente(
   mensaje: string,
   historial: ChatMsg[],
-  catalogo: CampoLite[]
+  catalogo: CampoLite[],
+  /** Id de la visita (widget): con él la charla entera cae en un solo hilo de la bandeja. */
+  sesion?: string,
 ): Promise<RespuestaAsistente> {
   let ultimoError: unknown = null;
 
@@ -50,7 +57,7 @@ export async function consultarAsistente(
       const r = await fetch("/api/asistente", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mensaje, historial, catalogo }),
+        body: JSON.stringify({ mensaje, historial, catalogo, ...(sesion ? { sesion } : {}) }),
         signal: corte,
       });
       const data = await r.json().catch(() => ({}));
@@ -59,6 +66,9 @@ export async function consultarAsistente(
         respuesta: String(data.respuesta || ""),
         camposIds: Array.isArray(data.camposIds) ? data.camposIds : [],
         lead: data.lead && data.lead.contacto ? data.lead : null,
+        leadId: typeof data.leadId === "string" ? data.leadId : undefined,
+        conversacionId: typeof data.conversacionId === "string" ? data.conversacionId : undefined,
+        pausada: data.pausada === true,
       };
     } catch (e) {
       ultimoError = e;

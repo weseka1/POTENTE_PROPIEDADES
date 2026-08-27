@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MessageCircle, X, Send, Waves, Loader2 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
+import { catalogoParaMarina } from "@/lib/catalogoLite";
 import { hoyISO } from "@/lib/fechas";
 import { fmtHa, precioPublico } from "@/lib/format";
 import { waUrl } from "@/config/marca";
@@ -18,6 +19,21 @@ const SALUDO =
 // ella misma dijo "no estoy disponible" y sigue la charla desde ahí (19-ago).
 type Burbuja = { rol: "cliente" | "asistente"; texto: string; campos?: Propiedad[]; fallo?: boolean };
 
+/** Un id por visita (sessionStorage): con él la charla entera cae en UN hilo
+ *  de la bandeja del panel (27-ago). No identifica a la persona: es la pestaña. */
+function sesionDeVisita(): string {
+  const nueva = () => "visita-" + Math.random().toString(36).slice(2, 12);
+  try {
+    const guardada = sessionStorage.getItem("potente_visita");
+    if (guardada) return guardada;
+    const id = nueva();
+    sessionStorage.setItem("potente_visita", id);
+    return id;
+  } catch {
+    return nueva();
+  }
+}
+
 export default function ChatAsistente() {
   const { propiedades, addLead } = useData();
   const [open, setOpen] = useState(false);
@@ -27,6 +43,7 @@ export default function ChatAsistente() {
   const [leadEnviado, setLeadEnviado] = useState(false);
   const [leadNombre, setLeadNombre] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sesionRef = useRef(sesionDeVisita());
 
   // Mensaje pre-armado para WhatsApp, con el contexto de la charla.
   const waTexto = () => {
@@ -60,24 +77,8 @@ export default function ChatAsistente() {
     return () => window.removeEventListener("marina:abrir", onAbrir);
   }, []);
 
-  const catalogo = (): CampoLite[] =>
-    propiedades
-      .filter((p) => p.estado === "activa")   // solo se recomienda lo que se ofrece
-      .map((p) => ({
-        id: p.id,
-        titulo: p.titulo,
-        zona: p.zona,
-        categoria: p.categoria,
-        hectareas: p.hectareas,
-        aptitud: p.aptitud,
-        operacion: p.operacion,
-        oficina: p.oficina,
-        precio: precioPublico(p) + (p.operacion === "alquiler" ? " por mes" : ""),
-        ambientes: p.ambientes,
-        dormitorios: p.dormitorios,
-        banos: p.banos,
-        m2: p.m2totales ?? p.m2cubiertos,
-      }));
+  // El catálogo se arma en UN lugar para todos los canales (src/lib/catalogoLite.ts).
+  const catalogo = (): CampoLite[] => catalogoParaMarina(propiedades);
 
   const enviar = async (textoDirecto?: string) => {
     const texto = (textoDirecto ?? input).trim();
@@ -87,7 +88,7 @@ export default function ChatAsistente() {
     setInput("");
     setBusy(true);
     try {
-      const r = await consultarAsistente(texto, historial, catalogo());
+      const r = await consultarAsistente(texto, historial, catalogo(), sesionRef.current);
       const campos = r.camposIds
         .map((id) => propiedades.find((p) => p.id === id))
         .filter((p): p is Propiedad => Boolean(p));
@@ -105,7 +106,10 @@ export default function ChatAsistente() {
           asignado: "Sin asignar",
           notas: "Consulta capturada por el asistente IA de la web.",
         };
-        addLead(lead);
+        // 27-ago · Si el server ya registró la consulta (vinculada a la charla
+        // de la bandeja), no se duplica desde acá. Si no pudo, el camino de
+        // siempre: el visitante la deja él mismo (rol anon, solo insertar).
+        if (!r.leadId) addLead(lead);
         setLeadEnviado(true);
         if (r.lead.nombre) setLeadNombre(r.lead.nombre);
       }

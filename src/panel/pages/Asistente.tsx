@@ -3,10 +3,12 @@ import {
   Sparkles, BookOpen, SlidersHorizontal, Plus, Trash2, Clock, UserCheck,
   Inbox, TrendingUp, Bot, ShieldCheck, Power, Link2, Activity,
   MessageCircle, Instagram, MessageSquare, Globe, Mail, Phone, Wand2, Zap,
-  Send, Loader2, KeyRound, Upload,
+  Send, Loader2, Upload,
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
 import { supabase } from "@/lib/supabase";
+import { consultarAsistente, type ChatMsg } from "@/lib/asistente";
+import { catalogoParaMarina } from "@/lib/catalogoLite";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import { canalLabel } from "../ui/estados";
@@ -80,12 +82,14 @@ type Canal = {
    *  no atiende" sino "conectado / a conectar", y se deduce de la bandeja real:
    *  si entraron mensajes de ese canal, está conectado. Nada hardcodeado. */
   espejo?: boolean;
+  /** 27-ago · Marina CONTESTA en este canal (además de verse en la bandeja). */
+  marina?: boolean;
 };
 
 const CANALES: Canal[] = [
   { key: "web", nombre: "Chat en tu web", via: "Widget", desc: "Marina atiende en potenteprop.com.ar las 24 horas: responde, ordena y te deja la consulta cargada.", Icon: Globe, color: "#0C4DA2", andando: true, destacado: true },
   { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Los WhatsApp de Chauvín y Punta Mogotes se ven acá, con lo que responde cada oficina desde su celular. Nada se contesta solo: vos ves qué quedó colgado.", Icon: MessageCircle, color: "#25D366", meta: true, espejo: true, requisitos: ["Que Meta apruebe la verificación de la empresa (ya enviada)", "Escanear un QR con el celular de cada oficina desde potentepropiedades.com/conectar — el número sigue en la app como siempre", "Nosotros confirmamos la conexión y traemos el historial"] },
-  { key: "instagram", nombre: "Instagram", via: "Meta", desc: "Los mensajes directos de @potentepropiedades entran al panel. Después, Marina los responde y deriva al WhatsApp de la oficina que atiende esa propiedad.", Icon: Instagram, color: "#E1306C", meta: true, espejo: true, requisitos: ["Que Meta apruebe la verificación de la empresa (ya enviada)", "Que Meta apruebe el permiso de mensajería (revisión con un video del panel; la hacemos nosotros)", "Publicar la aplicación — ahí empiezan a entrar los mensajes"] },
+  { key: "instagram", nombre: "Instagram", via: "ManyChat", desc: "Los mensajes directos de @potentepropiedades entran al panel y Marina los responde con tu cartera, derivando al WhatsApp de la oficina que atiende esa propiedad. Si tomás un hilo, ella se calla hasta que se lo devolvés.", Icon: Instagram, color: "#E1306C", meta: true, espejo: true, marina: true, requisitos: ["Que @potentepropiedades esté conectado a ManyChat (ya está: los mensajes entran)"] },
   { key: "messenger", nombre: "Messenger", via: "Meta", desc: "Que Marina atienda el Messenger de la página.", Icon: MessageSquare, color: "#0084FF", meta: true, requisitos: ["La página de Facebook de la inmobiliaria", "Permiso de administrador para conectar el asistente"] },
   { key: "mail", nombre: "Email", via: "Casilla", desc: "Que Marina lea y responda las consultas que entran por mail.", Icon: Mail, color: "#C9A24E", requisitos: ["Acceso a la casilla (o un reenvío a una casilla nuestra)", "Definir qué contesta sola y qué te deriva"] },
   { key: "telefono", nombre: "Teléfono", via: "Registro", desc: "Registrar las llamadas y derivarlas a la oficina que corresponde.", Icon: Phone, color: "#9C6B3C", requisitos: ["Una línea que podamos integrar (voz sobre IP)", "Definir el árbol de derivación por oficina"] },
@@ -108,28 +112,73 @@ const DEFAULT_IA: IAConfig = {
   canales: { whatsapp: false, instagram: false, messenger: false, web: true, mail: false, telefono: false },
 };
 
+/** Lo guardado (en el navegador o en la base), saneado a una config completa. */
+function sanearIA(saved: unknown): IAConfig {
+  const s: Record<string, unknown> = saved && typeof saved === "object" ? { ...(saved as Record<string, unknown>) } : {};
+  // Migración 4-ago: horario por oficina — si quedó guardado el texto viejo
+  // ("9 a 16 en cualquiera de las dos"), lo pisamos con el default nuevo.
+  if (Array.isArray(s.conocimiento)) {
+    s.conocimiento = (s.conocimiento as IAConfig["conocimiento"]).map((k) =>
+      k.id === "k2" && k.texto.includes("en cualquiera de las dos oficinas") ? DEFAULT_IA.conocimiento[1] : k
+    );
+  }
+  const cfg: IAConfig = { ...DEFAULT_IA, ...(s as Partial<IAConfig>) };
+  // 🔴 Saneamiento (12-ago): los botones viejos marcaban canales como
+  // conectados sin integración detrás. Cualquier canal que no esté ANDANDO
+  // vuelve a false, así el panel no arrastra una mentira guardada.
+  cfg.canales = Object.fromEntries(
+    Object.entries(cfg.canales ?? {}).map(([k, v]) => [k, Boolean(v) && Boolean(CANALES.find((c) => c.key === k)?.andando)]),
+  );
+  return cfg;
+}
+
+const CLAVE_LOCAL = "potente_ia_config";
+
+/* ── El cerebro vive en la BASE (migración 022) ──────────────────────────────
+ * Hasta el 27-ago vivía solo en localStorage: el server no lo leía (Marina
+ * ignoraba lo que Mateo le enseñaba, el interruptor no apagaba nada) y se
+ * perdía al cambiar de navegador. Ahora: al entrar manda la base; cada cambio
+ * se guarda allá con un respiro; localStorage queda como caché de arranque.
+ * Primera vez (fila vacía): lo del navegador sube en el primer guardado. */
 function useIAConfig() {
+  const { push } = useToast();
   const [cfg, setCfg] = useState<IAConfig>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("potente_ia_config") || "{}");
-      // Migración 4-ago: horario por oficina — si quedó guardado el texto viejo
-      // ("9 a 16 en cualquiera de las dos"), lo pisamos con el default nuevo.
-      if (Array.isArray(saved.conocimiento)) {
-        saved.conocimiento = saved.conocimiento.map((k: IAConfig["conocimiento"][number]) =>
-          k.id === "k2" && k.texto.includes("en cualquiera de las dos oficinas") ? DEFAULT_IA.conocimiento[1] : k
-        );
-      }
-      const cfg = { ...DEFAULT_IA, ...saved };
-      // 🔴 Saneamiento (12-ago): los botones viejos marcaban canales como
-      // conectados sin integración detrás. Cualquier canal que no esté ANDANDO
-      // vuelve a false, así el panel no arrastra una mentira guardada.
-      cfg.canales = Object.fromEntries(
-        Object.entries(cfg.canales ?? {}).map(([k, v]) => [k, Boolean(v) && Boolean(CANALES.find((c) => c.key === k)?.andando)]),
-      );
-      return cfg;
-    } catch { return DEFAULT_IA; }
+    try { return sanearIA(JSON.parse(localStorage.getItem(CLAVE_LOCAL) || "{}")); } catch { return DEFAULT_IA; }
   });
-  useEffect(() => { try { localStorage.setItem("potente_ia_config", JSON.stringify(cfg)); } catch { /* noop */ } }, [cfg]);
+  const [enBase, setEnBase] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let vivo = true;
+    supabase.from("potente_ia_config").select("cfg").eq("id", true).maybeSingle().then(({ data, error }) => {
+      if (!vivo) return;
+      if (error) {
+        console.error("Cerebro · no se pudo leer potente_ia_config:", error.message, error.code);
+        push("No se pudo leer el cerebro de la IA desde la base", "error");
+        return;
+      }
+      const guardado = data?.cfg && typeof data.cfg === "object" ? (data.cfg as Record<string, unknown>) : {};
+      if (Object.keys(guardado).length) setCfg((c) => sanearIA({ ...c, ...guardado }));
+      setEnBase(true);
+    });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(CLAVE_LOCAL, JSON.stringify(cfg)); } catch { /* noop */ }
+    if (!enBase || !supabase) return;
+    const t = setTimeout(async () => {
+      const { error } = await supabase.from("potente_ia_config").upsert({ id: true, cfg });
+      if (error) {
+        console.error("Cerebro · no se pudo guardar potente_ia_config:", error.message, error.code);
+        push(`No se guardó el cerebro de la IA: ${error.message}`, "error");
+      }
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg, enBase]);
+
   return [cfg, setCfg] as const;
 }
 
@@ -151,68 +200,29 @@ const TABS = [
   { key: "actividad", label: "Actividad", Icon: Activity },
 ];
 
-/* ===== Cerebro real: arma el system prompt desde la config y llama a Claude ===== */
-function buildSystem(cfg: IAConfig): string {
-  const ctx = cfg.contexto.trim();
-  const ko = cfg.conocimiento.filter((k) => k.texto.trim()).map((k) => `- ${k.tema ? `[${k.tema}] ` : ""}${k.texto.trim()}`).join("\n");
-  const reglas = [
-    cfg.reglas.ofrecerVisita && "Ofrecé coordinar una visita a la propiedad.",
-    cfg.reglas.pedirContacto && "Pedí nombre, teléfono y barrio de interés.",
-    cfg.reglas.noPrecioFinal && "No des ni cierres precio final; para eso deriva a un asesor humano.",
-    cfg.reglas.derivarNegociacion && "Si el cliente quiere negociar, derivá a una persona.",
-    cfg.reglas.derivarLegal && "Las consultas legales o de escritura, derivalas a un asesor.",
-  ].filter(Boolean).map((r) => `- ${r}`).join("\n");
-  return `Sos ${cfg.nombre || "el asistente"}, la asistente virtual de Potente Propiedades, inmobiliaria de Mar del Plata (más de 50 años) que vende y alquila casas, departamentos, locales y terrenos.
-Tono: ${cfg.tono === "formal" ? "formal, de usted" : "cercano y profesional"}. Idioma: ${cfg.idioma}. ${cfg.emojis ? "Podés usar algún emoji con medida." : "No uses emojis."}
-Cuando corresponda, firmás como "${cfg.firma}".
-
-LO QUE SABÉS DEL NEGOCIO:
-${ctx ? ctx + "\n" : ""}${ko || (ctx ? "" : "- (todavía no cargaron datos; respondé en general y ofrecé que un asesor lo contacte)")}
-
-CÓMO TRABAJÁS:
-${reglas || "- Respondé con amabilidad y ofrecé ayuda."}
-
-Respondé corto, humano y al grano, como un WhatsApp. NO inventes datos (precios, superficies, propiedades) que no figuren arriba. Si no sabés algo, ofrecé que un asesor lo confirme.`;
-}
-
-async function responderConClaude(cfg: IAConfig, msgs: { role: string; content: string }[], key: string): Promise<string> {
-  // Sin key en el navegador → usa el servidor (la clave vive segura ahí, como en producción).
-  if (!key) {
-    // El Probador va con la sesión del panel: del otro lado se verifica contra
-    // Supabase. Sin esto el endpoint quedaba abierto a cualquiera de internet.
-    const { data: s } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
-    const token = s?.session?.access_token;
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ system: buildSystem(cfg), messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
-    });
-    const data = await res.json().catch(() => ({} as any));
-    if (!res.ok) {
-      const m: string = data?.error || "";
-      if (/no está configurado|ANTHROPIC_API_KEY/i.test(m)) throw new Error("El asistente todavía no está activado en el servidor. Cargá la API key en el deploy (o pegá tu clave abajo) para probarlo.");
-      if (/credit balance/i.test(m)) throw new Error("La cuenta de Anthropic no tiene créditos. Cargá saldo en console.anthropic.com (Plans & Billing).");
-      throw new Error(m || "No se pudo conectar con el asistente.");
-    }
-    return data?.text || "(sin respuesta)";
-  }
-  // Con key propia (avanzado) → llamada directa a Anthropic desde el navegador.
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+/* ── Redactar con el cerebro REAL ─────────────────────────────────────────────
+ * El texto libre (los borradores de la bandeja) lo escribe el servidor con el
+ * MISMO prompt que atiende la web e Instagram: cartera viva y cerebro guardado.
+ * Acá ya no se arma un segundo system prompt ni se acepta una API key en el
+ * navegador: esa duplicación era la razón por la que el Probador y la web se
+ * comportaban distinto. */
+async function redactarConMarina(msgs: { role: string; content: string }[]): Promise<string> {
+  // Con la sesión del panel: del otro lado se verifica contra Supabase.
+  const { data: s } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+  const token = s?.session?.access_token;
+  const res = await fetch("/api/chat", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 600, system: buildSystem(cfg), messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
   });
   const data = await res.json().catch(() => ({} as any));
   if (!res.ok) {
-    const m: string = data?.error?.message || "";
-    if (/credit balance/i.test(m)) throw new Error("La cuenta de Anthropic no tiene créditos. Cargá saldo en console.anthropic.com (Plans & Billing) y volvé a probar.");
-    if (/authentication|x-api-key/i.test(m)) throw new Error("La API key no es válida. Revisala.");
-    throw new Error(m || "No se pudo conectar con Claude.");
+    const m: string = data?.error || "";
+    if (/no está configurado|ANTHROPIC_API_KEY/i.test(m)) throw new Error("El asistente todavía no está activado en el servidor.");
+    if (/credit balance/i.test(m)) throw new Error("La cuenta de Anthropic no tiene créditos. Cargá saldo en console.anthropic.com (Plans & Billing).");
+    throw new Error(m || "No se pudo conectar con el asistente.");
   }
-  return data?.content?.[0]?.text || "(sin respuesta)";
+  return data?.text || "(sin respuesta)";
 }
 
 export default function Asistente() {
@@ -238,8 +248,7 @@ ${hilo}
 --- FIN ---
 
 Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar y pegar. Sin encabezados, sin comillas, sin explicar lo que hacés.`;
-    const key = (() => { try { return localStorage.getItem("potente_anthropic_key") || ""; } catch { return ""; } })();
-    const texto = await responderConClaude(cfg, [{ role: "user", content: encargo }], key);
+    const texto = await redactarConMarina([{ role: "user", content: encargo }]);
     return texto.trim();
   };
 
@@ -292,7 +301,10 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
   const hace30d = Date.now() - 30 * 86_400_000;
   const recibiendo = (key: string) =>
     conversaciones.some((c) => c.canal === key && new Date(c.mensajes[c.mensajes.length - 1]?.horaISO ?? 0).getTime() > hace30d);
-  const conectados = canalesReales.filter((c) => cfg.canales[c.key]).length;
+  // 27-ago · Instagram lo atiende Marina cuando está conectado (entran mensajes).
+  const conMarina = CANALES.filter((c) => c.marina);
+  const conectados = canalesReales.filter((c) => cfg.canales[c.key]).length + conMarina.filter((c) => recibiendo(c.key)).length;
+  const atendibles = canalesReales.length + conMarina.length;
   const porCanal = leads.reduce<Record<string, number>>((a, l) => ((a[l.canal] = (a[l.canal] || 0) + 1), a), {});
   const intereses: Record<string, number> = {};
   leads.forEach((l) => { const p = propiedades.find((x) => x.id === l.campoId); if (p) intereses[p.zona] = (intereses[p.zona] || 0) + 1; });
@@ -307,7 +319,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
     // Sobre los canales DISPONIBLES, no sobre los 6 de la carta: "1/6" daba a
     // entender que faltan cinco toggles cuando en realidad hay integraciones
     // por hacer.
-    { icon: Link2, label: "Canales atendidos por Marina", value: `${conectados}/${canalesReales.length}` },
+    { icon: Link2, label: "Canales atendidos por Marina", value: `${conectados}/${atendibles}` },
     { icon: ShieldCheck, label: colgadas ? "Sin responder — atendé ya" : "Sin responder", value: colgadas },
   ];
 
@@ -383,7 +395,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
           <BandejaConversaciones
             iaNombre={cfg.nombre || "la IA"}
             iaActiva={cfg.activa}
-            canalesConectados={cfg.canales}
+            canalesConectados={{ ...cfg.canales, ...Object.fromEntries(conMarina.map((c) => [c.key, recibiendo(c.key)])) }}
             redactar={redactarRespuesta}
             irACanales={() => setTab("canales")}
           />
@@ -429,7 +441,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
                     {on ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-inset ring-brand/20"><span className="h-1.5 w-1.5 rounded-full bg-brand" /> Atendiendo</span>
                     ) : conectado ? (
-                      <span data-canal-estado="conectado" className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-500/20"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Conectado · en el panel</span>
+                      <span data-canal-estado="conectado" className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-500/20"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {c.marina ? "Conectado · Marina responde" : "Conectado · en el panel"}</span>
                     ) : disponible ? (
                       <span className="rounded-full bg-graph/[0.05] px-2.5 py-1 text-[11px] font-semibold text-graph-400 ring-1 ring-inset ring-graph/10">Apagado</span>
                     ) : (
@@ -712,51 +724,40 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /* ===== Probador: la IA responde DE VERDAD con Claude usando la config ===== */
 const EJEMPLOS = ["Hola! Tienen departamentos en Playa Grande?", "Busco una casa de 3 ambientes en Chauvín", "Quiero vender mi propiedad, cómo es?"];
 
+/* ── El Probador: la Marina REAL ──────────────────────────────────────────────
+ * Habla con el mismo endpoint que la web y que Instagram, con la cartera viva y
+ * el cerebro guardado en la base. Hasta el 27-ago armaba su propio prompt en el
+ * navegador: Mateo probaba una Marina que no existía, y la aprobaba. */
 function Probador({ cfg }: { cfg: IAConfig }) {
-  const [key, setKey] = useState<string>(() => { try { return localStorage.getItem("potente_anthropic_key") || ""; } catch { return ""; } });
-  const [kin, setKin] = useState("");
-  const [avanzado, setAvanzado] = useState(false);
-  const [msgs, setMsgs] = useState<{ role: string; content: string }[]>([]);
+  const { propiedades } = useData();
+  const [msgs, setMsgs] = useState<(ChatMsg & { fichas?: string[]; pausada?: boolean })[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const saveKey = () => { const k = kin.trim(); if (!k) return; try { localStorage.setItem("potente_anthropic_key", k); } catch { /* noop */ } setKey(k); setKin(""); setAvanzado(false); };
-  const clearKey = () => { try { localStorage.removeItem("potente_anthropic_key"); } catch { /* noop */ } setKey(""); };
-
   const enviar = async (texto?: string) => {
     const q = (texto ?? input).trim(); if (!q || busy) return;
-    const next = [...msgs, { role: "user", content: q }];
-    setMsgs(next); setInput(""); setErr(""); setBusy(true);
-    try { const text = await responderConClaude(cfg, next, key); setMsgs([...next, { role: "assistant", content: text }]); }
-    catch (e: any) { setErr(e?.message || "No se pudo conectar."); }
+    const historial: ChatMsg[] = msgs.map((m) => ({ rol: m.rol, texto: m.texto }));
+    setMsgs((m) => [...m, { rol: "cliente", texto: q }]); setInput(""); setErr(""); setBusy(true);
+    try {
+      const r = await consultarAsistente(q, historial, catalogoParaMarina(propiedades));
+      const fichas = r.camposIds.map((id) => propiedades.find((p) => p.id === id)?.titulo ?? id);
+      setMsgs((m) => [...m, { rol: "asistente", texto: r.respuesta, fichas: fichas.length ? fichas : undefined, pausada: r.pausada }]);
+    } catch (e: any) { setErr(e?.message || "No se pudo conectar."); }
     setBusy(false);
   };
 
   return (
     <div className="pcard mx-auto max-w-2xl overflow-hidden">
-      <div className="flex items-center justify-between border-b border-graph/[0.08] px-5 py-3">
+      <div className="border-b border-graph/[0.08] px-5 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-graph"><Bot size={17} className="text-brand" /> Probá a {cfg.nombre || "tu IA"} en vivo</span>
-        {key ? (
-          <button onClick={clearKey} className="text-[11px] font-medium text-brand transition hover:text-brand-700">Usando tu clave · quitar</button>
-        ) : (
-          <button onClick={() => setAvanzado((v) => !v)} className="text-[11px] font-medium text-graph-400 transition hover:text-graph">Usar mi API key</button>
-        )}
+        <p className="mt-0.5 text-xs text-graph-400">Es exactamente la que atiende en tu web y en Instagram: con tu cartera de hoy y lo que le enseñaste en el Cerebro.</p>
       </div>
-
-      {avanzado && !key && (
-        <div className="flex items-center gap-2 border-b border-graph/[0.08] bg-graph/[0.02] px-5 py-2.5">
-          <KeyRound size={15} className="shrink-0 text-graph-400" />
-          <input value={kin} onChange={(e) => setKin(e.target.value)} type="password" placeholder="sk-ant-…  (opcional: por defecto usa el servidor)"
-            className="h-9 flex-1 rounded-lg border border-graph/15 bg-paper-100 px-3 text-sm text-graph outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/15" />
-          <button onClick={saveKey} className="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-600">Guardar</button>
-        </div>
-      )}
 
       <div className="max-h-[46vh] min-h-[220px] space-y-3 overflow-y-auto bg-graph/[0.015] px-5 py-4">
         {msgs.length === 0 && (
           <div className="py-6 text-center">
-            <p className="text-sm text-graph-500">Escribile como si fueras un cliente. Responde con lo que cargaste en el Cerebro.</p>
+            <p className="text-sm text-graph-500">Escribile como si fueras un cliente.</p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
               {EJEMPLOS.map((e) => (
                 <button key={e} onClick={() => enviar(e)} className="rounded-full border border-graph/15 px-3 py-1.5 text-xs font-medium text-graph-500 transition hover:border-brand hover:text-brand">{e}</button>
@@ -765,8 +766,16 @@ function Probador({ cfg }: { cfg: IAConfig }) {
           </div>
         )}
         {msgs.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${m.role === "user" ? "bg-brand text-white" : "border border-graph/10 bg-paper-100 text-graph"}`}>{m.content}</div>
+          <div key={i} className={`flex ${m.rol === "cliente" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${m.rol === "cliente" ? "bg-brand text-white" : "border border-graph/10 bg-paper-100 text-graph"}`}>
+              {m.texto}
+              {m.fichas && (
+                <ul className="mt-2 space-y-0.5 border-t border-graph/10 pt-2 text-xs text-brand-700">
+                  {m.fichas.map((f) => <li key={f}>· {f}</li>)}
+                </ul>
+              )}
+              {m.pausada && <p className="mt-1.5 text-[11px] font-semibold text-wheat-600">Está en pausa desde el interruptor de arriba.</p>}
+            </div>
           </div>
         ))}
         {busy && <div className="flex justify-start"><div className="inline-flex items-center gap-2 rounded-2xl border border-graph/10 bg-paper-100 px-3.5 py-2 text-sm text-graph-400"><Loader2 size={14} className="animate-spin" /> escribiendo…</div></div>}

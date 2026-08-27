@@ -1,4 +1,6 @@
 import type { AsistenteConfig } from "./_config";
+import type { Cerebro } from "./_iaconfig";
+import type { Cerebro } from "./_iaconfig";
 
 // Item liviano del catálogo que el widget le manda a la function (sin precio: campos = a consultar).
 export type CampoLite = {
@@ -21,7 +23,48 @@ export type CampoLite = {
 
 // Arma el system prompt desde la config del cliente + el catálogo real.
 // Aislado a propósito: este mismo prompt se reusa en el WF1 de n8n (Fase 2 WhatsApp).
-export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[]): string {
+/** Las reglas que Mateo puede prender en "Comportamiento", ya redactadas para el prompt. */
+const REGLAS_DEL_EQUIPO: Record<string, string> = {
+  ofrecerVisita: "Cuando haya interés, ofrecé coordinar una visita a la propiedad.",
+  pedirContacto: "Pedí nombre, teléfono y zona de interés de forma natural.",
+  noPrecioFinal: "No cierres ni negocies un precio final: eso lo hace un asesor.",
+  derivarNegociacion: "Si quieren negociar, derivá a una persona de la oficina.",
+  derivarLegal: "Las consultas legales o de escritura, derivalas a un asesor.",
+};
+
+const FORMATO_JSON = `FORMATO DE SALIDA — OBLIGATORIO:
+Respondé con UN ÚNICO objeto JSON válido y COMPLETO, sin texto antes ni después, sin comillas de código (nada de \`\`\`), con EXACTAMENTE estas cuatro claves:
+{"respuesta": "<lo que le decís al visitante>", "campos_ids": ["ID1","ID2"], "lead_nombre": "", "lead_contacto": ""}
+- "campos_ids": IDs exactos del catálogo a recomendar (0 a 3). Si no recomendás ninguno, poné [].
+- "lead_nombre" y "lead_contacto": el nombre y el teléfono/email si los dio; si no, cadena vacía "".
+Asegurate de cerrar bien las llaves y comillas.`;
+
+const FORMATO_TEXTO = `FORMATO DE SALIDA — OBLIGATORIO:
+Respondé SOLO con el texto del mensaje, en texto plano: sin JSON, sin encabezados, sin comillas y sin explicar lo que hacés.`;
+
+/**
+ * @param cerebro  Lo que el equipo cargó en el panel (022). Se SUMA a la identidad
+ *                 de `_config.ts`; los candados de abajo mandan igual.
+ * @param salida   "json" para atender (el widget y los canales parsean); "texto"
+ *                 para redactar borradores desde el panel.
+ */
+export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro?: Cerebro, salida: "json" | "texto" = "json"): string {
+  const nombre = cerebro?.nombre?.trim() || cfg.asistente;
+  const ensenado = cerebro
+    ? [cerebro.contexto.trim(), ...cerebro.conocimiento.map((k) => `- ${k.tema ? `[${k.tema}] ` : ""}${k.texto.trim()}`)].filter(Boolean).join("\n")
+    : "";
+  const bloqueEnsenado = ensenado
+    ? `\nLO QUE EL EQUIPO DE ${cfg.negocio.toUpperCase()} TE ENSEÑÓ (es tu fuente para requisitos, comisiones, formas de pago, tasaciones, horarios y todo lo que no esté en el catálogo; si algo no figura acá ni en el catálogo, no lo inventes: ofrecé confirmarlo por WhatsApp):\n${ensenado}\n`
+    : "";
+  const trato = cerebro?.tono === "formal" ? "trato de usted, cordial y profesional" : "trato de vos, cálido, cercano";
+  const emojis = cerebro?.emojis === false ? " No uses emojis." : "";
+  const reglasEquipo = Object.entries(cerebro?.reglas ?? {})
+    .filter(([k, v]) => v && REGLAS_DEL_EQUIPO[k])
+    .map(([k]) => `- ${REGLAS_DEL_EQUIPO[k]}`);
+  if (cerebro?.firma?.trim()) reglasEquipo.push(`- Si te despedís o cerrás la charla, podés firmar como «${cerebro.firma.trim()}».`);
+  const bloqueReglas = reglasEquipo.length ? `\nReglas del equipo (se suman a las de arriba):\n${reglasEquipo.join("\n")}\n` : "";
+  const formato = salida === "texto" ? FORMATO_TEXTO : FORMATO_JSON;
+
   // 🔴 La OPERACIÓN va PRIMERA y en mayúsculas (19-ago): iba perdida entre los
   // pipes y Marina le ofreció a un visitante que buscaba ALQUILER un depto en
   // VENTA — el visitante tuvo que corregirla ("pero ese está en venta"). Un dato
@@ -45,14 +88,14 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[]): string
     })
     .join("\n");
 
-  return `Sos ${cfg.asistente}, la asesora virtual de ${cfg.negocio}, ${cfg.rubro} en ${cfg.zona}${
+  return `Sos ${nombre}, la asesora virtual de ${cfg.negocio}, ${cfg.rubro} en ${cfg.zona}${
     cfg.desde ? `, desde ${cfg.desde}` : ""
   }.
-${cfg.contexto ? `\nSobre ${cfg.negocio} (usá esto para responder por horarios, oficinas y servicios, con este mismo tono): ${cfg.contexto}\n` : ""}
+${cfg.contexto ? `\nSobre ${cfg.negocio} (usá esto para responder por horarios, oficinas y servicios, con este mismo tono): ${cfg.contexto}\n` : ""}${bloqueEnsenado}
 Tu trabajo: llevar una conversación NATURAL y fluida con quien visita la web, entender qué propiedad busca (un campo, una casa, un departamento, un lote, un terreno o un local), recomendarle opciones REALES del catálogo, y encaminar la charla a que siga por WhatsApp con un asesor.
 
 Reglas:
-- Escribí en español rioplatense, trato de vos, cálido, cercano y BREVE (2-4 oraciones). Conversá como una persona, no como un formulario ni un robot: seguí el hilo de lo que te dicen y hacé UNA sola pregunta por vez.
+- Escribí en español rioplatense, ${trato} y BREVE (2-4 oraciones).${emojis} Conversá como una persona, no como un formulario ni un robot: seguí el hilo de lo que te dicen y hacé UNA sola pregunta por vez.
 - Recomendá ÚNICAMENTE propiedades de la lista de abajo, por su ID. No inventes propiedades, datos ni características que no figuren.
 - 🔴 LA OPERACIÓN ES UN FILTRO DURO, NUNCA LA CONFUNDAS. Cada propiedad del catálogo abre con su operación entre corchetes: [VENTA], [ALQUILER] o [TEMPORADA]. Si la persona busca ALQUILER, mostrale SOLO propiedades [ALQUILER]; si busca comprar, SOLO [VENTA]; si busca alquiler de verano/vacaciones, SOLO [TEMPORADA]. Ofrecer algo de otra operación es un ERROR GRAVE: le hace perder el tiempo y queda mal con el cliente.
 - 🔴 LOS DORMITORIOS/AMBIENTES DE CADA LÍNEA SON EL DATO REAL: si la persona pide "2 dormitorios", filtrá por el "2 dorm" de la línea, no por lo que diga el título. Y si una línea NO trae dormitorios, significa "sin dato cargado", NO "no tiene": jamás uses la falta del dato para descartar o para afirmar que "no hay" — decí lo que SÍ tenés de esa operación y zona, y ofrecé confirmar el detalle por WhatsApp.
@@ -66,14 +109,9 @@ Reglas:
 - Cuando tengas 1 a 3 buenas opciones, recomendalas (poné sus IDs en campos_ids).
 - OBJETIVO FINAL: que la persona siga la conversación por WhatsApp con un asesor. Apenas haya interés real (le gustó una propiedad o pidió más info), invitala de forma natural a seguir por WhatsApp para coordinar y pasarle el detalle. No fuerces WhatsApp en el primer mensaje.
 - Pedí nombre + un contacto (teléfono o email) de forma natural cuando haya interés, así el asesor lo puede seguir. Si te lo da, devolvelo en lead_nombre y lead_contacto (si no, dejá cadena vacía).
-
+${bloqueReglas}
 Catálogo disponible (ID | título | zona | tipo | detalle | operación | precio):
 ${lista || "(no hay propiedades cargadas en este momento)"}
 
-FORMATO DE SALIDA — OBLIGATORIO:
-Respondé con UN ÚNICO objeto JSON válido y COMPLETO, sin texto antes ni después, sin comillas de código (nada de \`\`\`), con EXACTAMENTE estas cuatro claves:
-{"respuesta": "<lo que le decís al visitante>", "campos_ids": ["ID1","ID2"], "lead_nombre": "", "lead_contacto": ""}
-- "campos_ids": IDs exactos del catálogo a recomendar (0 a 3). Si no recomendás ninguno, poné [].
-- "lead_nombre" y "lead_contacto": el nombre y el teléfono/email si los dio; si no, cadena vacía "".
-Asegurate de cerrar bien las llaves y comillas.`;
+${formato}`;
 }

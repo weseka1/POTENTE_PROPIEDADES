@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { CONFIG } from "./_config";
 import { buildSystem, type CampoLite } from "./_prompt";
+import { leerCerebro } from "./_iaconfig";
+import { catalogoDesdeLaBase } from "./_catalogo";
 
 // ── Núcleo del asistente, agnóstico de plataforma ─────────────────────────────
 // Lo usan: netlify/functions/asistente.ts (Netlify) y server/index.ts (Render).
@@ -44,7 +46,13 @@ export async function chatGenerico(body: any): Promise<ResultadoAsistente> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { status: 503, data: { error: "El asistente no está configurado en el servidor (falta ANTHROPIC_API_KEY)." } };
 
-  const system = String(body?.system ?? "").slice(0, 8000);
+  // 27-ago · Sin `system` propio, el panel usa el cerebro REAL: el mismo prompt
+  // que atiende en la web y en Instagram, con la cartera viva y lo que cargó
+  // Mateo, en modo texto. Antes el panel armaba OTRA versión del prompt, y el
+  // Probador aprobaba una Marina que no existía.
+  const system = typeof body?.system === "string" && body.system.trim()
+    ? String(body.system).slice(0, 8000)
+    : buildSystem(CONFIG, await catalogoDesdeLaBase(), await leerCerebro(), "texto");
   const raw = Array.isArray(body?.messages) ? body.messages.slice(-16) : [];
   const messages = raw
     .map((m: any) => ({
@@ -70,6 +78,22 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
 
   const mensaje = String(body?.mensaje ?? "").trim().slice(0, 2000);
   if (!mensaje) return { status: 400, data: { error: "Mensaje vacío." } };
+
+  // 27-ago · El interruptor del panel es REAL: en pausa, Marina no atiende en
+  // ningún canal, y lo dice como una persona (200 hablado, nunca un error).
+  const cerebro = await leerCerebro();
+  if (!cerebro.activa) {
+    return {
+      status: 200,
+      data: {
+        respuesta: "Ahora mismo no estoy atendiendo por acá. Escribinos por WhatsApp y un asesor de la oficina te responde enseguida.",
+        camposIds: [],
+        lead: null,
+        degradado: true,
+        pausada: true,
+      },
+    };
+  }
 
   const historial = Array.isArray(body?.historial) ? body.historial.slice(-12) : [];
   // 🔴 Cicatriz 18-ago: el tope era 60 y la cartera real ya pasaba las 100
@@ -103,7 +127,7 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
       const resp = await client.messages.create({
         model: "claude-haiku-4-5",
         max_tokens: 1024,
-        system: buildSystem(CONFIG, catalogo),
+        system: buildSystem(CONFIG, catalogo, cerebro),
         messages,
         // structured outputs (cuando aplica) + el formato JSON también va explícito en el prompt
         output_config: { format: { type: "json_schema", schema: SCHEMA } },
