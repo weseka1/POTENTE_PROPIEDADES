@@ -159,7 +159,24 @@ function useIAConfig() {
         return;
       }
       const guardado = data?.cfg && typeof data.cfg === "object" ? (data.cfg as Record<string, unknown>) : {};
-      if (Object.keys(guardado).length) setCfg((c) => sanearIA({ ...c, ...guardado }));
+      if (Object.keys(guardado).length) {
+        setCfg((local) => {
+          const deLaBase = sanearIA({ ...local, ...guardado });
+          /* 🔴 EL CONOCIMIENTO NO SE PISA (27-ago). Lo que el equipo le enseñó a
+           * la IA vivió meses solo en el navegador de quien lo escribió. Al pasar
+           * a la base, el primero que abriera el panel dejaba SU versión, y el
+           * siguiente —el que de verdad había cargado el texto— se lo encontraba
+           * reemplazado por el default, sin aviso y sin forma de recuperarlo.
+           * Ante duda gana lo más completo, y se avisa: perder el trabajo de un
+           * cliente por una mejora nuestra no es una opción. */
+          const peso = (c: IAConfig) => c.contexto.trim().length + c.conocimiento.reduce((n, k) => n + k.texto.trim().length, 0);
+          if (peso(local) > peso(deLaBase)) {
+            push("Este navegador tenía más cargado en el Cerebro que la nube: se conserva lo de acá y se sube.", "info");
+            return local;
+          }
+          return deLaBase;
+        });
+      }
       setEnBase(true);
     });
     return () => { vivo = false; };
