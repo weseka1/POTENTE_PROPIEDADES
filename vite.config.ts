@@ -28,31 +28,40 @@ import { DOMINIO_POR_DEFECTO } from "./src/config/dominio.js";
  * en su navegador. Nadie tiene por qué darse cuenta de eso solo.
  * Se estampa el commit en el bundle Y en /version.json: si difieren, el panel
  * avisa que hay una versión nueva. */
-const BUILD = (() => {
-  // El build de producción corre EN EL HOSTING, donde no hay repositorio: el
-  // deploy le pasa el commit por `VITE_BUILD` (ver scripts/deploy-hostinger.mjs).
-  // Local, se lee de git. Y si no hay ninguno de los dos, cualquier valor sirve
-  // mientras cambie en cada build: lo único que importa es que dos builds
-  // distintos no compartan marca.
-  if (process.env.VITE_BUILD) return process.env.VITE_BUILD.trim().slice(0, 40);
+/**
+ * La marca de ESTE build.
+ *
+ * 🔴 Se resuelve DENTRO de defineConfig, con el `env` de `loadEnv`: vite no
+ * vuelca los archivos .env en `process.env` para el propio config, así que
+ * leerlo afuera daba siempre el fallback (medido: el primer deploy publicó
+ * "build-mtbuzab5" en vez del commit).
+ *
+ * El build de producción corre EN EL HOSTING, donde no hay repositorio: el
+ * deploy le pasa el commit en VITE_BUILD (ver scripts/deploy-hostinger.mjs).
+ * Local se lee de git. Sin ninguno de los dos, cualquier valor sirve mientras
+ * cambie en cada build: lo único que importa es que dos builds no compartan marca.
+ */
+function marcaDeBuild(env: Record<string, string>): string {
+  if (env.VITE_BUILD) return env.VITE_BUILD.trim().slice(0, 40);
   try { return execSync("git rev-parse --short HEAD").toString().trim(); }
   catch { return "build-" + Date.now().toString(36); }
-})();
+}
 
 /** Deja /version.json en el dist, con la misma marca que viaja en el bundle. */
-const versionPlugin = () => ({
+const versionPlugin = (build: string) => ({
   name: "wsk-version",
   generateBundle(this: any) {
-    this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build: BUILD }) });
+    this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build }) });
   },
 });
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   process.env.VITE_SITE_URL = env.VITE_SITE_URL || process.env.VITE_SITE_URL || DOMINIO_POR_DEFECTO;
+  const BUILD = marcaDeBuild(env);
 
   return {
-    plugins: [react(), versionPlugin()],
+    plugins: [react(), versionPlugin(BUILD)],
     // La misma marca viaja adentro del bundle: el panel compara lo que ESTÁ
     // corriendo contra lo que hay publicado.
     define: { __BUILD__: JSON.stringify(BUILD) },
