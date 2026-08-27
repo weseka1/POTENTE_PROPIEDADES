@@ -10,6 +10,7 @@ import { guardarMensajes } from "../netlify/functions/_ingesta";
 import { conectarCuenta } from "../netlify/functions/_conectar";
 import { sincronizarInstagram, arrancarSincronizacionInstagram } from "../netlify/functions/_instagram";
 import { paginaPrivacidad, paginaEliminacion } from "./legales";
+import { ingresarDesdeManychat } from "../netlify/functions/_manychat";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -254,6 +255,17 @@ app.post("/api/meta/sincronizar", async (req, res) => {
   const horas = Number((req.body as any)?.horas);
   const r = await sincronizarInstagram(Number.isFinite(horas) ? { horas } : {});
   res.status(r.error ? 502 : 200).json({ ok: !r.error, ...r });
+});
+
+/* ── ManyChat → bandeja (27-ago) ────────────────────────────────────────────
+ * El puente mientras Meta no habilita nuestra app: ManyChat recibe el DM o el
+ * WhatsApp y nos lo reenvía acá con su acción "External Request". Entra por la
+ * misma puerta idempotente que Meta. El porqué, en `_manychat.ts`. */
+app.post("/api/ingesta/manychat", async (req, res) => {
+  const cupo = pasaElCupo(ipDe(req.headers), "chat");
+  if (!cupo.ok) return res.status(429).json({ ok: false, mensaje: "Muchos pedidos seguidos." });
+  const r = await ingresarDesdeManychat((req.body && typeof req.body === "object" ? req.body : {}) as any, req.header("x-manychat-token"));
+  res.status(r.status).json({ ok: r.ok, mensaje: r.mensaje, ...(r.resultado ?? {}) });
 });
 
 app.post("/api/asistente", async (req, res) => {

@@ -92,7 +92,9 @@ const CLAVES_CANALES = ["POTENTE_INGESTA_TOKEN", "META_VERIFY_TOKEN", "META_APP_
   // un solo DM de un cliente real y quemaría llamadas cada 2 minutos.
   // Se enciende sumando "META_PAGE_TOKEN" a esta lista el día que la app esté
   // publicada y con acceso avanzado aprobado. Ver netlify/functions/_instagram.ts.
-  "META_PAGE_ID", "META_IG_ID"];
+  "META_PAGE_ID", "META_IG_ID",
+  // El puente con ManyChat (27-ago): token propio, distinto del de la base.
+  "MANYCHAT_TOKEN"];
 const faltan = CLAVES_APP.filter((k) => !envLocal[k]);
 if (faltan.length) { console.error(`🔴 Faltan en .env.local: ${faltan.join(", ")}`); process.exit(1); }
 const conCanales = CLAVES_CANALES.filter((k) => envLocal[k]);
