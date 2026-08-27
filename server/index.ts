@@ -11,6 +11,7 @@ import { conectarCuenta } from "../netlify/functions/_conectar";
 import { sincronizarInstagram, arrancarSincronizacionInstagram } from "../netlify/functions/_instagram";
 import { paginaPrivacidad, paginaEliminacion } from "./legales";
 import { ingresarDesdeManychat } from "../netlify/functions/_manychat";
+import { enviarPorManychat } from "../netlify/functions/_enviar";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -270,6 +271,17 @@ app.post("/api/ingesta/manychat", async (req, res) => {
   // "no mandes nada" válido en vez de un error en sus registros. Un "External
   // Request" común ignora estos campos. En los dos casos el cliente no recibe nada.
   res.status(r.status).json({ version: "v2", content: { messages: [] }, ok: r.ok, mensaje: r.mensaje, ...(r.resultado ?? {}) });
+});
+
+/* ── Responder desde el panel (27-ago) ───────────────────────────────────────
+ * Una persona del panel contesta un hilo de Instagram/WhatsApp y el mensaje
+ * sale por ManyChat. Exige sesión del panel y solo sobre conversaciones que esa
+ * sesión puede leer (RLS). El porqué y los límites, en `_enviar.ts`. */
+app.post("/api/enviar", async (req, res) => {
+  const cupo = pasaElCupo(ipDe(req.headers), "chat");
+  if (!cupo.ok) return res.status(429).json({ ok: false, mensaje: "Muchos envíos seguidos. Esperá un momento." });
+  const r = await enviarPorManychat((req.body && typeof req.body === "object" ? req.body : {}) as any, req.header("authorization"));
+  res.status(r.status).json({ ok: r.ok, mensaje: r.mensaje, canal: r.canal ?? null });
 });
 
 app.post("/api/asistente", async (req, res) => {

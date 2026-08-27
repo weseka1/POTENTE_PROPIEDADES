@@ -88,9 +88,15 @@ export function normalizarManychat(entrada: EntradaManychat): { ok: true; mensaj
     mensajeId = "mc-" + createHash("sha1").update(`${canal}|${contacto}|${texto}|${minuto}`).digest("hex").slice(0, 24);
   }
 
+  // Lo que hace falta para RESPONDER después por ManyChat (021): su id de
+  // contacto. Sin esto el panel solo puede "copiar y abrir".
+  const externo: Record<string, string> = {};
+  if (/^\d+$/.test(subscriber)) externo.manychat_subscriber_id = subscriber;
+  if (canal === "instagram") externo.ig_username = contacto; else externo.telefono = contacto;
+
   return {
     ok: true,
-    mensaje: { canal, mensajeId, contacto, nombre: limpio(entrada.nombre, 120), texto, hora, de: "cliente" },
+    mensaje: { canal, mensajeId, contacto, nombre: limpio(entrada.nombre, 120), texto, hora, de: "cliente", externo },
   };
 }
 

@@ -38,7 +38,7 @@ const post = (body, token = TOKEN) => fetch(`${APP}/api/ingesta/manychat`, {
 const sb = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY);
 const { error: eLogin } = await sb.auth.signInWithPassword({ email: "mateo@potenteprop.com.ar", password: env.PANEL_MATEO_PASS });
 if (eLogin) { console.log(`⏭️  No se pudo entrar como la dirección (${eLogin.message}).`); process.exit(0); }
-const leer = async (contacto) => (await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,noLeida").eq("contacto", contacto)).data ?? [];
+const leer = async (contacto) => (await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,mensajes,noLeida,externo").eq("contacto", contacto)).data ?? [];
 const limpiar = async () => {
   for (const c of [IG, TEL_DIGITOS]) for (const f of await leer(c)) await sb.from("potente_conversaciones").delete().eq("id", f.id);
 };
@@ -71,6 +71,11 @@ try {
   convs = await leer(IG);
   chequear("…sigue habiendo 1 conversación con 1 mensaje", convs.length === 1 && convs[0].mensajes.length === 1, `${convs.length} conv · ${convs[0]?.mensajes.length} msgs`);
 
+  // 021 · el id de ManyChat queda guardado para poder responder desde el panel
+  chequear("🆔 La conversación guarda el id de ManyChat (para responder desde el panel)",
+    convs[0]?.externo?.manychat_subscriber_id === "123456" && convs[0]?.externo?.ig_username === IG,
+    JSON.stringify(convs[0]?.externo ?? null));
+
   const ig3 = await post({ canal: "instagram", contacto: IG, texto: "¿Cuánto sale?" });
   await new Promise((r) => setTimeout(r, 800));
   convs = await leer(IG);
@@ -81,6 +86,17 @@ try {
   await new Promise((r) => setTimeout(r, 800));
   const cw = await leer(TEL_DIGITOS);
   chequear("📱 Un WhatsApp entra con el teléfono normalizado (solo dígitos)", wa.status === 200 && cw.length === 1 && cw[0].canal === "whatsapp", `HTTP ${wa.status} · contacto=${cw[0]?.contacto}`);
+
+  // 021 · responder desde el panel: exige sesión, y sin id externo no hay por dónde
+  const sinSesion = await fetch(`${APP}/api/enviar`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ convId: convs[0].id, texto: "hola" }) });
+  chequear("🔒 /api/enviar sin sesión del panel → 401", sinSesion.status === 401, `HTTP ${sinSesion.status}`);
+  const { data: { session } } = await sb.auth.getSession();
+  const conSesion = await fetch(`${APP}/api/enviar`, { method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ convId: convs[0].id, texto: "hola" }) });
+  const je = await conSesion.json().catch(() => ({}));
+  chequear("Con sesión, un id de ManyChat inventado NO tira 500: ManyChat lo rechaza y se avisa con motivo",
+    [400, 502].includes(conSesion.status) && typeof je.mensaje === "string" && je.mensaje.length > 5, `HTTP ${conSesion.status} · ${je.mensaje}`);
+  const vacio = await fetch(`${APP}/api/enviar`, { method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ convId: convs[0].id, texto: "   " }) });
+  chequear("Un texto vacío → 400", vacio.status === 400, `HTTP ${vacio.status}`);
 
   // Una oficina no ve nada de esto
   if (env.PANEL_CHAUVIN_PASS) {

@@ -4,6 +4,7 @@ import {
   ArrowLeft, Check, CheckCheck, Clock, Hand, Bot, X, Building2, Trash2, PhoneCall, Copy, Inbox, CircleSlash,
 } from "lucide-react";
 import { useData } from "@/lib/DataProvider";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "./Toast";
 import { CANALES_CONV, ORDEN_CANALES, canalDe, esperaSinRespuestaMin, COLGADO_MIN } from "@/data/conversaciones";
 import type { CanalConv, Conversacion, MensajeConv } from "@/data/conversaciones";
@@ -49,7 +50,13 @@ function linkDe(conv: Conversacion, texto: string): string | null {
   return null; // widget: sale del propio sistema
 }
 
-function labelEnvio(canal: CanalConv): string {
+/** ¿Este hilo se puede responder DESDE el panel? (021: entró por ManyChat y
+ *  tenemos su id de contacto). Si no, queda el camino de siempre: copiar y abrir. */
+const sePuedeEnviar = (c: Conversacion | null | undefined): boolean =>
+  Boolean(c && (c.canal === "instagram" || c.canal === "whatsapp") && /^\d+$/.test(c.externo?.manychat_subscriber_id ?? ""));
+
+function labelEnvio(canal: CanalConv, directo = false): string {
+  if (directo) return canal === "instagram" ? "Enviar por Instagram" : "Enviar por WhatsApp";
   switch (canalDe(canal).modo) {
     case "wa": return "Abrir WhatsApp";
     case "mail": return "Abrir el mail";
@@ -183,6 +190,7 @@ export default function BandejaConversaciones({
   const [filtro, setFiltro] = useState<CanalConv | "todos">("todos");
   const [selId, setSelId] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const [redactando, setRedactando] = useState(false);
   const [verHiloMobile, setVerHiloMobile] = useState(false);
   const finRef = useRef<HTMLDivElement>(null);
@@ -264,6 +272,38 @@ export default function BandejaConversaciones({
     const t = texto.trim();
     const { modo } = canalDe(sel.canal);
     if (!t && modo !== "tel") return;
+
+    /* 27-ago · Responder DESDE el panel. Si el hilo entró por ManyChat, el
+     * mensaje sale por ahí y el contacto lo recibe en su Instagram/WhatsApp:
+     * no hay que abrir nada. Se agrega al hilo como enviado (ManyChat no lo
+     * rebota por el puente, así que no se duplica). Si ManyChat lo rechaza
+     * (lo típico: pasaron 24 h desde su último mensaje), se avisa con el motivo
+     * y el texto queda escrito para que se mande por el camino de siempre. */
+    if (sePuedeEnviar(sel)) {
+      setEnviando(true);
+      try {
+        const { data: { session } } = await supabase!.auth.getSession();
+        const r = await fetch("/api/enviar", {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
+          body: JSON.stringify({ convId: sel.id, texto: t }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) {
+          push(j.mensaje || "No se pudo enviar. Probá con 'Copiar y abrir'.", "error");
+          return;
+        }
+        await agregarMensaje(sel.id, {
+          id: "MSG-" + Date.now(), de: "humano", texto: t, horaISO: new Date().toISOString(), envio: "enviado",
+        });
+        if (sel.estado === "ia") await setEstadoConversacion(sel.id, "vos");
+        setTexto("");
+        push(j.mensaje || "Enviado.", "success");
+      } finally {
+        setEnviando(false);
+      }
+      return;
+    }
 
     const href = linkDe(sel, t);
 
@@ -580,11 +620,11 @@ export default function BandejaConversaciones({
                   />
                   <button
                     onClick={enviar}
-                    disabled={!texto.trim() && modo !== "tel"}
+                    disabled={enviando || (!texto.trim() && modo !== "tel")}
                     className="inline-flex h-[52px] shrink-0 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {modo === "tel" ? <PhoneCall size={16} /> : <Send size={16} />}
-                    <span className="hidden sm:inline">{labelEnvio(sel.canal)}</span>
+                    <span className="hidden sm:inline">{labelEnvio(sel.canal, sePuedeEnviar(sel))}</span>
                   </button>
                 </div>
                 <p className="mt-1.5 text-[10.5px] leading-snug text-graph-400">

@@ -65,6 +65,10 @@ export async function guardarMensajes(mensajes: MensajeEntrante[]): Promise<Resu
           p_hora: m.hora,
           p_de: m.de ?? "cliente",          // 019: la oficina desde la app = 'humano'
           p_historico: m.historico === true, // 019: pasado, no novedad
+          // 021: los ids externos, SOLO cuando vienen. Si la función de la base no
+          // conociera el parámetro, PostgREST rechazaría la llamada entera — así
+          // que los mensajes de Meta (que no traen externo) no dependen de la 021.
+          ...(m.externo && Object.keys(m.externo).length ? { p_externo: m.externo } : {}),
         }),
       });
 

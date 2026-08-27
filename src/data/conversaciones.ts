@@ -42,6 +42,8 @@ export interface Conversacion {
   /** Por qué la IA la derivó a una persona. */
   motivo?: string;
   mensajes: MensajeConv[];
+  /** Ids de afuera (021): si hay `manychat_subscriber_id`, se puede responder desde el panel. */
+  externo?: Record<string, string>;
 }
 
 /* ===== Cómo se responde cada canal ===== */

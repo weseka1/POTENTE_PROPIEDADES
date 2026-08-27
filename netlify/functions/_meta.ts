@@ -40,6 +40,9 @@ export type MensajeEntrante = {
   de: "cliente" | "humano";
   /** Viene del historial (sincronización tras el QR): pasado, no novedad. */
   historico?: boolean;
+  /** Ids de afuera para poder RESPONDER por el mismo canal (021):
+   *  p. ej. { manychat_subscriber_id, ig_username }. Se mezclan en la conversación. */
+  externo?: Record<string, string>;
 };
 
 /**
