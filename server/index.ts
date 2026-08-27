@@ -265,7 +265,11 @@ app.post("/api/ingesta/manychat", async (req, res) => {
   const cupo = pasaElCupo(ipDe(req.headers), "chat");
   if (!cupo.ok) return res.status(429).json({ ok: false, mensaje: "Muchos pedidos seguidos." });
   const r = await ingresarDesdeManychat((req.body && typeof req.body === "object" ? req.body : {}) as any, req.header("x-manychat-token"));
-  res.status(r.status).json({ ok: r.ok, mensaje: r.mensaje, ...(r.resultado ?? {}) });
+  // `version`/`content` con cero mensajes: si ManyChat lo llama desde un bloque
+  // de "Contenido dinámico" (que espera su formato para PINTAR algo), recibe un
+  // "no mandes nada" válido en vez de un error en sus registros. Un "External
+  // Request" común ignora estos campos. En los dos casos el cliente no recibe nada.
+  res.status(r.status).json({ version: "v2", content: { messages: [] }, ok: r.ok, mensaje: r.mensaje, ...(r.resultado ?? {}) });
 });
 
 app.post("/api/asistente", async (req, res) => {
