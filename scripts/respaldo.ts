@@ -43,6 +43,12 @@ const TABLAS = [
   "potente_llaves",
   "potente_movimientos_llave",
   "potente_conversaciones",
+  // 26-ago: faltaban los perfiles y los PIN del panel (sin ellos, tras una
+  // restauracion el equipo no entra como antes). `potente_dominios_permitidos`
+  // NO va: es configuracion que ni la direccion puede leer (permission denied,
+  // medido), y vive en la migracion 006 — se restaura desde ahi.
+  "potente_perfiles",
+  "potente_pines",
   "potente_auditoria",
 ] as const;
 
