@@ -91,6 +91,25 @@ try {
   const metrica = await evaluar(`return (document.body.innerText.match(/Sin responder[^\\n]*\\n?\\s*(\\d+)/) || [])[1] || (document.body.innerText.match(/(\\d+)\\s*\\n?\\s*Sin responder/) || [])[1] || ''`);
   chequear("…y la métrica 'Sin responder' cuenta al menos 1", Number(metrica) >= 1, `métrica: ${metrica || "no encontrada"}`);
 
+  // 1b · la pestaña Canales: la tarjeta de WhatsApp dice "Conectado" porque ENTRÓ
+  //      un mensaje, no porque alguien dejó un flag prendido
+  const clickTab = (nombre) => evaluar(`[...document.querySelectorAll('button')].find(b => (b.textContent||'').trim() === '${nombre}')?.click(); return 1;`);
+  // Se busca por el TÍTULO de la tarjeta (el <p> de arriba), no por el texto
+  // entero: la descripción de Instagram también dice "WhatsApp". Y sin  en el
+  // template: adentro de un template de JS,  es BACKSPACE (cicatriz conocida).
+  const estadoTarjeta = (nombre) => evaluar(`
+    const t = [...document.querySelectorAll('.pcard')].find(x => ((x.querySelector('p')?.textContent) || '').trim().startsWith('${nombre}'));
+    return t ? (t.querySelector('[data-canal-estado]')?.getAttribute('data-canal-estado') || 'sin-estado') : 'sin-tarjeta';
+  `);
+  await clickTab("Canales");
+  await new Promise((r) => setTimeout(r, 800));
+  const tarjetaWA = await estadoTarjeta("WhatsApp");
+  chequear("📡 En Canales, WhatsApp figura 'Conectado · en el panel' (deducido de la bandeja real)", tarjetaWA === "conectado", `estado: ${tarjetaWA}`);
+  const tarjetaIG = await estadoTarjeta("Instagram");
+  chequear("…e Instagram sigue 'A conectar' (no entró nada suyo)", tarjetaIG === "pendiente", `estado: ${tarjetaIG}`);
+  await clickTab("Conversaciones");
+  await new Promise((r) => setTimeout(r, 800));
+
   // 2 · la oficina responde desde el celular
   const st2 = await postear(cambio("smb_message_echoes", {
     messaging_product: "whatsapp",

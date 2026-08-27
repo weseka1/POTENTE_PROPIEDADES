@@ -74,12 +74,18 @@ type Canal = {
   meta?: boolean;
   /** Lo que hace falta del lado del cliente para poder activarlo. */
   requisitos?: string[];
+  /** 27-ago · Canal ESPEJO: entra a la bandeja para que la dirección lo vea y
+   *  responda; Marina NO contesta ahí (decisión de Juani: «wpp no debe
+   *  responder, lo van a manejar ellos»). Su estado no es "Marina atiende /
+   *  no atiende" sino "conectado / a conectar", y se deduce de la bandeja real:
+   *  si entraron mensajes de ese canal, está conectado. Nada hardcodeado. */
+  espejo?: boolean;
 };
 
 const CANALES: Canal[] = [
   { key: "web", nombre: "Chat en tu web", via: "Widget", desc: "Marina atiende en potenteprop.com.ar las 24 horas: responde, ordena y te deja la consulta cargada.", Icon: Globe, color: "#0C4DA2", andando: true, destacado: true },
-  { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Que Marina conteste los WhatsApp del negocio. Necesita WhatsApp Business API y la cuenta verificada por Meta.", Icon: MessageCircle, color: "#25D366", meta: true, requisitos: ["Una cuenta de WhatsApp Business API (no el WhatsApp común del celular)", "El número verificado por Meta y liberado de la app", "Nosotros conectamos el número al asistente y lo probamos con vos"] },
-  { key: "instagram", nombre: "Instagram", via: "Meta", desc: "Que Marina responda los mensajes directos de Instagram.", Icon: Instagram, color: "#E1306C", meta: true, requisitos: ["La cuenta de Instagram en modo Empresa/Profesional", "Vinculada a una página de Facebook", "Nosotros pedimos el permiso de mensajería y lo dejamos andando"] },
+  { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Los WhatsApp de Chauvín y Punta Mogotes se ven acá, con lo que responde cada oficina desde su celular. Nada se contesta solo: vos ves qué quedó colgado.", Icon: MessageCircle, color: "#25D366", meta: true, espejo: true, requisitos: ["Que Meta apruebe la verificación de la empresa (ya enviada)", "Escanear un QR con el celular de cada oficina desde potentepropiedades.com/conectar — el número sigue en la app como siempre", "Nosotros confirmamos la conexión y traemos el historial"] },
+  { key: "instagram", nombre: "Instagram", via: "Meta", desc: "Los mensajes directos de @potentepropiedades entran al panel. Después, Marina los responde y deriva al WhatsApp de la oficina que atiende esa propiedad.", Icon: Instagram, color: "#E1306C", meta: true, espejo: true, requisitos: ["Que Meta apruebe la verificación de la empresa (ya enviada)", "Que Meta apruebe el permiso de mensajería (revisión con un video del panel; la hacemos nosotros)", "Publicar la aplicación — ahí empiezan a entrar los mensajes"] },
   { key: "messenger", nombre: "Messenger", via: "Meta", desc: "Que Marina atienda el Messenger de la página.", Icon: MessageSquare, color: "#0084FF", meta: true, requisitos: ["La página de Facebook de la inmobiliaria", "Permiso de administrador para conectar el asistente"] },
   { key: "mail", nombre: "Email", via: "Casilla", desc: "Que Marina lea y responda las consultas que entran por mail.", Icon: Mail, color: "#C9A24E", requisitos: ["Acceso a la casilla (o un reenvío a una casilla nuestra)", "Definir qué contesta sola y qué te deriva"] },
   { key: "telefono", nombre: "Teléfono", via: "Registro", desc: "Registrar las llamadas y derivarlas a la oficina que corresponde.", Icon: Phone, color: "#9C6B3C", requisitos: ["Una línea que podamos integrar (voz sobre IP)", "Definir el árbol de derivación por oficina"] },
@@ -281,6 +287,11 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
     return Boolean(c?.andando && cfg.canales[key]);
   };
   const canalesReales = CANALES.filter((c) => c.andando);
+  // Un canal espejo está conectado si ENTRARON mensajes suyos (últimos 30 días).
+  // Es lo único honesto: no hay un flag que alguien pueda dejar prendido de más.
+  const hace30d = Date.now() - 30 * 86_400_000;
+  const recibiendo = (key: string) =>
+    conversaciones.some((c) => c.canal === key && new Date(c.mensajes[c.mensajes.length - 1]?.horaISO ?? 0).getTime() > hace30d);
   const conectados = canalesReales.filter((c) => cfg.canales[c.key]).length;
   const porCanal = leads.reduce<Record<string, number>>((a, l) => ((a[l.canal] = (a[l.canal] || 0) + 1), a), {});
   const intereses: Record<string, number> = {};
@@ -403,6 +414,7 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
             {CANALES.map((c) => {
               const disponible = Boolean(c.andando);
               const on = canalAndando(c.key);
+              const conectado = Boolean(c.espejo) && recibiendo(c.key);
               return (
                 <div key={c.key} className={`pcard p-5 ${c.destacado ? "ring-1 ring-brand/25" : ""}`}>
                   <div className="flex items-start justify-between">
@@ -416,10 +428,12 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
                         a activar con nosotros. Nunca "conectado" sin integración. */}
                     {on ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-inset ring-brand/20"><span className="h-1.5 w-1.5 rounded-full bg-brand" /> Atendiendo</span>
+                    ) : conectado ? (
+                      <span data-canal-estado="conectado" className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-500/20"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Conectado · en el panel</span>
                     ) : disponible ? (
                       <span className="rounded-full bg-graph/[0.05] px-2.5 py-1 text-[11px] font-semibold text-graph-400 ring-1 ring-inset ring-graph/10">Apagado</span>
                     ) : (
-                      <span className="rounded-full bg-wheat/15 px-2.5 py-1 text-[11px] font-semibold text-wheat-600 ring-1 ring-inset ring-wheat/30">A activar</span>
+                      <span data-canal-estado="pendiente" className="rounded-full bg-wheat/15 px-2.5 py-1 text-[11px] font-semibold text-wheat-600 ring-1 ring-inset ring-wheat/30">{c.espejo ? "A conectar" : "A activar"}</span>
                     )}
                   </div>
                   <p className="mt-3 flex items-center gap-2 font-display text-base font-semibold text-graph">
@@ -428,16 +442,16 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
                   </p>
                   <p className="mt-1 min-h-[40px] text-[13px] leading-snug text-graph-500">{c.desc}</p>
                   <button
-                    onClick={() => (disponible ? (on ? desconectar(c.key) : conectarWeb()) : setConn(c))}
+                    onClick={() => (conectado ? setTab("conversaciones") : disponible ? (on ? desconectar(c.key) : conectarWeb()) : setConn(c))}
                     className={`mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${
-                      on
+                      on || conectado
                         ? "border border-graph/15 text-graph-500 hover:bg-graph/5"
                         : disponible
                           ? "bg-brand text-white hover:bg-brand-600"
                           : "border border-graph/15 text-graph-600 hover:border-brand/40 hover:text-brand"
                     }`}
                   >
-                    {on ? "Apagar en la web" : disponible ? <><Link2 size={15} /> Prender en la web</> : <>Qué hace falta</>}
+                    {conectado ? <><Inbox size={15} /> Ver las conversaciones</> : on ? "Apagar en la web" : disponible ? <><Link2 size={15} /> Prender en la web</> : <>Qué hace falta</>}
                   </button>
                 </div>
               );
@@ -644,8 +658,8 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
           hacemos nosotros y hay requisitos del lado del cliente. Antes acá había
           un "Ir a Meta y autorizar" que no iba a ninguna parte (12-ago). */}
       <Modal open={!!conn} onClose={() => setConn(null)}
-        title={conn ? `Activar Marina en ${conn.nombre}` : ""}
-        subtitle="Todavía no está andando. Esto es lo que hace falta."
+        title={conn ? (conn.espejo ? `Conectar ${conn.nombre} al panel` : `Activar Marina en ${conn.nombre}`) : ""}
+        subtitle="Todavía no está conectado. Esto es lo que hace falta, y en qué estamos."
         footer={
           <>
             <button onClick={() => setConn(null)} className="inline-flex h-9 items-center rounded-lg border border-graph/15 px-4 text-sm font-medium text-graph-500 transition hover:text-graph">Cerrar</button>
