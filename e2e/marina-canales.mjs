@@ -12,8 +12,11 @@
  *     a una persona CON el motivo (nunca en silencio);
  *   · un WhatsApp NO despierta a Marina (decisión 27-ago: supervisión).
  *
- * ⚠️ La prueba de pausa apaga a Marina unos ~25 s en producción (la caché del
- * server dura 20 s). Se restaura en el `finally` pase lo que pase.
+ * 🔴 La prueba de la PAUSA apaga a Marina de verdad (~25 s: la caché del server dura
+ * 20 s). Contra PRODUCCIÓN no se corre: es el sitio de un cliente que la usa a
+ * diario, y además dejaba en falso rojo a cualquier suite que corriera detrás
+ * (`marina.mjs` acusó 3 fallos por esto el 27-ago). Va solo en local, o con
+ * `PERMITIR_PAUSA=1` a sabiendas.
  */
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
@@ -39,8 +42,21 @@ const sb = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY);
 const { error: eLogin } = await sb.auth.signInWithPassword({ email: "mateo@potenteprop.com.ar", password: env.PANEL_MATEO_PASS });
 if (eLogin) { console.log(`⏭️  No se pudo entrar como la dirección (${eLogin.message}).`); process.exit(0); }
 
-const postAsistente = (body) => fetch(`${APP}/api/asistente`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
-  .then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) }));
+/* El cupo del asistente es por IP y por minuto, y lo COMPARTEN todas las suites:
+ * `marina.mjs` lo agota a propósito para probar que agotarlo no rompe la atención.
+ * Si esta corre detrás, Marina contesta el mensaje de "estoy atendiendo a varias
+ * personas" — que es lo correcto, no un bug. Se espera el minuto y se reintenta;
+ * la pausa (`pausada:true`) NO se reintenta: esa sí es una respuesta válida. */
+const postAsistente = async (body, reintentos = 2) => {
+  const r = await fetch(`${APP}/api/asistente`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const json = await r.json().catch(() => ({}));
+  if (json?.degradado && !json?.pausada && reintentos > 0) {
+    console.log("   (cupo compartido agotado: espero el minuto y reintento)");
+    await new Promise((x) => setTimeout(x, 62_000));
+    return postAsistente(body, reintentos - 1);
+  }
+  return { status: r.status, json };
+};
 const postManychat = (body) => fetch(`${APP}/api/ingesta/manychat`, { method: "POST", headers: { "content-type": "application/json", "x-manychat-token": env.MANYCHAT_TOKEN }, body: JSON.stringify(body) })
   .then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) }));
 const leerConv = async (contacto) => (await sb.from("potente_conversaciones").select("id,canal,nombre,contacto,estado,motivo,mensajes,leadId,propiedadId").eq("contacto", contacto)).data ?? [];
@@ -56,6 +72,7 @@ const SESION = `visita-sonda${SELLO}`;
 const IG = `sonda_ig_${SELLO}`;
 const TEL = `5492230${SELLO.slice(-6)}`;
 let cfgOriginal = null;
+let seTocoLaConfig = false;
 const leadsCreados = [];
 
 const limpiar = async () => {
@@ -126,6 +143,13 @@ try {
     hiloWA ? `estado=${hiloWA.estado} · ${hiloWA.mensajes.length} msgs` : "sin hilo");
 
   // ── 5 · El interruptor es real ────────────────────────────────────────────
+  // 🔴 Apagar a Marina en el sitio del cliente, aunque sean 25 s, no se hace por
+  // una prueba: se corre en local (o forzado a mano).
+  const local = /localhost|127\.0\.0\.1/.test(APP);
+  if (!local && process.env.PERMITIR_PAUSA !== "1") {
+    console.log("⏭️  La prueba de la pausa se saltea contra producción (apagaría a Marina ~25 s). Correla en local.");
+  } else {
+  seTocoLaConfig = true;
   const { error: ePausa } = await sb.from("potente_ia_config").upsert({ id: true, cfg: { ...cfgOriginal, activa: false } });
   chequear("La dirección puede pausar a Marina (escribe la config)", !ePausa, ePausa?.message ?? "");
   await espera(21_000);                                   // la caché del server dura 20 s
@@ -133,8 +157,9 @@ try {
   chequear("⏸️ En pausa, /api/asistente responde 200 hablado con pausada:true (no un error)",
     pausada.status === 200 && pausada.json.pausada === true && /WhatsApp/i.test(pausada.json.respuesta ?? ""),
     `HTTP ${pausada.status} · ${String(pausada.json.respuesta ?? "").slice(0, 70)}`);
+  }
 } finally {
-  if (cfgOriginal) {
+  if (cfgOriginal && seTocoLaConfig) {
     const { error } = await sb.from("potente_ia_config").upsert({ id: true, cfg: cfgOriginal });
     console.log(error ? `  🔴 NO SE PUDO RESTAURAR LA CONFIG: ${error.message}` : "  (config de Marina restaurada)");
   }

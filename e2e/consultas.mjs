@@ -83,8 +83,14 @@ try {
 
   // ── Consultas: la tarjeta se abre ──────────────────────────────────────────
   await ir(APP + "/panel/leads", 5000);
-  const tarjeta = await evaluar(`const t = document.querySelector('[data-consulta=${JSON.stringify(leadId)}]'); return t ? (t.textContent||'').trim().slice(0,120) : '';`);
-  chequear("📋 La consulta está en Consultas con lo que pidió", tarjeta.includes(NOMBRE) && /Pidió/.test(tarjeta), tarjeta.slice(0, 90));
+  // 🔴 Se compara contra lo que la base GUARDÓ, no contra lo que tipeé: el nombre lo
+  // extrae Marina del texto ("Soy Sonda Pantalla 9718055" → a veces "Sonda Pantalla"),
+  // así que exigir mi string exacto es una prueba frágil que acusa a una pantalla sana.
+  const { data: guardado } = await sb.from("potente_leads").select("nombre,contacto,notas").eq("id", leadId).maybeSingle();
+  const tarjeta = await evaluar(`const t = document.querySelector('[data-consulta=${JSON.stringify(leadId)}]'); return t ? (t.textContent||'').trim().slice(0,160) : '';`);
+  chequear("📋 La consulta está en Consultas con el nombre y el contacto que guardó la base, y lo que pidió",
+    Boolean(guardado) && tarjeta.includes(guardado.nombre) && tarjeta.includes(guardado.contacto) && /Pidió/.test(tarjeta),
+    `guardado: "${guardado?.nombre}" / "${guardado?.contacto}" · tarjeta: ${tarjeta.slice(0, 80)}`);
   await evaluar(`document.querySelector('[data-consulta=${JSON.stringify(leadId)}]').click(); return 1;`);
   await espera(900);
   const drawer = await evaluar(`const d = document.querySelector('[data-consulta-drawer]'); if (!d) return null; return { texto: (d.innerText||''), conv: Boolean(d.querySelector('[data-consulta-conversacion]')), burbujas: d.querySelectorAll('[data-consulta-conversacion] > div').length };`);
@@ -101,7 +107,7 @@ try {
   await espera(4500);
   const urlBandeja = await evaluar(`return location.pathname + location.search;`);
   chequear("…lleva a /panel/asistente?conv=<id>", /\/panel\/asistente\?conv=CONV-/.test(urlBandeja), urlBandeja);
-  const hiloAbierto = await evaluar(`return (document.body.innerText||'').includes(${JSON.stringify("sigue disponible")}) && (document.body.innerText||'').includes(${JSON.stringify(NOMBRE)});`);
+  const hiloAbierto = await evaluar(`return (document.body.innerText||'').includes(${JSON.stringify("sigue disponible")}) && (document.body.innerText||'').includes(${JSON.stringify(guardado?.nombre ?? NOMBRE)});`);
   chequear("🧵 …y el hilo de esa persona queda abierto (se lee su primera pregunta)", hiloAbierto === true, "");
   await captura("bandeja-desde-consulta");
 
