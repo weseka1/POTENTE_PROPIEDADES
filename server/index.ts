@@ -12,7 +12,7 @@ import { sincronizarInstagram, arrancarSincronizacionInstagram } from "../netlif
 import { paginaPrivacidad, paginaEliminacion } from "./legales";
 import { ingresarDesdeManychat } from "../netlify/functions/_manychat";
 import { enviarPorManychat } from "../netlify/functions/_enviar";
-import { registrarCharlaWeb } from "../netlify/functions/_marina";
+import { registrarCharlaWeb, responderEnInstagram } from "../netlify/functions/_marina";
 import { BARRIOS_TEMPORADA, slugBarrio } from "../src/config/temporada.js";
 
 // ── Server de producción para Render ──────────────────────────────────────────
@@ -101,6 +101,18 @@ app.post("/api/meta/webhook", express.raw({ type: "application/json", limit: "1m
   void guardarMensajes(mensajes).then((r) => {
     // Se loguea SIEMPRE: si un día dejan de entrar mensajes, esto es lo que lo cuenta.
     console.log(`Webhook Meta · ${r.guardados} guardados · ${r.repetidos} repetidos · ${r.fallados} fallados`);
+
+    /* 🔴 28-ago · MARINA TAMBIÉN SE DESPIERTA POR ACÁ.
+     * El disparo estaba SOLO en el puente de ManyChat, así que un DM que entraba
+     * por este webhook se guardaba en la bandeja y ahí quedaba: Marina ni se
+     * enteraba. Se vio probando en vivo — el mensaje de Juani llegó marcado
+     * `fuente=meta`, el hilo quedó impecable… y nadie contestó.
+     * `responderEnInstagram` ya filtra sola: ignora WhatsApp (supervisión),
+     * los hilos que tomó una persona y los mensajes que no son del cliente.
+     * Va después de responderle a Meta para no colgarle el timeout. */
+    for (const id of r.conversaciones) {
+      setImmediate(() => responderEnInstagram(id).catch((e) => console.error("Marina · Instagram (webhook):", e?.message ?? e)));
+    }
   });
 });
 
