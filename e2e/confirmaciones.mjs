@@ -20,8 +20,12 @@
  *
  * USO: APP=http://localhost:3000 node e2e/confirmaciones.mjs
  */
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { nuevaPestania, chequear, resumen } from "./cdp.mjs";
-import { pedirSesion, guionSesion } from "./login.mjs";
+import { pedirSesion, guionSesion, CUENTAS } from "./login.mjs";
 
 const { send, evaluar, ir, cerrar, URL_APP } = await nuevaPestania();
 await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
@@ -109,7 +113,52 @@ async function probar({ nombre, ruta, abrirBorrado, contar, espera = 6000 }) {
   chequear(`🔑 ${nombre}: CANCELAR no borró nada`, despues === antes, `${antes} → ${despues}`);
 }
 
-/* ── Clientes: 10 demo, el botón vive en el drawer del cliente ─────────────── */
+/* 🔴 28-ago · ESTA SUITE VIVÍA EN ROJO POR FALTA DE DATOS.
+ * Los comentarios de acá abajo decían "10 demo" y "5 demo": se escribió cuando el
+ * CRM tenía las semillas del enlatado. Esas semillas se limpiaron —bien— y desde
+ * entonces `potente_clientes` y `potente_tasaciones` están vacías, así que dos de
+ * las seis pruebas fallaban con "0 filas, no se puede verificar acá". Falla honesta,
+ * pero un rojo crónico que no es un defecto entrena a mirar la batería para otro
+ * lado, y el día que se rompa un borrado de verdad nadie va a mirar.
+ * Mismo remedio que `temporada-mogotes` y `llaves`: la suite SIEMBRA su propia
+ * sonda y la barre en un `finally` — en el finally, no al final: si una aserción
+ * explota, la fila de prueba queda en el CRM del cliente. Y barre al arrancar, por
+ * si una corrida anterior murió a la mitad. */
+const SELLO = `VERIF-${Date.now().toString(36).toUpperCase()}`;
+const AQUI = dirname(fileURLToPath(import.meta.url));
+const env = Object.fromEntries(
+  readFileSync(resolve(AQUI, "..", ".env.local"), "utf8")
+    .split("\n").map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && l.includes("="))
+    .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]),
+);
+const sb = createClient(
+  process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY,
+  { auth: { persistSession: false } },
+);
+// Las credenciales salen de CUENTAS (login.mjs), que ya es la única fuente:
+// inventar nombres de variables acá era garantizar que se desincronicen.
+await sb.auth.signInWithPassword(CUENTAS.mateo);
+const barrer = async () => {
+  await sb.from("potente_clientes").delete().like("id", "CONF-VERIF-%");
+  await sb.from("potente_tasaciones").delete().like("id", "CONF-VERIF-%");
+};
+await barrer();
+const { error: eCli } = await sb.from("potente_clientes").insert({
+  id: `CONF-${SELLO}`, nombre: "Sonda de confirmaciones", tipo: "comprador",
+  telefono: "-", email: "-", localidad: "-", operaciones: 0, notas: "Fila de prueba de e2e/confirmaciones",
+});
+const { error: eTas } = await sb.from("potente_tasaciones").insert({
+  id: `CONF-${SELLO}`, fechaISO: new Date().toISOString().slice(0, 10),
+  solicitante: "Sonda de confirmaciones", contacto: "-", estado: "solicitada",
+});
+chequear("Siembra la sonda del CRM (si no, estas pantallas no se pueden probar)", !eCli && !eTas,
+  [eCli?.message, eTas?.message].filter(Boolean).join(" · ") || "cliente + tasación puestos");
+
+try {
+
+/* ── Clientes: el botón vive en el drawer del cliente ──────────────────────── */
 await probar({
   nombre: "Clientes",
   ruta: "/panel/crm",
@@ -151,4 +200,9 @@ const trasRecorrido = JSON.parse(await cazados());
 chequear("Llaves: sigue sin diálogos del navegador", trasRecorrido.length === 0, trasRecorrido.join(" | "));
 
 await cerrar();
+} finally {
+  // En el FINALLY: si una aserción explotó, la sonda igual sale del CRM de Mateo.
+  await barrer();
+}
+
 resumen();

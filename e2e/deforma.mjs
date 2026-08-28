@@ -10,7 +10,13 @@ const RUTAS = [
   "/panel", "/panel/asistente", "/panel/cargar", "/panel/fichas", "/panel/planos",
   "/panel/temporada", "/panel/cartera", "/panel/leads", "/panel/crm", "/panel/pipeline",
   "/panel/agenda", "/panel/tasaciones", "/panel/llaves", "/panel/arrendamientos", "/panel/reportes",
-  "/", "/propiedades", "/propiedad/URB-001", "/temporada", "/temporada/playa-grande", "/favoritos",
+/* 🔴 28-ago · La lista decia "/temporada/playa-grande", un barrio que dejo de existir
+ * el 13-ago (Mateo: «temporada hacemos unicamente en Punta Mogotes»). Esa ruta
+ * redirige, y la prueba daba un rojo que no era un desborde real: scrollWidth ===
+ * innerWidth, o sea cero desborde, pero el ancho medido no era el pedido. Un rojo
+ * cronico que no significa nada entrena a mirar la suite para otro lado.
+ * Ahora apunta al barrio que SI existe, que ademas es el que esta en el sitemap. */
+  "/", "/propiedades", "/propiedad/URB-001", "/temporada", "/temporada/punta-mogotes", "/favoritos",
 ];
 
 const MEDIR = `
