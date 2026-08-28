@@ -28,7 +28,13 @@ export interface Campo {
   altaISO: string;
 }
 
-export type Canal = "web" | "whatsapp" | "mail" | "telefono" | "portal";
+/* Los canales por los que entra una consulta.
+ *
+ * 🔴 Tiene que tener los MISMOS valores que el enum `potente_canal` de la base
+ * (001) y que `CanalConv` en data/conversaciones.ts. Instagram y Messenger
+ * faltaban acá, y desde el 27-ago entran consultas por Instagram de verdad
+ * (`_marina.ts` las registra): quedaban sin etiqueta y sin ícono en el panel. */
+export type Canal = "web" | "whatsapp" | "instagram" | "messenger" | "mail" | "telefono" | "portal";
 export type EstadoLead =
   | "nueva"
   | "contactado"

@@ -100,40 +100,33 @@ export const registrarLead = (l: { id: string; nombre: string; contacto: string;
     p_id: l.id, p_nombre: l.nombre, p_contacto: l.contacto, p_canal: l.canal, p_campo_id: l.campoId ?? null, p_notas: l.notas,
   });
 
-// ── Lo que Marina dice en un canal (texto plano, con los links) ─────────────
+/* Se busca en TODA la charla, no en el último mensaje: en la conversación real
+ * que lo destapó, "temporada" estaba en el primero y el segundo era "somos 4 en
+ * familia en Mogotes" — mirando solo el último, una consulta de temporada
+ * terminaba derivada al catálogo general. Una vez que alguien dijo temporada, la
+ * consulta es de temporada hasta el final.
+ * (El `\b` va sobre el grupo entero: suelto al principio solo ancla la primera
+ * alternativa, y deja media lista sin anclar.) */
+const PALABRAS_TEMPORADA = /\b(temporada|temporario|verano|veraneo|vacacion\w*|vacación\w*|enero|febrero|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
+/** Los códigos de la casa, como los escribe la gente al copiar una ficha. */
+const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
+
 /**
- * En la web las fichas se pintan como tarjetas; en Instagram son links. Y el
- * WhatsApp que se ofrece es el de la OFICINA que atiende la propiedad
- * recomendada (misma regla que la ficha pública, 21-ago). Sin propiedad no se
- * inventa un número: el central es el personal de Mateo.
- */
-/* ── A DÓNDE SE DERIVA UN DM: LO DECIDE EL CÓDIGO, NO LA IA ──────────────────
+ * ── A DÓNDE SE DERIVA UN DM: LO DECIDE EL CÓDIGO, NO LA IA ──────────────────
+ *
  * 28-ago, Juani: «debe derivar únicamente a los WhatsApp correspondientes; si
  * consultan por propiedades, a la web; si consultan por temporada, a Mogotes; y
  * NO puede dar recomendaciones».
  *
  * Se lee lo que escribió la PERSONA, no lo que dedujo el modelo: la IA redacta
- * la frase y el sistema pega el link. Es la misma regla que ya nos salvó antes
- * (la IA narra, el código calcula) — así no hay forma de que invente un número
- * ni mande a la oficina equivocada.
+ * la frase y el sistema pega el link. Es la regla que ya nos salvó antes —la IA
+ * narra, el código calcula—: así no hay forma de que invente un número ni mande
+ * a la oficina equivocada.
+ *
+ * DOS SALIDAS, NADA MÁS. Tener menos caminos es lo que hace confiable el filtro:
+ * cada rama que se agrega es una rama que puede elegir mal.
  */
-/* 🔴 Se mira TODA la charla, no el último mensaje. En la conversación real que
- * lo destapó, "temporada" estaba en el primero y el segundo era "somos 4 en
- * familia en Mogotes": mirando solo el último, una consulta de temporada
- * terminaba derivada al catálogo general. Una vez que alguien dijo temporada,
- * la consulta es de temporada hasta el final de la charla.
- * (Y el `\b` va sobre el grupo entero: suelto al principio solo aplicaba a la
- * primera alternativa — un error clásico que deja media lista sin anclar.) */
-const PALABRAS_TEMPORADA = /\b(temporada|temporario|verano|veraneo|vacacion\w*|vacación\w*|enero|febrero|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
-/** Los códigos de la casa, como los escribe la gente al copiar una ficha. */
-const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
-
 export function derivacionDe(textoDelCliente: string, catalogo: CampoLite[]): { titulo: string; link: string } {
-  /* ── DOS SALIDAS, NADA MÁS (Juani, 28-ago) ─────────────────────────────────
-   * «para comprar/alquilar, WEB; para temporada, WPP DE MOGOTES».
-   * Tener menos caminos es lo que hace que el filtro sea confiable: cada rama
-   * que se agrega es una rama que puede elegir mal. */
-
   // 1 · TEMPORADA → el WhatsApp de Punta Mogotes, siempre. La oficina sale de
   //     `config/temporada.js`, la misma fuente que usa la web: si algún día
   //     temporada la maneja otra oficina, cambia en un solo lugar.
@@ -155,41 +148,18 @@ export function derivacionDe(textoDelCliente: string, catalogo: CampoLite[]): { 
   return { titulo: "Podés verlas todas acá, con fotos y el contacto de cada una:", link: `${SITIO}/propiedades` };
 }
 
-export function textoParaCanal(respuesta: string, camposIds: string[], catalogo: CampoLite[], textoDelCliente?: string): string {
-  /* En Instagram `camposIds` viene vacío por diseño (no se recomienda) y se
-   * deriva. En la web sí se recomiendan fichas: ese camino queda igual. */
-  if (typeof textoDelCliente === "string") {
-    const d = derivacionDe(textoDelCliente, catalogo);
-    return `${respuesta.trim()}\n\n${d.titulo}\n${d.link}`;
-  }
-
-  const fichas = camposIds
-    .map((id) => catalogo.find((c) => c.id === id))
-    .filter((c): c is CampoLite => Boolean(c))
-    .slice(0, 3);
-  const partes = [respuesta.trim()];
-
-  /* 🔴 27-ago, pedido de Juani: desde Instagram se deriva al WhatsApp de la
-   * OFICINA QUE ATIENDE ESA PROPIEDAD. Antes el link se adjuntaba SOLO si la
-   * respuesta mencionaba la palabra "WhatsApp", o sea que dependía de cómo
-   * redactara Marina ese día: la mitad de los DM salían sin número.
-   *
-   * Y si las recomendadas son de oficinas DISTINTAS, el número va pegado a cada
-   * una: un solo link al final le daría el teléfono equivocado para las otras.
-   * Misma regla que la ficha pública (21-ago). Sin propiedad no se inventa un
-   * número: el central es el personal de Mateo. */
-  const oficinas = [...new Set(fichas.map((f) => f.oficina).filter(Boolean))] as ("chauvin" | "puntamogotes")[];
-  const unaSola = oficinas.length === 1;
-
-  for (const f of fichas) {
-    const linea = `${f.titulo}${f.precio ? ` · ${f.precio}` : ""}\n${SITIO}/propiedad/${f.id}`;
-    partes.push(!unaSola && f.oficina ? `${linea}\nConsultas: ${waUrl(f.oficina)}` : linea);
-  }
-
-  if (unaSola) {
-    partes.push(`Para coordinar una visita o pedir más detalles, escribinos por WhatsApp: ${waUrl(oficinas[0])}`);
-  }
-  return partes.join("\n\n");
+/**
+ * El mensaje tal cual sale por Instagram: lo que redactó Marina, y debajo la
+ * única puerta que corresponde según lo que pidió la persona.
+ *
+ * Hasta el 28-ago esto también armaba una lista de fichas con precio, porque en
+ * el DM se recomendaban propiedades. Ya no: en Instagram se deriva y nada más
+ * (`derivacionDe`), así que esa mitad se fue — era código que ya no podía
+ * ejecutarse y describía un comportamiento que el negocio dejó atrás.
+ */
+export function textoParaCanal(respuesta: string, catalogo: CampoLite[], textoDelCliente: string): string {
+  const d = derivacionDe(textoDelCliente, catalogo);
+  return `${respuesta.trim()}\n\n${d.titulo}\n${d.link}`;
 }
 
 /** El hilo, en el formato que entiende el motor (sin el último mensaje, que es la consulta). */
@@ -236,7 +206,7 @@ export async function responderEnInstagram(convId: string): Promise<void> {
    * temporada hace tres mensajes, la consulta sigue siendo de temporada aunque
    * ahora escriba "somos 4". Es exactamente el caso que se vio en la prueba. */
   const loQueDijo = hilo.mensajes.filter((m) => m.de === "cliente").slice(-8).map((m) => m.texto).join(" \n ");
-  const texto = textoParaCanal(data.respuesta, camposIds, catalogo, loQueDijo);
+  const texto = textoParaCanal(data.respuesta, catalogo, loQueDijo);
   const propiedadId = camposIds[0];
 
   /* ── SUPERVISADO: propone, no manda ────────────────────────────────────────

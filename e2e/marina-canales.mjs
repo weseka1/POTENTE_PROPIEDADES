@@ -181,8 +181,13 @@ try {
       chequear("…y NO al de Chauvín ni a ningún otro", !borrador.includes(WA_CHAUVIN), "");
       /* 🔴 Y no promete lo que no puede ver: /temporada está vacía hasta que
        * Mateo cargue sus fichas, así que "tengo varias opciones" es humo. */
-      chequear("🚫 …y no afirma que HAY disponibilidad (no ve la cartera en este canal)",
-        !/\b(tengo|tenemos|conseguimos|disponemos)\b[^.!?]{0,40}\b(opcion|propiedad|depto|departamento|casa|disponible)/i.test(borrador),
+      /* Lo que NO puede hacer es prometer una propiedad concreta: nombrarla, dar
+       * su precio o mandar su ficha. Decir "te contamos qué tenemos disponible"
+       * está bien y es cierto — la casa SÍ maneja temporada, solo que no la
+       * publica. La primera versión de esta prueba marcaba esa frase sana como
+       * falta: una prueba que acusa a un texto correcto es peor que no tenerla. */
+      chequear("🚫 …y no promete una propiedad concreta (ni precio, ni ficha)",
+        !/\$\s?\d{3}|U\$S\s?\d|\/propiedad\//.test(borrador),
         borrador.slice(0, 90));
       /* 🔴 EL FILTRO, que es lo que Juani marcó como importantísimo: comprar o
        * alquilar va a la WEB y temporada al WhatsApp de Mogotes. Nunca al revés.
@@ -265,7 +270,17 @@ try {
       !/\$\s?\d{3}|U\$S\s?\d/.test(String(insistiendo.json.respuesta ?? "")),
       String(insistiendo.json.respuesta ?? "").slice(0, 90));
 
-    // La web sigue recomendando: ahí el visitante YA está en el sitio.
+    /* 🏖️ Y en la WEB, temporada TAMPOCO se muestra: no se publica, se coordina
+     * por WhatsApp porque eligen a quién le alquilan (Juani, 28-ago). El error
+     * a evitar es el que se vio en vivo: ofrecer un alquiler común "parecido"
+     * a alguien que pidió temporada. */
+    const tempWeb = await postAsistente({ mensaje: "Hola, busco alquilar en temporada para enero en Mogotes", historial: [], catalogo: CATALOGO });
+    chequear("🏖️ En la WEB, temporada NO muestra propiedades (se deriva)",
+      (tempWeb.json.camposIds ?? []).length === 0, `camposIds=${JSON.stringify(tempWeb.json.camposIds)}`);
+    chequear("…y encamina por WhatsApp",
+      /whats?app/i.test(String(tempWeb.json.respuesta ?? "")), String(tempWeb.json.respuesta ?? "").slice(0, 80));
+
+    // La web sigue recomendando lo que SÍ se publica: ahí el visitante YA está en el sitio.
     const enLaWeb = await postAsistente({ mensaje: "Busco un depto en alquiler de 2 ambientes en Chauvín", historial: [], catalogo: CATALOGO });
     chequear("🌐 En la WEB sí recomienda (ese camino no se tocó)",
       (enLaWeb.json.camposIds ?? []).length > 0, `camposIds=${JSON.stringify(enLaWeb.json.camposIds)}`);

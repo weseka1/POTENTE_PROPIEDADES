@@ -60,12 +60,24 @@ export async function consultarAsistente(
         body: JSON.stringify({ mensaje, historial, catalogo, ...(sesion ? { sesion } : {}) }),
         signal: corte,
       });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.error || "El asistente no está disponible.");
+      /* Lo que manda el server, declarado. Todo opcional a propósito: esto viene
+       * de la red, y cada campo se valida abajo antes de usarse — un `any` acá
+       * apagaría justamente el chequeo que hace falta cuando el contrato cambie
+       * de un lado y no del otro. */
+      const data = (await r.json().catch(() => ({}))) as {
+        respuesta?: unknown;
+        camposIds?: unknown;
+        lead?: { nombre?: string; contacto?: string } | null;
+        leadId?: unknown;
+        conversacionId?: unknown;
+        pausada?: unknown;
+        error?: unknown;
+      };
+      if (!r.ok) throw new Error(typeof data.error === "string" ? data.error : "El asistente no está disponible.");
       return {
         respuesta: String(data.respuesta || ""),
-        camposIds: Array.isArray(data.camposIds) ? data.camposIds : [],
-        lead: data.lead && data.lead.contacto ? data.lead : null,
+        camposIds: Array.isArray(data.camposIds) ? data.camposIds.map(String) : [],
+        lead: data.lead?.contacto ? { nombre: data.lead.nombre ?? "", contacto: data.lead.contacto } : null,
         leadId: typeof data.leadId === "string" ? data.leadId : undefined,
         conversacionId: typeof data.conversacionId === "string" ? data.conversacionId : undefined,
         pausada: data.pausada === true,

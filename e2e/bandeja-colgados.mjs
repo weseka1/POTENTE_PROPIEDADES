@@ -100,8 +100,8 @@ try {
   //      un mensaje, no porque alguien dejó un flag prendido
   const clickTab = (nombre) => evaluar(`[...document.querySelectorAll('button')].find(b => (b.textContent||'').trim() === '${nombre}')?.click(); return 1;`);
   // Se busca por el TÍTULO de la tarjeta (el <p> de arriba), no por el texto
-  // entero: la descripción de Instagram también dice "WhatsApp". Y sin  en el
-  // template: adentro de un template de JS,  es BACKSPACE (cicatriz conocida).
+  // entero: la descripción de Instagram también dice "WhatsApp". Y sin \b en el
+  // template: adentro de un template de JS, \b es BACKSPACE (cicatriz conocida).
   const estadoTarjeta = (nombre) => evaluar(`
     const t = [...document.querySelectorAll('.pcard')].find(x => ((x.querySelector('p')?.textContent) || '').trim().startsWith('${nombre}'));
     return t ? (t.querySelector('[data-canal-estado]')?.getAttribute('data-canal-estado') || 'sin-estado') : 'sin-tarjeta';

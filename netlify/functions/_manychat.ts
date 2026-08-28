@@ -27,7 +27,7 @@
  * la base: ManyChat es un tercero, y si ese token se filtra se rota solo ese.
  */
 import { createHash } from "node:crypto";
-import type { MensajeEntrante } from "./_meta";
+import { descripcionDeAdjunto, type MensajeEntrante } from "./_meta";
 import { guardarMensajes, type ResultadoIngesta } from "./_ingesta";
 import { responderEnInstagram } from "./_marina";
 import { identidadesDelSubscriber } from "./_enviar";
@@ -57,25 +57,16 @@ export type EntradaManychat = {
  * dejar rastro**. En Instagram, responder una historia o mandar un audio es de
  * lo más común que hay.
  */
-function textoDeEntrada(entrada: EntradaManychat): string {
+function textoDeEntrada(entrada: EntradaManychat, canal: "whatsapp" | "instagram"): string {
   const texto = limpio(entrada.texto);
   if (texto) return texto;
-  const tipo = limpio(entrada.tipo ?? entrada.attachment_type ?? entrada.adjunto, 40).toLowerCase();
-  const dic: Record<string, string> = {
-    image: "📷 foto — miralas en Instagram",
-    photo: "📷 foto — miralas en Instagram",
-    audio: "🎤 mensaje de voz — escuchalo en Instagram",
-    voice: "🎤 mensaje de voz — escuchalo en Instagram",
-    video: "🎬 video — miralo en Instagram",
-    file: "📄 archivo — abrilo en Instagram",
-    sticker: "🙂 sticker",
-    story_mention: "📲 te mencionó en una historia",
-    story_reply: "📲 respondió a una historia",
-    share: "🔗 compartió una publicación",
-    reel: "🔗 compartió un reel",
-  };
-  if (dic[tipo]) return dic[tipo];
-  return tipo ? `(${tipo}) — miralo en Instagram` : "";
+  const tipo = limpio(entrada.tipo ?? entrada.attachment_type ?? entrada.adjunto, 40);
+  /* El diccionario es el MISMO que usa el webhook de Meta (`_meta.ts`), no una
+   * copia: dos listas de adjuntos que hay que acordarse de actualizar juntas es
+   * justo cómo nació el bug de "escuchalo en WhatsApp" en un audio de Instagram.
+   * Devuelve "(mensaje sin texto)" cuando no hay tipo; acá eso significa que no
+   * sabemos qué mandó, y `normalizarManychat` lo rechaza con motivo. */
+  return tipo ? descripcionDeAdjunto(tipo, canal) : "";
 }
 
 export type ResultadoManychat = { status: number; ok: boolean; mensaje: string; resultado?: ResultadoIngesta };
@@ -113,7 +104,7 @@ export function normalizarManychat(entrada: EntradaManychat): { ok: true; mensaj
   const contacto = contactoDe(canal, limpio(entrada.contacto, 120), subscriber);
   if (!contacto) return { ok: false, error: "falta el contacto (usuario de Instagram o teléfono)" };
 
-  const texto = textoDeEntrada(entrada);
+  const texto = textoDeEntrada(entrada, canal);
   if (!texto) return { ok: false, error: "el mensaje llegó sin texto ni tipo de adjunto reconocible" };
 
   const hora = horaDe(entrada.hora);

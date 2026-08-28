@@ -25,9 +25,14 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-/** Un mensaje entrante, ya normalizado: WhatsApp e Instagram entran distinto y salen igual. */
+/** Un mensaje entrante, ya normalizado: cada canal entra distinto y sale igual. */
 export type MensajeEntrante = {
-  canal: "whatsapp" | "instagram";
+  /* 🔴 "web" también: desde el 27-ago la charla del widget entra por esta misma
+   * puerta (`registrarCharlaWeb`), y el tipo se había quedado con los dos
+   * canales de Meta. Andaba igual —la base acepta el canal 'web'— pero era un
+   * error de tipos que nadie veía, porque `netlify/` no se typechequeaba.
+   * Un tipo que miente es una alarma apagada. */
+  canal: "whatsapp" | "instagram" | "web";
   /** El id único que da Meta (wamid / mid). Es la llave de la idempotencia. */
   mensajeId: string;
   /** Quién escribe: el teléfono en WhatsApp, el id de usuario en Instagram. */
@@ -183,7 +188,7 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
         mensajeId: String(m.mid),
         contacto,
         nombre: eco ? "" : String(ev?.sender?.username ?? ""),
-        texto: String(m?.text ?? "") || descripcionDeAdjunto(m?.attachments?.[0]?.type),
+        texto: String(m?.text ?? "") || descripcionDeAdjunto(m?.attachments?.[0]?.type, "instagram"),
         hora: horaDe(ev?.timestamp),
         de: eco ? "humano" : "cliente",
         fuente: "meta",
@@ -207,23 +212,39 @@ function textoDeWhatsApp(m: any): string {
   if (m?.interactive?.button_reply?.title) return String(m.interactive.button_reply.title);
   if (m?.interactive?.list_reply?.title) return String(m.interactive.list_reply.title);
   if (m?.location) return `📍 ubicación (${m.location.latitude}, ${m.location.longitude})`;
-  return descripcionDeAdjunto(m?.type);
+  return descripcionDeAdjunto(m?.type, "whatsapp");
 }
 
-function descripcionDeAdjunto(tipo: unknown): string {
-  const t = String(tipo ?? "");
+/**
+ * Un adjunto, dicho en castellano y NOMBRANDO EL CANAL CORRECTO.
+ *
+ * 🔴 28-ago: decía "escuchalo en WhatsApp" para todo, así que un audio que
+ * llegaba por Instagram mandaba a Mateo a buscarlo al lugar equivocado. El
+ * canal siempre se sabe en el punto de la llamada, así que se pide.
+ *
+ * Lo exporta a propósito: el puente de ManyChat (`_manychat.ts`) usa ESTE
+ * diccionario en vez de tener su copia. Dos listas de adjuntos que hay que
+ * acordarse de actualizar juntas es exactamente cómo aparecen estos bugs.
+ */
+export function descripcionDeAdjunto(tipo: unknown, canal: "whatsapp" | "instagram" = "whatsapp"): string {
+  const t = String(tipo ?? "").toLowerCase();
+  const donde = canal === "instagram" ? "Instagram" : "WhatsApp";
   const dic: Record<string, string> = {
-    audio: "🎤 mensaje de voz — escuchalo en WhatsApp",
-    voice: "🎤 mensaje de voz — escuchalo en WhatsApp",
-    image: "📷 foto — miralas en el canal",
-    video: "🎬 video — miralo en el canal",
-    document: "📄 documento — abrilo en el canal",
+    audio: `🎤 mensaje de voz — escuchalo en ${donde}`,
+    voice: `🎤 mensaje de voz — escuchalo en ${donde}`,
+    image: `📷 foto — miralas en ${donde}`,
+    photo: `📷 foto — miralas en ${donde}`,
+    video: `🎬 video — miralo en ${donde}`,
+    document: `📄 documento — abrilo en ${donde}`,
+    file: `📄 archivo — abrilo en ${donde}`,
     sticker: "🙂 sticker",
     contacts: "👤 contacto compartido",
     share: "🔗 contenido compartido",
+    reel: "🔗 compartió un reel",
     story_mention: "📲 te mencionó en una historia",
+    story_reply: "📲 respondió a una historia",
   };
-  return dic[t] ?? (t ? `(${t}) — miralo en el canal` : "(mensaje sin texto)");
+  return dic[t] ?? (t ? `(${t}) — miralo en ${donde}` : "(mensaje sin texto)");
 }
 
 /** Meta manda epoch en SEGUNDOS (WhatsApp) o milisegundos (Instagram). */

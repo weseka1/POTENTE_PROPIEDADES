@@ -14,7 +14,18 @@ import { useToast } from "../components/Toast";
 import { estadoLead, ESTADOS_LEAD, canalLabel } from "../ui/estados";
 import { cn } from "../ui/cn";
 
-const RESPONSABLES = ["Sin asignar", "Mateo", "Punta Mogotes", "Chauvín"];
+/* Quién puede quedarse una consulta, y a qué oficina la mueve eso.
+ *
+ * 🔴 El `value` es el TEXTO ("Chauvín"), porque es lo que guarda la columna
+ * `asignado` de la base: si acá se pusiera el id de la oficina, toda fila ya
+ * guardada caería al placeholder "Elegir…". La oficina es un dato aparte, y
+ * para las dos primeras es `null` — la consulta vuelve a la bandeja central. */
+const RESPONSABLES = [
+  { nombre: "Sin asignar", oficina: null },
+  { nombre: "Mateo", oficina: null },
+  { nombre: "Punta Mogotes", oficina: "puntamogotes" },
+  { nombre: "Chauvín", oficina: "chauvin" },
+] as const;
 
 export default function Leads() {
   const { push } = useToast();
@@ -35,8 +46,16 @@ export default function Leads() {
     push(`Consulta movida a “${estadoLead[nuevo].label}”`, "info");
   };
   const setAsignado = (id: string, asignado: string) => {
-    // Derivación del orquestador: asignar a una oficina mueve el lead a esa oficina.
-    const oficina = asignado === "Punta Mogotes" ? "puntamogotes" : asignado === "Chauvín" ? "chauvin" : undefined;
+    /* Derivación del orquestador: asignar a una oficina mueve la consulta a esa
+     * oficina, y volver al central la trae de vuelta.
+     *
+     * 🔴 Volver al central escribe `null` EXPLÍCITO. Con `undefined`,
+     * `JSON.stringify` borra la clave del PATCH: la base contesta 204, no cambia
+     * nada, y la consulta se ve en la bandeja central mientras la oficina la
+     * sigue teniendo — hasta que alguien recarga y reaparece donde estaba.
+     * Es la misma cicatriz que ya se cerró en las conversaciones (DataProvider),
+     * y acá había quedado viva. */
+    const oficina = RESPONSABLES.find((r) => r.nombre === asignado)?.oficina ?? null;
     updateLead(id, { asignado, oficina });
     push(`Consulta asignada a ${asignado}`, "success");
   };
@@ -139,7 +158,10 @@ export default function Leads() {
                         )}
                       </div>
                       <p className="text-xs text-graph-400">
-                        {l.contacto} · {canalLabel[l.canal]} · {desde(l.fechaISO)}
+                        {/* `?? l.canal`: el enum de la base tiene más canales que
+                            este diccionario, y desde el 27-ago entran consultas por
+                            Instagram. Sin el respaldo, la línea sale con un hueco. */}
+                        {l.contacto} · {canalLabel[l.canal] ?? l.canal} · {desde(l.fechaISO)}
                       </p>
                       <p className="mt-1.5 text-sm text-graph-500">{l.notas}</p>
                       {campo && (
@@ -167,7 +189,7 @@ export default function Leads() {
                       <Select
                         value={l.asignado}
                         onChange={(v) => setAsignado(l.id, v)}
-                        options={RESPONSABLES.map((r) => ({ value: r, label: r }))}
+                        options={RESPONSABLES.map((r) => ({ value: r.nombre, label: r.nombre }))}
                         size="sm"
                         align="right"
                         triggerClassName="pl-7 font-medium text-graph-500"

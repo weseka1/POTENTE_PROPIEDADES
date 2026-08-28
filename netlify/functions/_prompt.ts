@@ -1,28 +1,22 @@
 import type { AsistenteConfig } from "./_config";
 import type { Cerebro } from "./_iaconfig";
-import type { Cerebro } from "./_iaconfig";
 
-// Item liviano del catálogo que el widget le manda a la function (sin precio: campos = a consultar).
-export type CampoLite = {
-  id: string;
-  titulo: string;
-  zona: string;
-  categoria: string;
-  hectareas?: number;
-  aptitud?: string;
-  operacion?: string;
-  oficina?: "chauvin" | "puntamogotes";
-  precio?: string; // campos = "A consultar"; urbanas = precio real formateado
-  // 🔴 21-ago: los datos por los que la gente busca (antes no viajaban y Marina
-  // negaba propiedades que estaban en pantalla — video de Mateo, PH San José).
-  ambientes?: number;
-  dormitorios?: number;
-  banos?: number;
-  m2?: number;
-};
+/* El item del catálogo que ve Marina se define UNA sola vez, en el contrato del
+ * endpoint (`src/lib/asistente.ts`), y desde acá solo se reexporta.
+ *
+ * 🔴 Estaba declarado dos veces, campo por campo idéntico, y eso es una bomba
+ * de tiempo silenciosa: `tsconfig.json` solo typechequea `src/`, así que si una
+ * copia hubiera perdido un campo, el otro lado lo habría leído como `undefined`
+ * y los `if (c.x)` del prompt lo saltean sin decir nada — Marina ciega de un
+ * dato y nadie enterado. Es exactamente la forma de la cicatriz del 21-ago (los
+ * dormitorios que no viajaban).
+ *
+ * 🔴 La palabra `type` del reexport NO es cosmética: sin ella, esbuild arrastra
+ * `src/lib/asistente.ts` entero al bundle del server, con `consultarAsistente`
+ * adentro, que hace `fetch` a una ruta relativa de navegador. */
+import type { CampoLite } from "../../src/lib/asistente";
+export type { CampoLite };
 
-// Arma el system prompt desde la config del cliente + el catálogo real.
-// Aislado a propósito: este mismo prompt se reusa en el WF1 de n8n (Fase 2 WhatsApp).
 /** Las reglas que Mateo puede prender en "Comportamiento", ya redactadas para el prompt. */
 const REGLAS_DEL_EQUIPO: Record<string, string> = {
   ofrecerVisita: "Cuando haya interés, ofrecé coordinar una visita a la propiedad.",
@@ -59,7 +53,7 @@ ESTÁS RESPONDIENDO UN MENSAJE DIRECTO DE INSTAGRAM. Acá NO asesorás: DERIVÁS
 
 🔴 REGLA QUE MANDA SOBRE TODO LO DEMÁS: en Instagram NO recomendás propiedades.
 - "campos_ids" va SIEMPRE vacío: []. Nunca menciones una propiedad concreta, ni su precio, ni su dirección, ni cuántos ambientes tiene, aunque las tengas en la lista de abajo y aunque te la pidan.
-- 🔴 NO AFIRMES QUE HAY NI QUE NO HAY. Nada de "tengo varias opciones", "tenemos disponible", "seguro conseguimos" ni "no nos queda nada". Vos no ves la cartera en este canal, y la disponibilidad cambia todos los días: lo que exista y lo que no lo confirma la oficina o la web. Decilo derecho: "eso te lo confirman en el momento".
+- 🔴 NO PROMETAS UNA PROPIEDAD NI UNAS FECHAS. Nada de "tengo justo lo que buscás", "seguro conseguimos para esa quincena" ni "no nos queda nada". Vos no ves la cartera en este canal y la disponibilidad cambia todos los días: qué hay libre lo confirma la oficina en el momento. Sí podés decir que se lo van a contar ahí ("te contamos qué tenemos para esas fechas") — eso es verdad y es cómo trabajan.
 - No prometas disponibilidad ni cupos. No des precios de ninguna clase.
 - No escribas direcciones web ni números de teléfono: el sistema agrega abajo el link y el WhatsApp que corresponden. Vos solo redactás la frase.
 
@@ -72,6 +66,8 @@ Por qué: la ficha de la web tiene el dato exacto y el WhatsApp de la oficina qu
 
 ⚠️ Acá abajo NO vas a ver ninguna propiedad, y es a propósito: en este canal no se muestran. Si te piden una en particular, un precio o disponibilidad, contestá que en la web están todas con su ficha completa y que la oficina se lo confirma — nunca inventes una propiedad, un precio ni una medida.`;
 
+// Arma el system prompt desde la config del cliente + el catálogo real.
+// Aislado a propósito: este mismo prompt se reusa en el WF1 de n8n (Fase 2 WhatsApp).
 export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro?: Cerebro, salida: "json" | "texto" = "json", canal?: "web" | "instagram"): string {
   const nombre = cerebro?.nombre?.trim() || cfg.asistente;
   const ensenado = cerebro
@@ -127,7 +123,7 @@ Reglas:
 - Si la persona cambia de idea (venía por alquiler y pregunta por comprar), cambiá el filtro y confirmalo en una frase corta ("dale, te paso las de venta entonces").
 - Precios: los CAMPOS son "A consultar" (nunca inventes ni prometas un monto para un campo). Las propiedades urbanas (casas, deptos, lotes, terrenos, locales) SÍ tienen precio: usá el que figura en la lista, no lo inventes.
 - NUNCA reserves ni confirmes una reserva (ni de venta, ni de alquiler, ni de temporada). Reservar es tarea de las oficinas: si quieren reservar o señar, deciles que un asesor de la oficina que corresponde lo coordina por WhatsApp, y encaminá la charla para ese lado.
-- TEMPORADA: NO des fechas ni disponibilidad (eso lo confirma la oficina). En temporada recomendá por AMPLITUD (cuántas personas entran cómodas), AMENITIES/comodidades, BARRIO y CERCANÍA A LA PLAYA. Si insisten con fechas: "la disponibilidad exacta te la confirma la oficina por WhatsApp en el momento".
+- 🔴 TEMPORADA: NO SE MUESTRA, SE DERIVA. Las propiedades de temporada NO se publican en ningún lado, y no es que falten: la casa las ofrece de forma personal por WhatsApp porque elige con cuidado a quién le alquila por temporada. Si alguien pregunta por temporada, verano, enero, quincenas o vacaciones: NO le muestres ninguna propiedad (ni de temporada ni, muchísimo menos, un alquiler común o algo en venta "parecido"), NO des fechas, precios ni disponibilidad, y encaminalo a hablar por WhatsApp con la oficina que lleva la temporada. Decilo con naturalidad y sin pedir disculpas — es la forma en que trabajan, no una carencia: "la temporada la coordinamos por WhatsApp, así te contamos qué hay para tus fechas".
 - Potente tiene dos oficinas (Oficina 1 Chauvín y Oficina 2 Punta Mogotes) y una dirección central. Las consultas las recibe la dirección y las deriva a la oficina que corresponde: vos no elegís oficina, solo derivá al WhatsApp cuando haya interés real.
 - Si todavía no sabés qué busca, preguntá lo justo según el tipo: para campos (zona, hectáreas, aptitud agrícola/ganadera/mixta); para urbano (tipo, zona, ambientes, venta o alquiler).
 - Cuando tengas 1 a 3 buenas opciones, recomendalas (poné sus IDs en campos_ids).

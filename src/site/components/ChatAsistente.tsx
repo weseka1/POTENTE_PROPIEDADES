@@ -6,6 +6,7 @@ import { catalogoParaMarina } from "@/lib/catalogoLite";
 import { hoyISO } from "@/lib/fechas";
 import { fmtHa, precioPublico } from "@/lib/format";
 import { waUrl } from "@/config/marca";
+import { OFICINA_TEMPORADA } from "@/config/temporada";
 import WhatsAppCTA from "./WhatsAppCTA";
 import { consultarAsistente, type ChatMsg, type CampoLite } from "@/lib/asistente";
 import type { Lead } from "@/data/types";
@@ -232,8 +233,18 @@ export default function ChatAsistente() {
 
           {/* CTA WhatsApp: derivar la charla a un asesor (aparece apenas arranca la conversación) */}
           {msgs.some((m) => m.rol === "cliente") && (() => {
+            /* 🏖️ 28-ago · Si la charla es de TEMPORADA, va derecho a la oficina
+             * que la maneja. La temporada no se publica: se coordina por
+             * WhatsApp porque eligen a quién le alquilan (Juani), así que ese
+             * botón es la única puerta real — y tiene que abrir la correcta, no
+             * el número central. Se mira todo lo que escribió la persona: pudo
+             * haber dicho "temporada" tres mensajes atrás. */
+            const loQueDijo = msgs.filter((m) => m.rol === "cliente").map((m) => m.texto).join(" ");
+            const esTemporada = /\b(temporada|temporario|verano|veraneo|vacacion\w*|enero|febrero|quincena)\b/i.test(loQueDijo);
             // División perfecta (Mateo): propiedades de UNA oficina → directo a esa oficina.
-            const oficinas = [...new Set(msgs.flatMap((m) => m.campos || []).map((c) => c.oficina).filter(Boolean))];
+            const oficinas = esTemporada
+              ? [OFICINA_TEMPORADA]
+              : [...new Set(msgs.flatMap((m) => m.campos || []).map((c) => c.oficina).filter(Boolean))];
             const clase = "mx-3 mb-1.5 flex w-auto items-center justify-center gap-2 rounded-xl bg-[#25D366] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-95";
             return oficinas.length === 1 ? (
               <a href={waUrl(oficinas[0], waTexto())} target="_blank" rel="noopener noreferrer" className={clase}>

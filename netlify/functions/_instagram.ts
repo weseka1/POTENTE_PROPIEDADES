@@ -43,7 +43,9 @@ const ARRANQUE = Date.now() - 10 * 60_000;
 
 export type ResultadoSync = ResultadoIngesta & { hilos: number; leidos: number; error?: string };
 
-const vacio = (): ResultadoSync => ({ guardados: 0, repetidos: 0, fallados: 0, hilos: 0, leidos: 0 });
+// `conversaciones` viene de ResultadoIngesta (022): son los hilos que recibieron
+// un mensaje nuevo, y es lo que usa el server para despertar a Marina.
+const vacio = (): ResultadoSync => ({ guardados: 0, repetidos: 0, fallados: 0, conversaciones: [], hilos: 0, leidos: 0 });
 
 async function traer(ruta: string, token: string): Promise<any> {
   const url = `${GRAPH}/${ruta}${ruta.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}`;

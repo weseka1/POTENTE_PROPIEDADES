@@ -134,9 +134,13 @@ export const aptitudColor: Record<string, string> = {
 };
 
 // ---- Canales (label legible) ----
+/* Los mismos nombres que usa la bandeja (`CANALES_CONV` en data/conversaciones.ts):
+ * la misma consulta no puede llamarse distinto en Consultas y en el Asistente. */
 export const canalLabel: Record<string, string> = {
   web: "Web propia",
   whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  messenger: "Messenger",
   mail: "Mail",
   telefono: "Teléfono",
   portal: "Portales",

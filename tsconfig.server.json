@@ -1,0 +1,47 @@
+/* El código del SERVIDOR también se revisa.
+ *
+ * 🔴 Por qué existe (28-ago): `tsconfig.json` tiene `include: ["src"]`, así que
+ * `netlify/functions/` y `server/` —donde viven Marina, la ingesta de canales,
+ * el webhook de Meta y el puente de ManyChat— NO se typechequeaban NUNCA. Vite
+ * solo compila `src/` y esbuild transpila sin revisar tipos.
+ *
+ * El día que se armó este archivo había, escondidos ahí, tres errores reales:
+ * un tipo usado sin importar, un `ResultadoSync` al que le faltaba un campo
+ * obligatorio, y el canal "web" que no estaba en `MensajeEntrante` aunque la
+ * charla del widget entra por esa misma puerta desde hace días. Ninguno hacía
+ * fallar el build. Un tipo que miente es una alarma apagada.
+ *
+ * Se corre con `npm run typecheck` (que revisa las dos mitades del proyecto).
+ */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /* El servidor corre en Node, no en el navegador: sin `DOM` acá, un
+     * `document` o un `localStorage` colado en el código del server salta como
+     * error en vez de explotar en producción. `fetch` y `URL` son globales de
+     * Node 20, y vienen con @types/node. */
+    /* 🔴 `strictNullChecks` es lo que hace que TypeScript sepa ESTRECHAR una
+     * unión: sin él, después de `if (!cupo.ok) …` sigue viendo los dos casos y
+     * marca como inexistente un campo que ahí sí está. El tsconfig base lo tiene
+     * apagado (`strict: false`) por historia del frontend; acá se prende, y por
+     * eso este archivo encuentra cosas que el otro no puede ni ver. */
+    "strictNullChecks": true,
+    "lib": ["ES2022"],
+    /* `vite/client` va porque el server importa `src/config/marca.ts`, que lee
+     * `import.meta.env.VITE_SITE_URL` — el dominio sale de una sola fuente para
+     * el navegador y para el server. */
+    "types": ["node", "vite/client"],
+    "target": "ES2022",
+    /* `src/config/*.js` (dominio y temporada) son .js planos A PROPÓSITO: los
+     * comparten el navegador, el server y los scripts de build. Sin esto, cada
+     * import de ellos se lee como error de "declaración faltante". */
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true
+  },
+  /* Solo lo que CORRE en el servidor. Lo que estos archivos importan de `src/`
+   * (marca, temporada, el contrato del asistente) se revisa igual al seguir el
+   * import — pero no se listan acá, para no arrastrar medio frontend a un
+   * chequeo con reglas de Node que no le corresponden. */
+  "include": ["netlify", "server"]
+}

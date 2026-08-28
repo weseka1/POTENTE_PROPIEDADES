@@ -328,9 +328,20 @@ export default function BandejaConversaciones({
      * (lo típico: pasaron 24 h desde su último mensaje), se avisa con el motivo
      * y el texto queda escrito para que se mande por el camino de siempre. */
     if (esCanalDeEnvio(sel)) {
+      // Sin base no hay sesión que mandar: se dice, en vez de reventar.
+      if (!supabase) {
+        push("El panel está en modo demo: desde acá no se envía.", "info");
+        return;
+      }
       setEnviando(true);
+      /* 🔴 `salio` distingue las dos mitades del envío, y no es un detalle: una
+       * vez que ManyChat aceptó, el mensaje YA le llegó a la persona. Si algo
+       * falla después (guardar en el hilo, la red), el aviso tiene que decir eso
+       * y no "no se pudo enviar" — si no, alguien lo manda de nuevo y el cliente
+       * recibe el mismo mensaje dos veces. */
+      let salio = false;
       try {
-        const { data: { session } } = await supabase!.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         const r = await fetch("/api/enviar", {
           method: "POST",
           headers: { "content-type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
@@ -345,6 +356,7 @@ export default function BandejaConversaciones({
             : "No se pudo enviar el mensaje."), "error");
           return;
         }
+        salio = true;
         // 🔴 Si la base rechaza el mensaje, NO se pinta como si estuviera: se
         // avisa. (El mensaje ya SALIÓ por ManyChat, así que se dice exactamente
         // eso.) Errores de base nunca silenciosos.
@@ -360,6 +372,18 @@ export default function BandejaConversaciones({
         if (sel.borrador) await limpiarBorrador(sel.id);
         setTexto("");
         push(j.mensaje || "Enviado.", "success");
+      } catch (e) {
+        /* 🔴 Sin este catch, una caída de red dejaba la promesa colgada como
+         * unhandled rejection: ni toast, ni error en pantalla, el botón se
+         * volvía a habilitar y parecía que el mensaje había salido. El peor de
+         * los finales para una respuesta a un cliente. */
+        console.error("Envío por ManyChat:", e);
+        push(
+          salio
+            ? "El mensaje salió, pero el panel no pudo terminar de registrarlo. Recargá."
+            : "No se pudo enviar: revisá la conexión y probá de nuevo. El texto quedó escrito.",
+          "error",
+        );
       } finally {
         setEnviando(false);
       }

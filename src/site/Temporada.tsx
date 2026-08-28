@@ -28,7 +28,7 @@ const NO_IMG =
 // Dónde hacemos temporada sale de config/temporada.js — la MISMA lista que usa
 // el generador del sitemap. Desde el 13-ago es solo Punta Mogotes (Mateo).
 // Se reexporta para no romper a quien ya importaba desde acá.
-import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug, esBarrioTemporada } from "@/config/temporada";
+import { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug, esBarrioTemporada, OFICINA_TEMPORADA } from "@/config/temporada";
 export { BARRIOS_TEMPORADA, BARRIO_TEMPORADA, slugBarrio, barrioBySlug };
 
 /** Una unidad de temporada con SU ficha ya resuelta. Que vayan juntas no es
@@ -335,12 +335,39 @@ export default function Temporada() {
           </div>
 
           {filtradas.length === 0 ? (
-            <div className="py-16 text-center text-graph-500">
-              <p className="font-display text-2xl text-graph">
-                {personas ? `No hay propiedades para ${personas} personas` : "Todavía no hay propiedades cargadas"}
+            /* 🔴 28-ago · LA TEMPORADA NO SE PUBLICA, Y NO ES UN PENDIENTE.
+             * Juani, textual: «temporada directamente se ofrece y/o se muestra
+             * por WhatsApp con la persona, son muy cuidadosos con la gente que
+             * alquila temporariamente». Es una decisión del negocio: eligen a
+             * quién le alquilan, y esa conversación empieza en privado.
+             *
+             * Hasta hoy esta pantalla decía «Todavía no hay propiedades
+             * cargadas»: le contaba al visitante un problema interno que ni
+             * siquiera era cierto, y dejaba la web con cara de estar a medio
+             * hacer. Ahora dice lo que realmente pasa y abre la única puerta
+             * que existe — el WhatsApp de la oficina que maneja la temporada. */
+            <div className="mx-auto max-w-xl py-14 text-center">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand">
+                <Phone size={24} />
+              </span>
+              <p className="mt-5 font-display text-2xl font-medium tracking-tight text-graph md:text-3xl">
+                {personas ? `Para ${personas} personas lo vemos juntos` : "La temporada la coordinamos con vos"}
               </p>
+              <p className="mt-3 text-[15px] leading-relaxed text-graph-500">
+                Las propiedades de temporada las mostramos de forma personal: escribinos y te
+                contamos qué hay disponible para tus fechas, cuántas personas entran cómodas y
+                a qué distancia del mar está cada una.
+              </p>
+              <a
+                href={waTemporada(personas ? `para ${personas} personas` : "la temporada", undefined, OFICINA_TEMPORADA)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-primary mt-7 inline-flex"
+              >
+                <Phone size={16} /> Consultar por WhatsApp
+              </a>
               {personas && (
-                <button onClick={() => setPersonas("")} className="btn-ghost mt-6">
+                <button onClick={() => setPersonas("")} className="btn-ghost mt-3 block w-full sm:mt-4 sm:inline-flex sm:w-auto">
                   Ver todas
                 </button>
               )}
