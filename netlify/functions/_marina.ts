@@ -28,6 +28,7 @@ import { guardarMensajes } from "./_ingesta";
 import { enviarTextoPorManychat } from "./_enviar";
 import type { CampoLite } from "./_prompt";
 import { SITIO, waUrl } from "../../src/config/marca";
+import { OFICINA_TEMPORADA } from "../../src/config/temporada.js";
 
 type MensajeHilo = { id: string; de: "cliente" | "ia" | "humano"; texto: string; horaISO: string };
 type Hilo = {
@@ -106,7 +107,53 @@ export const registrarLead = (l: { id: string; nombre: string; contacto: string;
  * recomendada (misma regla que la ficha pública, 21-ago). Sin propiedad no se
  * inventa un número: el central es el personal de Mateo.
  */
-export function textoParaCanal(respuesta: string, camposIds: string[], catalogo: CampoLite[]): string {
+/* ── A DÓNDE SE DERIVA UN DM: LO DECIDE EL CÓDIGO, NO LA IA ──────────────────
+ * 28-ago, Juani: «debe derivar únicamente a los WhatsApp correspondientes; si
+ * consultan por propiedades, a la web; si consultan por temporada, a Mogotes; y
+ * NO puede dar recomendaciones».
+ *
+ * Se lee lo que escribió la PERSONA, no lo que dedujo el modelo: la IA redacta
+ * la frase y el sistema pega el link. Es la misma regla que ya nos salvó antes
+ * (la IA narra, el código calcula) — así no hay forma de que invente un número
+ * ni mande a la oficina equivocada.
+ */
+/* 🔴 Se mira TODA la charla, no el último mensaje. En la conversación real que
+ * lo destapó, "temporada" estaba en el primero y el segundo era "somos 4 en
+ * familia en Mogotes": mirando solo el último, una consulta de temporada
+ * terminaba derivada al catálogo general. Una vez que alguien dijo temporada,
+ * la consulta es de temporada hasta el final de la charla.
+ * (Y el `\b` va sobre el grupo entero: suelto al principio solo aplicaba a la
+ * primera alternativa — un error clásico que deja media lista sin anclar.) */
+const PALABRAS_TEMPORADA = /\b(temporada|temporario|verano|veraneo|vacacion\w*|vacación\w*|enero|febrero|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
+/** Los códigos de la casa, como los escribe la gente al copiar una ficha. */
+const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
+
+export function derivacionDe(textoDelCliente: string, catalogo: CampoLite[]): { titulo: string; link: string } {
+  // 1 · Temporada: va derecho a la oficina que la maneja (config/temporada.js).
+  if (PALABRAS_TEMPORADA.test(textoDelCliente)) {
+    return { titulo: "Para alquileres de temporada te atienden por WhatsApp:", link: waUrl(OFICINA_TEMPORADA) };
+  }
+  // 2 · Una propiedad puntual: la oficina QUE LA ATIENDE, no otra.
+  const m = CODIGO_PROPIEDAD.exec(textoDelCliente);
+  const id = m ? (m[2] ?? `POT-${m[1]}`).toUpperCase() : "";
+  const ficha = id ? catalogo.find((c) => c.id.toUpperCase() === id) : undefined;
+  if (ficha?.oficina) {
+    return { titulo: `Por ${ficha.titulo} te atienden por WhatsApp:`, link: waUrl(ficha.oficina) };
+  }
+  if (ficha) return { titulo: "La ficha completa, con el contacto de la oficina:", link: `${SITIO}/propiedad/${ficha.id}` };
+  // 3 · Consulta general: la web. Cada ficha ya lleva el WhatsApp correcto, así
+  //     que nadie termina escribiéndole a la oficina que no es.
+  return { titulo: "Podés verlas todas acá, con fotos y el contacto de cada una:", link: `${SITIO}/propiedades` };
+}
+
+export function textoParaCanal(respuesta: string, camposIds: string[], catalogo: CampoLite[], textoDelCliente?: string): string {
+  /* En Instagram `camposIds` viene vacío por diseño (no se recomienda) y se
+   * deriva. En la web sí se recomiendan fichas: ese camino queda igual. */
+  if (typeof textoDelCliente === "string") {
+    const d = derivacionDe(textoDelCliente, catalogo);
+    return `${respuesta.trim()}\n\n${d.titulo}\n${d.link}`;
+  }
+
   const fichas = camposIds
     .map((id) => catalogo.find((c) => c.id === id))
     .filter((c): c is CampoLite => Boolean(c))
@@ -176,7 +223,11 @@ export async function responderEnInstagram(convId: string): Promise<void> {
   }
 
   const camposIds = Array.isArray(data.camposIds) ? data.camposIds : [];
-  const texto = textoParaCanal(data.respuesta, camposIds, catalogo);
+  /* Todo lo que dijo la persona en el hilo, no solo su último mensaje: si pidió
+   * temporada hace tres mensajes, la consulta sigue siendo de temporada aunque
+   * ahora escriba "somos 4". Es exactamente el caso que se vio en la prueba. */
+  const loQueDijo = hilo.mensajes.filter((m) => m.de === "cliente").slice(-8).map((m) => m.texto).join(" \n ");
+  const texto = textoParaCanal(data.respuesta, camposIds, catalogo, loQueDijo);
   const propiedadId = camposIds[0];
 
   /* ── SUPERVISADO: propone, no manda ────────────────────────────────────────

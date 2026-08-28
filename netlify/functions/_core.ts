@@ -129,7 +129,15 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
       const resp = await client.messages.create({
         model: "claude-haiku-4-5",
         max_tokens: 1024,
-        system: buildSystem(CONFIG, catalogo, cerebro, "json", canal),
+        /* 🔴 EN INSTAGRAM EL PROMPT VA SIN CATÁLOGO (28-ago).
+         * Decirle "no recomiendes" con las 100 propiedades pegadas abajo no
+         * alcanza: la prueba la agarró contestando «el departamento de 2
+         * ambientes en Chauvín está a $650.000 por mes» con campos_ids vacío —
+         * respetaba la letra y rompía la intención. Sin la lista no hay dato que
+         * citar: el candado deja de depender de que el modelo obedezca.
+         * La derivación sí usa el catálogo, pero del lado del código
+         * (`derivacionDe` en _marina.ts), donde no hay nada que inventar. */
+        system: buildSystem(CONFIG, canal === "instagram" ? [] : catalogo, cerebro, "json", canal),
         messages,
         // structured outputs (cuando aplica) + el formato JSON también va explícito en el prompt
         output_config: { format: { type: "json_schema", schema: SCHEMA } },
@@ -150,7 +158,11 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
       // Los IDs se VALIDAN contra el catálogo real: si el modelo devuelve uno
       // que no existe, se descarta acá y no viaja al navegador.
       const idsValidos = new Set(catalogo.map((c) => c.id));
-      const camposIds = (Array.isArray((data as any)?.campos_ids) ? (data as any).campos_ids : [])
+      /* 🔴 En Instagram NO se recomienda (decisión de Juani, 28-ago: «esto
+       * únicamente responde derivando»). El prompt se lo dice, pero un prompt es
+       * una instrucción, no un candado: si el modelo igual devuelve ids, acá se
+       * descartan. Las reglas de negocio se cierran en el código. */
+      const camposIds = canal === "instagram" ? [] : (Array.isArray((data as any)?.campos_ids) ? (data as any).campos_ids : [])
         .map(String)
         .filter((id: string) => idsValidos.has(id))
         .slice(0, 3);

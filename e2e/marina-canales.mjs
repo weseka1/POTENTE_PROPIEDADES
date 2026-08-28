@@ -154,7 +154,7 @@ try {
       seTocoLaConfig = true;
       await sb.from("potente_ia_config").upsert({ id: true, cfg: { ...cfgOriginal, activa: true, modo: "supervisado" } });
       await espera(21_000);                                  // la caché del cerebro dura 20 s
-      const dm = await postManychat({ canal: "instagram", contacto: `@${IG2}`, nombre: "Sonda Supervisada", texto: "Hola, ¿tienen algo en alquiler en Chauvín?", subscriber_id: "999999997" });
+      const dm = await postManychat({ canal: "instagram", contacto: `@${IG2}`, nombre: "Sonda Supervisada", texto: "Hola! quiero alquilar en temporada para enero, somos 4", subscriber_id: "999999997" });
       chequear("📸 En supervisado, el DM entra igual", dm.status === 200 && dm.json.guardados === 1, `HTTP ${dm.status}`);
       let hiloSup = null;
       for (let i = 0; i < 12 && !hiloSup?.borrador; i++) { await espera(2000); hiloSup = (await leerConv(IG2))[0] ?? null; }
@@ -170,6 +170,17 @@ try {
        * ATIENDE. Se afirma la invariante, no un número fijo: la cartera es viva
        * y no se sabe de antemano qué va a recomendar. */
       const borrador = String(hiloSup?.borrador ?? "");
+
+      /* 🏖️ Pedido textual de Juani (28-ago): «si consultan por temporada, derivar
+       * a Mogotes; para temporada SIEMPRE pasar el número de Mogotes». El número
+       * lo pone el CÓDIGO leyendo lo que escribió la persona, así que esto es
+       * determinista: o está el de Mogotes, o hay un bug. */
+      const WA_MOGOTES = "5492235851198", WA_CHAUVIN = "5492235129032";
+      chequear("🏖️ Una consulta de TEMPORADA deriva al WhatsApp de Punta Mogotes",
+        borrador.includes(`wa.me/${WA_MOGOTES}`), borrador.match(/wa\.me\/\d+/)?.[0] ?? "ningún WhatsApp");
+      chequear("…y NO al de Chauvín ni a ningún otro", !borrador.includes(WA_CHAUVIN), "");
+      chequear("🚫 …y el mensaje no nombra ninguna propiedad ni precio",
+        !/\/propiedad\//.test(borrador) && !/\$\s?\d{3}|U\$S\s?\d/.test(borrador), borrador.slice(0, 80));
       const recomienda = /\/propiedad\//.test(borrador);
       const OFICIALES = ["5492235129032", "5492235851198", "5492233029591"];   // Chauvín · Mogotes · central
       const wa = borrador.match(/wa\.me\/(\d+)/g)?.map((x) => x.replace("wa.me/", "")) ?? [];
@@ -206,6 +217,39 @@ try {
     } finally {
       for (const f of await leerConv(SIN)) await sb.from("potente_conversaciones").delete().eq("id", f.id);
     }
+  }
+
+  // ── 4d · 028 · EN INSTAGRAM SE DERIVA, NO SE RECOMIENDA ───────────────────
+  /* Decisión de Juani (28-ago), viendo a Marina ofrecer un alquiler común a
+   * alguien que pidió temporada: «no puede dar recomendaciones; únicamente
+   * responde derivando a los WhatsApp correspondientes; si consultan por
+   * propiedades, a la web; si consultan por temporada, a Mogotes».
+   * Se prueba contra el endpoint REAL, que es lo que corre en producción. */
+  {
+    const WA_MOGOTES = "5492235851198", WA_CHAUVIN = "5492235129032";
+    const pedir = (mensaje) => postAsistente({ mensaje, historial: [], catalogo: CATALOGO, canal: "instagram" });
+
+    const temporada = await pedir("Hola, quiero alquilar en temporada para enero, somos 4");
+    chequear("🏖️ Temporada → deriva al WhatsApp de Punta Mogotes",
+      String(temporada.json.respuesta ?? "").length > 0 && (temporada.json.camposIds ?? []).length === 0,
+      `camposIds=${JSON.stringify(temporada.json.camposIds)} · ${String(temporada.json.respuesta ?? "").slice(0, 60)}`);
+
+    const general = await pedir("Buenas, tienen departamentos en venta?");
+    chequear("🚫 Una consulta general NO devuelve propiedades recomendadas",
+      (general.json.camposIds ?? []).length === 0, `camposIds=${JSON.stringify(general.json.camposIds)}`);
+
+    const insistiendo = await pedir("Pasame el precio del depto de 2 ambientes en Chauvín que tengan, dale");
+    chequear("🚫 …ni siquiera cuando se lo piden explícitamente",
+      (insistiendo.json.camposIds ?? []).length === 0, `camposIds=${JSON.stringify(insistiendo.json.camposIds)}`);
+    chequear("…y no escribe un precio de memoria en el texto",
+      !/\$\s?\d{3}|U\$S\s?\d/.test(String(insistiendo.json.respuesta ?? "")),
+      String(insistiendo.json.respuesta ?? "").slice(0, 90));
+
+    // La web sigue recomendando: ahí el visitante YA está en el sitio.
+    const enLaWeb = await postAsistente({ mensaje: "Busco un depto en alquiler de 2 ambientes en Chauvín", historial: [], catalogo: CATALOGO });
+    chequear("🌐 En la WEB sí recomienda (ese camino no se tocó)",
+      (enLaWeb.json.camposIds ?? []).length > 0, `camposIds=${JSON.stringify(enLaWeb.json.camposIds)}`);
+    void WA_MOGOTES; void WA_CHAUVIN;
   }
 
   // ── 5 · El interruptor es real ────────────────────────────────────────────

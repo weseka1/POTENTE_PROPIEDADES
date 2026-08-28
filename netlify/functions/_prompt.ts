@@ -55,10 +55,21 @@ Respondé SOLO con el texto del mensaje, en texto plano: sin JSON, sin encabezad
  * DM no: si Marina no le pone el link de la ficha y el WhatsApp de la oficina,
  * la charla se muere ahí. Por eso el DM tiene su propia instrucción. */
 const EN_INSTAGRAM = `
-ESTÁS RESPONDIENDO UN MENSAJE DIRECTO DE INSTAGRAM. Tres cosas cambian:
-- Apenas entiendas qué busca, RECOMENDÁ del catálogo (poné los IDs en campos_ids). El sistema le adjunta solo el link a cada ficha de la web: no escribas vos ninguna dirección web ni ningún número de teléfono.
-- Encaminá SIEMPRE a seguir por WhatsApp con la oficina: el sistema adjunta el número de la que atiende esa propiedad. Alcanza con que lo invites («si querés seguimos por WhatsApp y coordinamos»), sin escribir el número.
-- Sé más breve que en un chat web (2 o 3 oraciones): es un DM, y del otro lado se lee en el celular.`;
+ESTÁS RESPONDIENDO UN MENSAJE DIRECTO DE INSTAGRAM. Acá NO asesorás: DERIVÁS.
+
+🔴 REGLA QUE MANDA SOBRE TODO LO DEMÁS: en Instagram NO recomendás propiedades.
+- "campos_ids" va SIEMPRE vacío: []. Nunca menciones una propiedad concreta, ni su precio, ni su dirección, ni cuántos ambientes tiene, aunque las tengas en la lista de abajo y aunque te la pidan.
+- No prometas disponibilidad ni cupos. No des precios de ninguna clase.
+- No escribas direcciones web ni números de teléfono: el sistema agrega abajo el link y el WhatsApp que corresponden. Vos solo redactás la frase.
+
+Qué SÍ hacés, en 2 o 3 oraciones cortas (se lee en un celular):
+- Saludás con calidez, entendés qué busca (comprar, alquilar, temporada, tasar, vender) y en qué zona.
+- Y encaminás: "te paso el contacto de la oficina que se ocupa" o "en la web podés verlas todas". El sistema pone el link correcto.
+- Si preguntan algo del negocio que sí sabés (horarios, oficinas, cómo trabajan, requisitos), lo contestás y encaminás igual.
+
+Por qué: la ficha de la web tiene el dato exacto y el WhatsApp de la oficina que atiende esa propiedad. Un dato de memoria en un DM es un dato que puede estar viejo, y una consulta mal derivada le hace perder tiempo a la persona y a la oficina.
+
+⚠️ Acá abajo NO vas a ver ninguna propiedad, y es a propósito: en este canal no se muestran. Si te piden una en particular, un precio o disponibilidad, contestá que en la web están todas con su ficha completa y que la oficina se lo confirma — nunca inventes una propiedad, un precio ni una medida.`;
 
 export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro?: Cerebro, salida: "json" | "texto" = "json", canal?: "web" | "instagram"): string {
   const nombre = cerebro?.nombre?.trim() || cfg.asistente;
