@@ -107,7 +107,37 @@ export const registrarLead = (l: { id: string; nombre: string; contacto: string;
  * consulta es de temporada hasta el final.
  * (El `\b` va sobre el grupo entero: suelto al principio solo ancla la primera
  * alternativa, y deja media lista sin anclar.) */
-const PALABRAS_TEMPORADA = /\b(temporada|temporario|verano|veraneo|vacacion\w*|vacación\w*|enero|febrero|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
+/** Dicen temporada por sí solas: con una alcanza. */
+const TEMPORADA_SEGURA = /\b(temporada|temporario|veraneo|vacacion\w*|vacación\w*|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
+
+/* 🔴 28-ago · UN MES NO ES UNA TEMPORADA.
+ * "enero" y "febrero" estaban en la lista dura, así que «me mudo a Mar del Plata
+ * en febrero y busco alquiler ANUAL de 3 ambientes» derivaba a Mogotes con el
+ * rótulo "Para alquileres de temporada te atienden por WhatsApp" — un cartel que
+ * afirma algo que la persona no pidió, y la manda a la oficina que no lleva
+ * alquileres anuales. Igual «el contrato vence en febrero».
+ * Peor por la acumulación: como se lee el hilo entero, desde que aparecía el mes
+ * los mensajes siguientes seguían yendo a Mogotes aunque hablaran de otra cosa.
+ * Ahora el mes solo INSINÚA, y una palabra de alquiler largo lo desactiva. */
+const TEMPORADA_INSINUADA = /\b(verano|enero|febrero)\b/i;
+const ALQUILER_LARGO = /\b(anual|anuales|permanente|todo el a[nñ]o|largo plazo|contrato|dos a[nñ]os|2 a[nñ]os|tres a[nñ]os|3 a[nñ]os|vivienda|me mudo|mudarme|residir|vivir)\b/i;
+
+const esTemporada = (texto: string): boolean =>
+  TEMPORADA_SEGURA.test(texto) || (TEMPORADA_INSINUADA.test(texto) && !ALQUILER_LARGO.test(texto));
+
+/* 🔴 28-ago · LO QUE NO SE CONTESTA CON LA CARTERA LO ATIENDE UNA PERSONA.
+ * Medido en producción: 9 de 12 DMs terminaban con un pie incoherente. Alguien
+ * escribía «necesito el número de teléfono de ustedes» y le llegaba un listado
+ * de propiedades; alguien decía «quiero VENDER mi casa» y recibía la lista de
+ * las casas en venta de otros. Faltaba la tercera salida que pidió Juani —«los
+ * WhatsApp correspondientes Y EL PRIMORDIAL»—: la dirección, que es justamente
+ * quien recibe la consulta y la deriva a la oficina que corresponde. */
+const PARA_UNA_PERSONA =
+  /* Ojo con los verbos: la gente dice "poner MI DEPTO en alquiler", no "poner en
+   * alquiler". Entre el verbo y el complemento hay palabras, y una expresión que
+   * los pega no engancha ninguna frase real. */
+  /\b(vender|vendo|tasar|tasaci[oó]n|cu[aá]nto vale|(poner|ofrecer|alquilar|dar)\b[^.!?]{0,30}\ben (venta|alquiler)|administrar|administraci[oó]n|comisi[oó]n|comisiones|honorarios|requisitos?|garant[ií]a|documentaci[oó]n|escritur\w*|tel[eé]fono|whatsapp|n[uú]mero de|contacto|hablar con|asesor|reclamo|queja)\b/i;
+
 /** Los códigos de la casa, como los escribe la gente al copiar una ficha. */
 const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
 
@@ -123,28 +153,51 @@ const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
  * narra, el código calcula—: así no hay forma de que invente un número ni mande
  * a la oficina equivocada.
  *
- * DOS SALIDAS, NADA MÁS. Tener menos caminos es lo que hace confiable el filtro:
- * cada rama que se agrega es una rama que puede elegir mal.
+ * TRES SALIDAS, NI UNA MÁS: la web (propiedades), Mogotes (temporada) y la
+ * dirección (todo lo que no se contesta mirando la cartera). Cada rama que se
+ * agrega es una rama que puede elegir mal, así que no hay una cuarta.
+ *
+ * 🔴 Se miran DOS textos distintos, y no es un detalle:
+ *  · el HILO entero para temporada — quien dijo "temporada" en el primer mensaje
+ *    sigue siendo de temporada aunque el siguiente sea "somos 4 en familia";
+ *  · SOLO EL ÚLTIMO mensaje para decidir persona-o-cartera — si eso también se
+ *    acumulara, un "¿me pasás el teléfono?" al principio mandaría a la dirección
+ *    todo lo que venga después, incluso una consulta por una propiedad concreta.
  */
-export function derivacionDe(textoDelCliente: string, catalogo: CampoLite[]): { titulo: string; link: string } {
+export function derivacionDe(
+  dicho: { hilo: string; ultimo: string },
+  catalogo: CampoLite[]
+): { titulo: string; link: string } {
   // 1 · TEMPORADA → el WhatsApp de Punta Mogotes, siempre. La oficina sale de
   //     `config/temporada.js`, la misma fuente que usa la web: si algún día
   //     temporada la maneja otra oficina, cambia en un solo lugar.
-  if (PALABRAS_TEMPORADA.test(textoDelCliente)) {
+  if (esTemporada(dicho.hilo)) {
     return { titulo: "Para alquileres de temporada te atienden por WhatsApp:", link: waUrl(OFICINA_TEMPORADA) };
   }
 
-  // 2 · COMPRAR O ALQUILAR → LA WEB. Si nombró una propiedad, su ficha; si no,
-  //     el catálogo. En los dos casos la página YA muestra el WhatsApp de la
-  //     oficina que la atiende — el mismo dato que rutea la ficha pública, así
-  //     que no pueden contradecirse. Por eso acá no se manda ningún número: un
-  //     número elegido de este lado es un número que se puede equivocar.
-  const m = CODIGO_PROPIEDAD.exec(textoDelCliente);
+  // 2 · NOMBRÓ UNA PROPIEDAD → su ficha. Va ANTES que la rama de la dirección:
+  //     "quiero el teléfono por la POT-123456" se resuelve mejor con la ficha,
+  //     que ya trae el WhatsApp de la oficina que atiende justo esa propiedad.
+  const m = CODIGO_PROPIEDAD.exec(dicho.hilo);
   const id = m ? (m[2] ?? `POT-${m[1]}`).toUpperCase() : "";
   const ficha = id ? catalogo.find((c) => c.id.toUpperCase() === id) : undefined;
   if (ficha) {
     return { titulo: "Acá está la ficha completa, con fotos y el contacto de la oficina:", link: `${SITIO}/propiedad/${ficha.id}` };
   }
+
+  // 3 · NO ES UNA BÚSQUEDA EN LA CARTERA (vender, tasar, comisiones, pedir el
+  //     teléfono) → la DIRECCIÓN, que recibe y deriva a la oficina que toca.
+  //     Mandarle el catálogo a alguien que quiere vender su casa es contestarle
+  //     otra cosa.
+  if (PARA_UNA_PERSONA.test(dicho.ultimo)) {
+    return { titulo: "Te atienden por WhatsApp y te derivan con la oficina que corresponde:", link: waUrl(null) };
+  }
+
+  // 4 · COMPRAR O ALQUILAR → LA WEB. La página YA muestra el WhatsApp de la
+  //     oficina que atiende cada propiedad — el mismo dato que rutea la ficha
+  //     pública, así que no pueden contradecirse. Por eso acá no se elige un
+  //     número: un número elegido de este lado es un número que se puede
+  //     equivocar.
   return { titulo: "Podés verlas todas acá, con fotos y el contacto de cada una:", link: `${SITIO}/propiedades` };
 }
 
@@ -157,8 +210,12 @@ export function derivacionDe(textoDelCliente: string, catalogo: CampoLite[]): { 
  * (`derivacionDe`), así que esa mitad se fue — era código que ya no podía
  * ejecutarse y describía un comportamiento que el negocio dejó atrás.
  */
-export function textoParaCanal(respuesta: string, catalogo: CampoLite[], textoDelCliente: string): string {
-  const d = derivacionDe(textoDelCliente, catalogo);
+export function textoParaCanal(
+  respuesta: string,
+  catalogo: CampoLite[],
+  dicho: { hilo: string; ultimo: string }
+): string {
+  const d = derivacionDe(dicho, catalogo);
   return `${respuesta.trim()}\n\n${d.titulo}\n${d.link}`;
 }
 
@@ -202,11 +259,16 @@ export async function responderEnInstagram(convId: string): Promise<void> {
   }
 
   const camposIds = Array.isArray(data.camposIds) ? data.camposIds : [];
-  /* Todo lo que dijo la persona en el hilo, no solo su último mensaje: si pidió
-   * temporada hace tres mensajes, la consulta sigue siendo de temporada aunque
-   * ahora escriba "somos 4". Es exactamente el caso que se vio en la prueba. */
-  const loQueDijo = hilo.mensajes.filter((m) => m.de === "cliente").slice(-8).map((m) => m.texto).join(" \n ");
-  const texto = textoParaCanal(data.respuesta, catalogo, loQueDijo);
+  /* Los DOS textos que mira la derivación (ver `derivacionDe`):
+   *  · el HILO — si pidió temporada hace tres mensajes, la consulta sigue siendo
+   *    de temporada aunque ahora escriba "somos 4". Es el caso que se vio en la
+   *    prueba real.
+   *  · el ÚLTIMO — para decidir si esto lo atiende una persona o se contesta con
+   *    la cartera. Acá acumular sería un error: un "¿me pasás el teléfono?" al
+   *    principio mandaría a la dirección todo lo que venga después. */
+  const dichos = hilo.mensajes.filter((m) => m.de === "cliente").map((m) => m.texto);
+  const dicho = { hilo: dichos.slice(-8).join(" \n "), ultimo: dichos[dichos.length - 1] ?? "" };
+  const texto = textoParaCanal(data.respuesta, catalogo, dicho);
   const propiedadId = camposIds[0];
 
   /* ── SUPERVISADO: propone, no manda ────────────────────────────────────────

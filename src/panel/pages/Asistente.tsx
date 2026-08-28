@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Sparkles, BookOpen, SlidersHorizontal, Plus, Trash2, Clock, UserCheck,
+  Sparkles, BookOpen, SlidersHorizontal, Plus, Trash2, UserCheck,
   Inbox, TrendingUp, Bot, ShieldCheck, Power, Link2, Activity,
   MessageCircle, Instagram, MessageSquare, Globe, Mail, Phone, Wand2, Zap,
   Send, Loader2, Upload,
@@ -9,6 +9,7 @@ import { useData } from "@/lib/DataProvider";
 import { supabase } from "@/lib/supabase";
 import { consultarAsistente, type ChatMsg } from "@/lib/asistente";
 import { catalogoParaMarina } from "@/lib/catalogoLite";
+import { TOPE_FICHA, TOPE_CONOCIMIENTO } from "@/lib/cerebro";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import { canalLabel } from "../ui/estados";
@@ -44,12 +45,26 @@ const REGLAS = [
   { key: "derivarNegociacion", label: "Derivar a una persona si quieren negociar" },
   { key: "derivarLegal", label: "Derivar consultas legales / de escritura" },
 ];
-const ACCIONES = [
-  { key: "agendarVisitas", label: "Agendar visitas en la agenda", icon: Clock },
-  { key: "enviarFichas", label: "Enviar fichas de propiedades (fotos / PDF)", icon: BookOpen },
-  { key: "calificarLeads", label: "Calificar y clasificar cada consulta", icon: TrendingUp },
-  { key: "pedirDatos", label: "Pedir y guardar datos de contacto", icon: UserCheck },
-  { key: "responderPrecios", label: "Responder precios cuando estén cargados", icon: Zap },
+/* 🔴 28-ago · ACÁ HABÍA CINCO INTERRUPTORES QUE NO PRENDÍAN NADA.
+ *
+ * Decían "las acciones que la IA ejecuta sola" y ofrecían encender "agendar
+ * visitas", "enviar fichas en PDF" y "calificar y clasificar cada consulta". El
+ * server NUNCA los leyó: `normalizarCerebro()` ni siquiera trae la clave
+ * `acciones`, y la salida de Marina tiene cuatro campos, ninguno que agende ni
+ * adjunte. Peor: con "Responder precios" APAGADO, Marina daba el precio igual
+ * (medido en producción) — el interruptor no solo no hacía nada, mentía sobre lo
+ * que estaba pasando.
+ *
+ * En el panel de un cliente que paga no se finge una capacidad. Se sacan los
+ * controles falsos y queda escrito lo que Marina SÍ hace hoy; cuando alguna de
+ * esas acciones exista de verdad, vuelve como interruptor y hará lo que dice.
+ * (Lo que Mateo ya había guardado queda en la base, intacto: si mañana se
+ * implementa, sus preferencias siguen ahí.) */
+const LO_QUE_HACE = [
+  { icon: MessageSquare, texto: "Contesta consultas de la web y los mensajes directos de Instagram." },
+  { icon: UserCheck, texto: "Pide el nombre y un contacto, y te deja la consulta cargada en Consultas." },
+  { icon: BookOpen, texto: "En la web muestra las fichas que coinciden con lo que buscan, con su precio." },
+  { icon: Send, texto: "Deriva: por propiedades a la web, temporada a Punta Mogotes, y lo demás al WhatsApp de dirección." },
 ];
 /* ── LOS CANALES DE MARINA ────────────────────────────────────────────────────
  * 🔴 `andando: true` significa QUE FUNCIONA DE VERDAD, hoy, en producción. Todo
@@ -90,7 +105,15 @@ type Canal = {
 const CANALES: Canal[] = [
   { key: "web", nombre: "Chat en tu web", via: "Widget", desc: "Marina atiende en potenteprop.com.ar las 24 horas: responde, ordena y te deja la consulta cargada.", Icon: Globe, color: "#0C4DA2", andando: true, destacado: true },
   { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Los WhatsApp de Chauvín y Punta Mogotes se ven acá, con lo que responde cada oficina desde su celular. Nada se contesta solo: vos ves qué quedó colgado.", Icon: MessageCircle, color: "#25D366", meta: true, espejo: true, requisitos: ["Que Meta apruebe la verificación de la empresa (ya enviada)", "Escanear un QR con el celular de cada oficina desde potentepropiedades.com/conectar — el número sigue en la app como siempre", "Nosotros confirmamos la conexión y traemos el historial"] },
-  { key: "instagram", nombre: "Instagram", via: "ManyChat", desc: "Los mensajes directos de @potentepropiedades entran al panel y Marina los responde con tu cartera, derivando al WhatsApp de la oficina que atiende esa propiedad. Si tomás un hilo, ella se calla hasta que se lo devolvés.", Icon: Instagram, color: "#E1306C", meta: true, espejo: true, marina: true, requisitos: ["Que @potentepropiedades esté conectado a ManyChat (ya está: los mensajes entran)"] },
+  /* 🔴 28-ago · La descripción de Instagram decía «Marina los responde CON TU
+   * CARTERA, derivando al WhatsApp de la oficina que atiende esa propiedad», y
+   * las dos mitades eran falsas: en Instagram el catálogo va vacío a propósito
+   * (ella no ve la cartera) y el único número que emite es el de Mogotes, y solo
+   * para temporada. Prometerle a Mateo una capacidad que no existe es
+   * exactamente lo que este panel no puede hacer. Ahora dice lo que el código
+   * hace, con las tres salidas. */
+  { key: "instagram", nombre: "Instagram", via: "ManyChat",
+    desc: "Los mensajes directos de @potentepropiedades entran al panel y Marina contesta derivando: por una propiedad, a la web —donde cada ficha tiene el WhatsApp de su oficina—; por temporada, al WhatsApp de Punta Mogotes; y lo que necesita una persona (vender, tasar, comisiones), al WhatsApp de la dirección. No recomienda propiedades ni da precios por acá. Si tomás un hilo, ella se calla hasta que se lo devolvés.", Icon: Instagram, color: "#E1306C", meta: true, espejo: true, marina: true, requisitos: ["Que @potentepropiedades esté conectado a ManyChat (ya está: los mensajes entran)"] },
   { key: "messenger", nombre: "Messenger", via: "Meta", desc: "Que Marina atienda el Messenger de la página.", Icon: MessageSquare, color: "#0084FF", meta: true, requisitos: ["La página de Facebook de la inmobiliaria", "Permiso de administrador para conectar el asistente"] },
   { key: "mail", nombre: "Email", via: "Casilla", desc: "Que Marina lea y responda las consultas que entran por mail.", Icon: Mail, color: "#C9A24E", requisitos: ["Acceso a la casilla (o un reenvío a una casilla nuestra)", "Definir qué contesta sola y qué te deriva"] },
   { key: "telefono", nombre: "Teléfono", via: "Registro", desc: "Registrar las llamadas y derivarlas a la oficina que corresponde.", Icon: Phone, color: "#9C6B3C", requisitos: ["Una línea que podamos integrar (voz sobre IP)", "Definir el árbol de derivación por oficina"] },
@@ -272,7 +295,6 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
 
   const set = (patch: Partial<IAConfig>) => setCfg((c) => ({ ...c, ...patch }));
   const setRegla = (k: string, v: boolean) => setCfg((c) => ({ ...c, reglas: { ...c.reglas, [k]: v } }));
-  const setAccion = (k: string, v: boolean) => setCfg((c) => ({ ...c, acciones: { ...c.acciones, [k]: v } }));
   const addConoc = (tema = "") => setCfg((c) => ({ ...c, conocimiento: [...c.conocimiento, { id: "k" + Math.random().toString(36).slice(2, 7), tema, texto: "" }] }));
   const editConoc = (id: string, texto: string) => setCfg((c) => ({ ...c, conocimiento: c.conocimiento.map((k) => (k.id === id ? { ...k, texto } : k)) }));
   const editTema = (id: string, tema: string) => setCfg((c) => ({ ...c, conocimiento: c.conocimiento.map((k) => (k.id === id ? { ...k, tema } : k)) }));
@@ -280,10 +302,31 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
   const onDoc = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => { const txt = String(r.result || "").slice(0, 8000); setCfg((c) => ({ ...c, conocimiento: [...c.conocimiento, { id: "k" + Math.random().toString(36).slice(2, 7), tema: "Documento: " + f.name, texto: txt }] })); push("Documento cargado al cerebro ✓", "success"); };
+    /* 🔴 Antes cortaba a 8.000 caracteres y avisaba "Documento cargado ✓" igual:
+     * un .txt más largo perdía la cola y el panel confirmaba éxito. Si no entra
+     * entero, se dice — con el número, para que se sepa qué falta. */
+    r.onload = () => {
+      const crudo = String(r.result || "");
+      const txt = crudo.slice(0, TOPE_FICHA);
+      setCfg((c) => ({ ...c, conocimiento: [...c.conocimiento, { id: "k" + Math.random().toString(36).slice(2, 7), tema: "Documento: " + f.name, texto: txt }] }));
+      if (crudo.length > txt.length) {
+        push(`El documento entró recortado: se cargaron ${txt.length.toLocaleString("es-AR")} de ${crudo.length.toLocaleString("es-AR")} caracteres. Partilo en dos fichas para que no se pierda nada.`, "error");
+      } else {
+        push("Documento cargado al cerebro ✓", "success");
+      }
+    };
     r.readAsText(f); e.target.value = "";
   };
-  const entren = Math.min(100, Math.round((cfg.contexto.trim().length / 600) * 40 + cfg.conocimiento.filter((k) => k.texto.trim()).length * 12));
+  /* 🔴 28-ago · EL MEDIDOR CONTABA FICHAS, NO CONOCIMIENTO.
+   * Mateo cargó UNA ficha con el negocio entero —24.735 caracteres, 39 secciones—
+   * y el medidor le decía «32% entrenada · Recién arranca, sumale más info»:
+   * sumaba 12 puntos por FICHA sin mirar lo que tenía adentro. Le pedía más de lo
+   * que ya había escrito y, mientras tanto, el server le estaba tirando el 68% por
+   * un tope silencioso. Dos mentiras apiladas sobre el mismo trabajo suyo.
+   * Ahora mide los CARACTERES que efectivamente viajan al prompt. */
+  const ensenado = cfg.contexto.trim().length + cfg.conocimiento.reduce((n, k) => n + k.texto.trim().length, 0);
+  const entren = Math.min(100, Math.round((ensenado / 6_000) * 100));
+  const espacioUsado = Math.round((ensenado / TOPE_CONOCIMIENTO) * 100);
   const desconectar = (key: string) => { setCfg((c) => ({ ...c, canales: { ...c.canales, [key]: false } })); push("Canal desconectado", "info"); };
   /** El único canal que se prende y apaga desde acá es el de la web: es el que
    *  está andando de verdad. Los demás se activan con nosotros (ver CANALES). */
@@ -507,7 +550,17 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-graph"><BookOpen size={18} className="text-brand" /> El cerebro de tu IA</h2>
-                <p className="mt-0.5 text-sm text-graph-500">Cargá TODO lo que sepas de tu negocio — no hay límite. Cuanto más le enseñás, mejor responde y menos se equivoca.</p>
+                <p className="mt-0.5 text-sm text-graph-500">
+                  Cargá todo lo que sepas de tu negocio: cuanto más le enseñás, mejor responde y menos se equivoca.{" "}
+                  {/* 🔴 El límite se MUESTRA. Antes decía "no hay límite" y el server
+                      recortaba a 8.000 sin avisar: lo que Mateo escribía de más se
+                      perdía en silencio. Un límite que el cliente no ve lo agarra
+                      de sorpresa el día que lo cruza. */}
+                  <span className={espacioUsado >= 90 ? "font-medium text-red-600" : "text-graph-400"}>
+                    Llevás {ensenado.toLocaleString("es-AR")} de {TOPE_CONOCIMIENTO.toLocaleString("es-AR")} caracteres
+                    {espacioUsado >= 90 ? " — casi sin lugar: lo que agregues de más no le va a llegar." : "."}
+                  </span>
+                </p>
               </div>
               <span className="hidden shrink-0 text-right sm:block">
                 <span className="font-display text-3xl font-bold text-brand">{entren}%</span>
@@ -615,13 +668,13 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
               </div>
             </div>
             <div className={card}>
-              <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-graph"><Zap size={18} className="text-brand" /> Qué puede hacer</h2>
-              <p className="mt-1 text-sm text-graph-500">Las acciones que la IA ejecuta sola.</p>
+              <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-graph"><Zap size={18} className="text-brand" /> Qué hace Marina hoy</h2>
+              <p className="mt-1 text-sm text-graph-500">Lo que ya está funcionando. Para cambiar cómo responde, usá las Reglas y el Cerebro.</p>
               <div className="mt-3 divide-y divide-graph/[0.06]">
-                {ACCIONES.map((a) => (
-                  <div key={a.key} className="flex items-center justify-between gap-3 py-2.5">
-                    <span className="flex items-center gap-2 text-sm text-graph"><a.icon size={15} className="text-graph-400" /> {a.label}</span>
-                    <Switch on={!!cfg.acciones[a.key]} onChange={(v) => setAccion(a.key, v)} />
+                {LO_QUE_HACE.map((a, i) => (
+                  <div key={i} className="flex items-start gap-2.5 py-2.5">
+                    <a.icon size={15} className="mt-0.5 shrink-0 text-graph-400" />
+                    <span className="text-sm text-graph">{a.texto}</span>
                   </div>
                 ))}
               </div>

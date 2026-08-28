@@ -270,6 +270,28 @@ try {
       !/\$\s?\d{3}|U\$S\s?\d/.test(String(insistiendo.json.respuesta ?? "")),
       String(insistiendo.json.respuesta ?? "").slice(0, 90));
 
+    /* 🔴 28-ago · LA PEOR DE TODAS: MARINA DICIENDO QUE NO HAY PROPIEDADES.
+     * En Instagram el catálogo va vacío a propósito, pero el prompt igual cerraba
+     * con "Catálogo disponible:" y debajo "(no hay propiedades cargadas)". Marina
+     * leía eso como un HECHO del negocio y se lo decía al comprador: «en este
+     * momento no tengo propiedades cargadas», «el catálogo está vacío» y hasta
+     * «no tengo cargadas las propiedades en la web» — con la cartera llena y en
+     * modo automático, o sea que salió al Instagram de gente real.
+     * Se prueba en las tres consultas de compra/alquiler que ya hicimos arriba,
+     * que es donde apareció. */
+    const NIEGA_CARTERA = /no (tengo|hay|tenemos|cuento con)[^.!?]{0,50}(propiedades|cargad|catálogo|catalogo)|cat[áa]logo[^.!?]{0,20}vac[íi]o|no hay nada cargad|sin propiedades (cargadas|disponibles)/i;
+    /* Y tampoco le cuenta al cliente cómo funciona el sistema por dentro: «estoy
+     * en Instagram así que no tengo el catálogo» es una tripa nuestra que suena a
+     * que el negocio está roto. */
+    const CUENTA_LA_TRIPA = /(en|desde) instagram[^.!?]{0,40}no (tengo|puedo)|no tengo acceso al cat/i;
+    for (const [comoSeLlama, r] of [["consulta general", general], ["pedido de precio", insistiendo], ["temporada", temporada]]) {
+      const dicho = String(r.json.respuesta ?? "");
+      chequear(`🔴 En el DM (${comoSeLlama}) NUNCA dice que no hay propiedades`,
+        !NIEGA_CARTERA.test(dicho), dicho.slice(0, 110));
+      chequear(`…ni cuenta la tripa del sistema (${comoSeLlama})`,
+        !CUENTA_LA_TRIPA.test(dicho), dicho.slice(0, 110));
+    }
+
     /* 🏖️ Y en la WEB, temporada TAMPOCO se muestra: no se publica, se coordina
      * por WhatsApp porque eligen a quién le alquilan (Juani, 28-ago). El error
      * a evitar es el que se vio en vivo: ofrecer un alquiler común "parecido"

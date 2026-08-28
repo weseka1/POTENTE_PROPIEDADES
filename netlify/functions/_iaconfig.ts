@@ -37,16 +37,56 @@ const BASE: Cerebro = { activa: true, modo: "automatico", nombre: "Marina", tono
 const TTL_MS = 20_000;
 let cache: { hasta: number; datos: Cerebro } | null = null;
 
-const texto = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+/* 🔴 28-ago · EL CEREBRO DE MATEO ENTRABA POR LA MITAD, Y NADIE SE ENTERABA.
+ *
+ * El tope de cada ficha era 8.000 caracteres. Mateo cargó UNA de 24.735: entraban
+ * 12 de sus 39 secciones y se tiraban 27 —reservas, requisitos, venta,
+ * administración, y hasta su "REGLA ABSOLUTA: NO INVENTAR"—, o sea el 68%. Sin un
+ * error, sin un log, sin un cartel. Arriba, el panel le decía "Cargá TODO lo que
+ * sepas de tu negocio — no hay límite", y el medidor le pedía que sumara MÁS de
+ * justo lo que se estaba tirando.
+ *
+ * Es el bug del "megaprompt trucho" con otra cara: el cliente enseña y el sistema
+ * no aprende. Los topes se fueron a `src/lib/cerebro.ts` para que el panel pueda
+ * mostrarlos (un límite que el cliente no ve lo agarra de sorpresa), y un recorte
+ * dejó de ser mudo: se cuenta y se avisa. */
+import { TOPE_FICHA, TOPE_CONOCIMIENTO, TOPE_CONTEXTO } from "../../src/lib/cerebro";
+
+/** Lo que se recortó en la última lectura, para poder contarlo en vez de tragarlo. */
+let ultimoRecorte = 0;
+export const recorteDelCerebro = (): number => ultimoRecorte;
+
+const texto = (v: unknown, max: number): string => {
+  if (typeof v !== "string") return "";
+  const limpio = v.trim();
+  if (limpio.length <= max) return limpio;
+  ultimoRecorte += limpio.length - max;
+  return limpio.slice(0, max);
+};
 
 /** De lo que haya en la fila a un Cerebro completo: cualquier campo que falte toma el valor base. */
 export function normalizarCerebro(cfg: unknown): Cerebro {
+  ultimoRecorte = 0;
   const c = (cfg && typeof cfg === "object" ? cfg : {}) as Record<string, unknown>;
+
+  /* El presupuesto se reparte por orden de carga: cada ficha entra entera hasta
+   * que se acaba, y la que no entra NO se mete a medias — media ficha es peor
+   * que ninguna, porque el corte cae a mitad de una frase y Marina la lee como
+   * si terminara ahí. Lo que quedó afuera se cuenta y se avisa. */
+  let presupuesto = TOPE_CONOCIMIENTO;
   const conocimiento = Array.isArray(c.conocimiento)
     ? c.conocimiento
-        .map((k: any) => ({ tema: texto(k?.tema, 80) || undefined, texto: texto(k?.texto, 8000) }))
+        .map((k: any) => ({ tema: texto(k?.tema, 80) || undefined, texto: texto(k?.texto, TOPE_FICHA) }))
         .filter((k) => k.texto)
         .slice(0, 40)
+        .filter((k) => {
+          if (k.texto.length > presupuesto) {
+            ultimoRecorte += k.texto.length;
+            return false;
+          }
+          presupuesto -= k.texto.length;
+          return true;
+        })
     : [];
   const reglas = c.reglas && typeof c.reglas === "object"
     ? Object.fromEntries(Object.entries(c.reglas as Record<string, unknown>).map(([k, v]) => [k, v === true]))
@@ -61,7 +101,7 @@ export function normalizarCerebro(cfg: unknown): Cerebro {
     tono: c.tono === "formal" ? "formal" : "cercano",
     emojis: c.emojis !== false,
     firma: texto(c.firma, 80),
-    contexto: texto(c.contexto, 12_000),
+    contexto: texto(c.contexto, TOPE_CONTEXTO),
     conocimiento,
     reglas,
   };
@@ -83,6 +123,14 @@ export async function leerCerebro(): Promise<Cerebro> {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const filas = (await r.json()) as { cfg?: unknown }[];
     const datos = normalizarCerebro(filas[0]?.cfg);
+    /* Un recorte NO es una curiosidad: es conocimiento que el cliente escribió y
+     * Marina no va a tener. Si vuelve a pasar, que quede escrito. */
+    if (recorteDelCerebro() > 0) {
+      console.warn(
+        `Cerebro · se recortaron ${recorteDelCerebro()} caracteres de lo que cargó el cliente ` +
+          `(tope por ficha ${TOPE_FICHA}, total ${TOPE_CONOCIMIENTO}). Marina NO tiene esa parte.`
+      );
+    }
     cache = { hasta: ahora + TTL_MS, datos };
     return datos;
   } catch (e: any) {
