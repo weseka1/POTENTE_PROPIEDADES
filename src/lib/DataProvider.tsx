@@ -142,7 +142,8 @@ interface DataCtx {
   addPropiedad: (p: Propiedad) => Promise<Resultado>;
   updatePropiedad: (id: string, patch: Partial<Propiedad>) => Promise<Resultado>;
   deletePropiedad: (id: string) => Promise<Resultado>;
-  addLead: (l: Lead) => Promise<void>;
+  /** Devuelve el resultado: el formulario de la web NO puede festejar sin saber si entró. */
+  addLead: (l: Lead) => Promise<Resultado>;
   updateLead: (id: string, patch: Partial<Lead>) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
   updateOperacion: (id: string, patch: Partial<Operacion_>) => Promise<Resultado>;
@@ -532,16 +533,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!supabase) return SIN_BASE;
     return aviso("delete en potente_propiedades", supabase.from("potente_propiedades").delete().eq("id", id));
   };
-  const addLead = async (l: Lead) => {
+  /* 🔴 28-ago · DEVUELVE EL RESULTADO, y quien la llama TIENE que mirarlo.
+   * Antes devolvía `void` y el error moría en un `console.error`: el formulario
+   * de la home cantaba «¡Consulta enviada! Te vamos a contactar a la brevedad»
+   * aunque la base lo hubiera rechazado. Medido en producción cortándole el
+   * tráfico a Supabase: consola con «No se pudo guardar la consulta», pantalla
+   * con el cartel de éxito. Un visitante que se va convencido de que lo van a
+   * llamar es un lead perdido que nadie sabe que existió — el mismo modo de
+   * falla que ya costó dos veces (IAGRO 14-jul, Potente 6/7-ago). */
+  const addLead = async (l: Lead): Promise<Resultado> => {
     setLeads((prev) => [l, ...prev]);
-    if (!supabase) return;
+    if (!supabase) return SIN_BASE;
     // ⚠️ INSERT, no upsert. El formulario de la web lo usa un VISITANTE (rol anon),
     // y su permiso es solo de inserción: un upsert es "insert or update" y la base
     // lo rechaza entero con 42501. Entre el 6 y el 7-ago esto hizo que ninguna
     // consulta de la web se guardara, y en silencio. El id lleva Date.now(), así
     // que no hay colisión posible y el upsert nunca hizo falta.
-    const { error } = await supabase.from("potente_leads").insert(l);
-    if (error) console.error("No se pudo guardar la consulta:", error.message, error.code);
+    return aviso("insert en potente_leads", supabase.from("potente_leads").insert(l));
   };
   const updateLead = async (id: string, patch: Partial<Lead>) => {
     setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));

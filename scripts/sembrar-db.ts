@@ -38,6 +38,37 @@ import { unidadesTemporada, reservasTemporada } from "../src/data/temporada";
 
 const CON_DEMO = process.argv.includes("--con-demo");
 
+/* 🔴 28-ago · LOS DATOS DE EJEMPLO NO ENTRAN A LA BASE DEL CLIENTE. NUNCA.
+ *
+ * El 19-ago se sacó `potente_conversaciones` del sembrado porque las CONV-01..08
+ * de demo estaban en el panel de Mateo y él leía a "Nicolás Peralta" como un lead
+ * real. Se tapó ESA tabla. Hoy apareció el mismo agujero por la puerta de al
+ * lado: en el Embudo había 8 operaciones OP-001..008 —compradores inventados,
+ * responsables que no existen en la inmobiliaria, fechas de junio, todas con el
+ * mismo `created_at` del sembrado del 6-ago— y de ahí salía el "Comisión
+ * proyectada U$S 49K" de su pantalla de Inicio. Plata que no existe, en la
+ * pantalla donde el dueño mira cómo le va.
+ *
+ * La lección no era "sacá conversaciones de la lista": era que un `--con-demo`
+ * corrido una sola vez contra la base equivocada deja basura que nadie vuelve a
+ * mirar, y que en un panel se lee como verdad. Así que el candado va acá arriba,
+ * cubriendo TODA la data de ejemplo de una vez, en vez de tabla por tabla.
+ *
+ * Si algún día hace falta poblar una demo de verdad, se hace contra OTRO
+ * proyecto de Supabase — que es lo que corresponde. */
+const REF_PRODUCCION = "gqhpgexqbnqqqeynbucu";
+if (CON_DEMO && URL.includes(REF_PRODUCCION)) {
+  console.error(
+    "\n🔴 --con-demo apunta a la base de PRODUCCIÓN de Potente. No se hace.\n" +
+      "   Los nombres inventados del CRM de ejemplo terminan en el panel de Mateo\n" +
+      "   y se leen como clientes y plata reales (ya pasó dos veces: las\n" +
+      "   conversaciones el 19-ago y las 8 operaciones del Embudo el 6-ago).\n\n" +
+      "   · Para actualizar la cartera real: corré `npm run sembrar` sin --con-demo.\n" +
+      "   · Para poblar una demo: apuntá .env.local a otro proyecto de Supabase.\n"
+  );
+  process.exit(1);
+}
+
 const sb = createClient(URL, KEY, { auth: { persistSession: false } });
 
 /** Recorta un ISO a fecha (las columnas de reserva son date, no timestamp). */

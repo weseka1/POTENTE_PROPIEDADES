@@ -16,7 +16,7 @@ import { parseBusqueda, aQueryString, rutaTemporada } from "./lib/parseBusqueda"
 import { useReveal } from "@/lib/hooks";
 import { useData } from "@/lib/DataProvider";
 
-import { OFICINAS } from "@/config/marca";
+import { OFICINAS, waUrl } from "@/config/marca";
 import WhatsAppCTA from "./components/WhatsAppCTA";
 
 // El océano 3D se carga en su propio chunk, recién al montar el hero.
@@ -634,8 +634,10 @@ const MOTIVOS = [
   { id: "consulta", label: "Otra consulta", tag: "CONSULTA", ph: "Contanos en qué te podemos ayudar..." },
 ] as const;
 
-function ContactForm({ onEnviar, motivo, enBandaOscura }: { onEnviar: (l: any) => void; motivo?: "" | "comprar" | "vender"; enBandaOscura?: boolean }) {
+function ContactForm({ onEnviar, motivo, enBandaOscura }: { onEnviar: (l: any) => Promise<{ ok: boolean }>; motivo?: "" | "comprar" | "vender"; enBandaOscura?: boolean }) {
   const [sent, setSent] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
   const [f, setF] = useState({ nombre: "", telefono: "", mensaje: "", motivo: "" as string });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
@@ -649,19 +651,39 @@ function ContactForm({ onEnviar, motivo, enBandaOscura }: { onEnviar: (l: any) =
 
   const m = MOTIVOS.find((x) => x.id === f.motivo);
 
-  const submit = (e: React.FormEvent) => {
+  /* 🔴 28-ago · NO SE FESTEJA ANTES DE QUE LA BASE DIGA QUE SÍ.
+   * Esto mandaba el lead sin esperar y ponía «¡Consulta enviada!» siempre. Con la
+   * base caída, el visitante se iba convencido de que lo iban a llamar y su
+   * consulta no existía en ningún lado: un lead perdido que nadie sabe que
+   * existió. Ahora se espera el resultado, y si falla se lo dice con una salida
+   * de verdad (WhatsApp), que es lo único honesto que se le puede ofrecer. */
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onEnviar({
+    if (enviando) return;
+
+    // Sin un contacto no hay consulta: guardar "Consulta web / —" es guardar nada.
+    const contacto = f.telefono.trim();
+    if (!contacto) return setError("Dejanos un teléfono o un email para poder responderte.");
+    if (!f.mensaje.trim()) return setError("Contanos brevemente qué necesitás.");
+
+    setError("");
+    setEnviando(true);
+    const r = await onEnviar({
       id: "LEAD-" + Date.now(),
       fechaISO: new Date().toISOString(),
-      nombre: f.nombre || "Consulta web",
-      contacto: f.telefono || "—",
+      nombre: f.nombre.trim() || "Consulta web",
+      contacto,
       campoId: null,
       canal: "web",
       estado: "nueva",
       asignado: "Sin asignar",
-      notas: `${m ? `[${m.tag}] ` : ""}${f.mensaje}`,
+      notas: `${m ? `[${m.tag}] ` : ""}${f.mensaje.trim()}`,
     });
+    setEnviando(false);
+    if (!r.ok) {
+      setError("No pudimos enviar la consulta. Probá de nuevo en un momento, o escribinos por WhatsApp y te atendemos ahora.");
+      return;
+    }
     setSent(true);
   };
 
@@ -709,7 +731,20 @@ function ContactForm({ onEnviar, motivo, enBandaOscura }: { onEnviar: (l: any) =
             <span className="mb-1.5 block text-[11px] uppercase tracking-widest2 text-graph-400">Mensaje</span>
             <textarea rows={4} value={f.mensaje} onChange={(e) => set("mensaje", e.target.value)} placeholder={m?.ph ?? "Contanos en qué te podemos ayudar..."} className="w-full rounded-lg border border-graph/15 bg-paper-100 px-4 py-3 text-sm text-graph outline-none transition placeholder:text-graph-400 focus:border-brand" />
           </label>
-          <button type="submit" className="btn-primary w-full">Enviar consulta <ArrowRight size={16} /></button>
+          {/* El error se VE. Si solo va a la consola, para el visitante no existe. */}
+          {error && (
+            <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 ring-1 ring-red-200">
+              {error}{" "}
+              {/^No pudimos/.test(error) && (
+                <a href={waUrl(null, "Hola, quería hacer una consulta desde la web.")} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                  Abrir WhatsApp
+                </a>
+              )}
+            </p>
+          )}
+          <button type="submit" disabled={enviando} className="btn-primary w-full disabled:opacity-60">
+            {enviando ? "Enviando…" : <>Enviar consulta <ArrowRight size={16} /></>}
+          </button>
           <p className="text-center text-xs text-graph-400">Respondemos de lunes a viernes de 9 a 18 y sábados a la mañana.</p>
         </div>
       )}
