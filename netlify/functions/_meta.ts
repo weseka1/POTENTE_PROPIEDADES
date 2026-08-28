@@ -43,6 +43,10 @@ export type MensajeEntrante = {
   /** Ids de afuera para poder RESPONDER por el mismo canal (021):
    *  p. ej. { manychat_subscriber_id, ig_username }. Se mezclan en la conversación. */
   externo?: Record<string, string>;
+  /** 025 · Por qué puerta entró. El MISMO mensaje puede llegar por dos (el
+   *  webhook de Meta y ManyChat) y sin esto se guarda dos veces — y el eco de la
+   *  respuesta de Marina la hace callarse creyendo que contestó una persona. */
+  fuente?: "meta" | "manychat" | "web";
 };
 
 /**
@@ -110,6 +114,7 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
           texto: textoDeWhatsApp(m),
           hora: horaDe(m?.timestamp),
           de: "cliente",
+          fuente: "meta",
         });
       }
 
@@ -128,6 +133,7 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
           texto: textoDeWhatsApp(e),
           hora: horaDe(e?.timestamp),
           de: "humano",
+          fuente: "meta",
         });
       }
 
@@ -149,6 +155,7 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
               texto: textoDeWhatsApp(m),
               hora: horaDe(m?.timestamp),
               de: String(m?.from ?? "") === cliente ? "cliente" : "humano",
+              fuente: "meta",
               historico: true,
             });
           }
@@ -179,6 +186,7 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
         texto: String(m?.text ?? "") || descripcionDeAdjunto(m?.attachments?.[0]?.type),
         hora: horaDe(ev?.timestamp),
         de: eco ? "humano" : "cliente",
+        fuente: "meta",
       });
     }
   }

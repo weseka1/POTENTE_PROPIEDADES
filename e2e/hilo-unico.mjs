@@ -55,6 +55,7 @@ const ingresar = async (contacto, texto, externo, extra = {}) => {
     p_de: extra.de ?? "cliente",
     p_historico: false,
     p_externo: externo ?? null,
+    p_fuente: extra.fuente ?? null,
   });
   if (error) return { error: error.message };
   return { convId: data };
@@ -103,6 +104,39 @@ try {
   chequear("🏷️ …y el contacto pasa del número feo al usuario legible (el panel muestra personas)",
     hilosB.length === 1 && hilosB[0].contacto === B_USER, `${hilosB.length} hilo(s) · contacto=${hilosB[0]?.contacto}`);
   chequear("…con el nombre real, no el id", hilosB[0]?.nombre === "Sonda B", `nombre=${hilosB[0]?.nombre}`);
+
+  // ── 025 · El MISMO mensaje por las dos puertas se guarda UNA vez ──────────
+  const C_USER = `sonda_c_${SELLO}`, C_IGID = `90${SELLO}03`;
+  try {
+    const m1 = await ingresar(C_USER, "Hola, quiero alquilar", { ig_username: C_USER, ig_id: C_IGID, manychat_subscriber_id: "333" }, { nombre: "Sonda C", fuente: "manychat" });
+    chequear("📸 El DM entra por ManyChat", Boolean(m1.convId), m1.error ?? m1.convId);
+    const m2 = await ingresar(C_IGID, "Hola, quiero alquilar", null, { fuente: "meta" });
+    chequear("🔁 …y el MISMO texto por el webhook de Meta NO se guarda de nuevo", m2.convId === null, m2.convId === null ? "descartado ✓" : `se guardó: ${m2.convId ?? m2.error}`);
+    let hC = await hilosDe(C_USER, C_IGID);
+    chequear("…el hilo queda con UN solo mensaje", hC.length === 1 && hC[0].mensajes.length === 1, `${hC.length} hilo(s) · ${hC[0]?.mensajes?.length} msgs`);
+
+    // 🔴 El caso que hacía callar a Marina: ella responde (sale por ManyChat) y
+    // Meta nos devuelve SU PROPIA respuesta como eco del negocio ('humano').
+    // Sin la 025, ese eco entraba y pasaba el hilo a 'vos' — Marina se callaba
+    // creyendo que había contestado la oficina.
+    const resp = "Tengo dos opciones en Chauvín, te paso los links";
+    const m3 = await ingresar(C_USER, resp, null, { de: "ia", fuente: "manychat" });
+    chequear("🤖 Marina contesta y su mensaje queda en el hilo", Boolean(m3.convId), m3.error ?? m3.convId);
+    const m4 = await ingresar(C_IGID, resp, null, { de: "humano", fuente: "meta" });
+    chequear("🔴 …y el ECO que devuelve Meta NO se guarda como si fuera una persona", m4.convId === null, m4.convId === null ? "descartado ✓" : "SE DUPLICÓ");
+    hC = await hilosDe(C_USER, C_IGID);
+    chequear("…el hilo sigue en manos de Marina (el eco no se lo quitó)", hC[0]?.estado === "ia", `estado=${hC[0]?.estado}`);
+    chequear("…y tiene 2 mensajes, no 4", hC[0]?.mensajes.length === 2, `${hC[0]?.mensajes?.length} msgs`);
+
+    // Dos iguales por la MISMA puerta sí son dos mensajes de verdad.
+    const m5 = await ingresar(C_USER, "dale", null, { fuente: "manychat" });
+    const m6 = await ingresar(C_USER, "dale", null, { fuente: "manychat" });
+    hC = await hilosDe(C_USER, C_IGID);
+    chequear("✋ Dos mensajes iguales por la MISMA puerta entran los dos (no se pisan)",
+      Boolean(m5.convId) && Boolean(m6.convId) && hC[0]?.mensajes.length === 4, `${hC[0]?.mensajes?.length} msgs`);
+  } finally {
+    for (const c of [C_USER, C_IGID]) for (const h of await hilosDe(c)) await sb.from("potente_conversaciones").delete().eq("id", h.id);
+  }
 
   // ── 4 · No une de más: dos personas distintas siguen separadas ────────────
   const todos = await hilosDe(A_USER, A_IGID, B_USER, B_IGID);

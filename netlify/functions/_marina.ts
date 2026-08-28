@@ -210,7 +210,7 @@ export async function responderEnInstagram(convId: string): Promise<void> {
   // si algo reintenta, la base lo descarta.
   await guardarMensajes([{
     canal: "instagram", mensajeId: `ia-${sha(`${convId}|${ultimo.id}`)}`, contacto: hilo.contacto, nombre: "",
-    texto, hora: new Date().toISOString(), de: "ia",
+    texto, hora: new Date().toISOString(), de: "ia", fuente: "manychat",
   }]);
 
   if (data.lead?.contacto) {
@@ -244,8 +244,8 @@ export async function registrarCharlaWeb(body: any, data: Record<string, unknown
     const turno = Array.isArray(body?.historial) ? body.historial.length : 0;
     const ahora = Date.now();
     const res = await guardarMensajes([
-      { canal: "web", mensajeId: `web-${sha(`${sesion}|${turno}|${mensaje}`)}`, contacto: sesion, nombre: "Visitante web", texto: mensaje, hora: new Date(ahora).toISOString(), de: "cliente" },
-      { canal: "web", mensajeId: `web-${sha(`${sesion}|${turno}|ia|${respuesta}`)}`, contacto: sesion, nombre: "", texto: respuesta, hora: new Date(ahora + 1000).toISOString(), de: "ia" },
+      { canal: "web", mensajeId: `web-${sha(`${sesion}|${turno}|${mensaje}`)}`, contacto: sesion, nombre: "Visitante web", texto: mensaje, hora: new Date(ahora).toISOString(), de: "cliente", fuente: "web" },
+      { canal: "web", mensajeId: `web-${sha(`${sesion}|${turno}|ia|${respuesta}`)}`, contacto: sesion, nombre: "", texto: respuesta, hora: new Date(ahora + 1000).toISOString(), de: "ia", fuente: "web" },
     ]);
     const conversacionId = res.conversaciones[0];
     if (!conversacionId) return {};

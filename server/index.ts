@@ -265,7 +265,12 @@ app.post("/api/meta/sincronizar", async (req, res) => {
  * misma puerta idempotente que Meta. El porqué, en `_manychat.ts`. */
 app.post("/api/ingesta/manychat", async (req, res) => {
   const cupo = pasaElCupo(ipDe(req.headers), "chat");
-  if (!cupo.ok) return res.status(429).json({ ok: false, mensaje: "Muchos pedidos seguidos." });
+  if (!cupo.ok) {
+    // 🔴 Un mensaje de un cliente perdido por nuestro cupo, y en silencio, es
+    // exactamente lo que no puede pasar. Queda anotado con quién era.
+    console.error(`ManyChat · DESCARTADO (cupo por IP agotado, esperar ${cupo.esperarS}s) · contacto=${String((req.body ?? {}).contacto ?? "?").slice(0, 60)}`);
+    return res.status(429).json({ ok: false, mensaje: "Muchos pedidos seguidos." });
+  }
   const r = await ingresarDesdeManychat((req.body && typeof req.body === "object" ? req.body : {}) as any, req.header("x-manychat-token"));
   // `version`/`content` con cero mensajes: si ManyChat lo llama desde un bloque
   // de "Contenido dinámico" (que espera su formato para PINTAR algo), recibe un

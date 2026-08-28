@@ -71,6 +71,7 @@ export async function guardarMensajes(mensajes: MensajeEntrante[]): Promise<Resu
           // conociera el parámetro, PostgREST rechazaría la llamada entera — así
           // que los mensajes de Meta (que no traen externo) no dependen de la 021.
           ...(m.externo && Object.keys(m.externo).length ? { p_externo: m.externo } : {}),
+          ...(m.fuente ? { p_fuente: m.fuente } : {}),   // 025: para no guardar dos veces lo mismo
         }),
       });
 
