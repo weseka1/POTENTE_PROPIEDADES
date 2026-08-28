@@ -204,6 +204,35 @@ async function main() {
   chequear("🔒 Mogotes lee CERO conversaciones (ni las de la central)", convMogotes === 0, `leyó ${convMogotes}`);
   chequear("Mateo sigue viendo la bandeja entera (lee la sonda recién creada)",
     (sondaMateo.data?.length ?? 0) === 1, sondaMateo.error?.message ?? `leyó ${sondaMateo.data?.length ?? 0}`);
+
+  /* 🔴 026 · LA HISTORIA SOLO SE ESCRIBE POR LA PUERTA.
+   * La 020 le sacó al panel el `upsert` que mandaba el array entero de mensajes
+   * (con dos escritores, ese upsert BORRA lo que entró por los canales y no da
+   * ningún error). Pero arreglarlo en nuestro código no lo arregla en el código
+   * que ya está publicado: el 28-ago se midió que el Render viejo seguía vivo,
+   * con el build de antes de la 020, contra ESTA misma base.
+   * Por eso el candado bajó a la base. Estas dos pruebas son las dos mitades:
+   * la puerta mala está cerrada, y la buena sigue abierta. Si alguna vez la
+   * segunda se pone roja, el portero se pasó de listo y hay que revisarlo YA:
+   * significa que Mateo no puede responder. */
+  const escrituraCruda = await mateo
+    .from("potente_conversaciones")
+    .update({ mensajes: [{ id: "M-CRUDO", de: "cliente", texto: "no deberia entrar", horaISO: "2026-08-28T00:00:00Z" }] })
+    .eq("id", `CONV-VERIF-${SELLO}`);
+  chequear("🔒 Ni la Dirección puede pisar los mensajes con un update directo (026)",
+    escrituraCruda.error?.code === "42501",
+    escrituraCruda.error ? `${escrituraCruda.error.code}: ${escrituraCruda.error.message}` : "🔴 LA ESCRITURA CRUDA PASÓ");
+
+  const porLaPuerta = await mateo.rpc("potente_mensajes_editar", {
+    p_conv_id: `CONV-VERIF-${SELLO}`,
+    p_accion: "agregar",
+    p_mensaje_id: null,
+    p_mensaje: { id: "M-PUERTA", de: "humano", texto: "por la puerta buena", horaISO: "2026-08-28T00:00:00Z" },
+    p_patch: null,
+  });
+  chequear("Mateo SÍ escribe por potente_mensajes_editar (la puerta buena sigue abierta)",
+    !porLaPuerta.error && Array.isArray(porLaPuerta.data) && porLaPuerta.data.length === 1,
+    porLaPuerta.error?.message ?? `mensajes: ${Array.isArray(porLaPuerta.data) ? porLaPuerta.data.length : "?"}`);
   await mateo.from("potente_conversaciones").delete().eq("id", `CONV-VERIF-${SELLO}`);
 
   // Temporada: las unidades y, con ellas, las reservas (que llevan el nombre y el
