@@ -179,6 +179,26 @@ try {
       chequear("🏖️ Una consulta de TEMPORADA deriva al WhatsApp de Punta Mogotes",
         borrador.includes(`wa.me/${WA_MOGOTES}`), borrador.match(/wa\.me\/\d+/)?.[0] ?? "ningún WhatsApp");
       chequear("…y NO al de Chauvín ni a ningún otro", !borrador.includes(WA_CHAUVIN), "");
+      /* 🔴 Y no promete lo que no puede ver: /temporada está vacía hasta que
+       * Mateo cargue sus fichas, así que "tengo varias opciones" es humo. */
+      chequear("🚫 …y no afirma que HAY disponibilidad (no ve la cartera en este canal)",
+        !/\b(tengo|tenemos|conseguimos|disponemos)\b[^.!?]{0,40}\b(opcion|propiedad|depto|departamento|casa|disponible)/i.test(borrador),
+        borrador.slice(0, 90));
+      /* 🔴 EL FILTRO, que es lo que Juani marcó como importantísimo: comprar o
+       * alquilar va a la WEB y temporada al WhatsApp de Mogotes. Nunca al revés.
+       * Se prueba con un segundo hilo pidiendo COMPRA en la misma corrida. */
+      const IG3 = `sonda_compra_${SELLO}`;
+      try {
+        await postManychat({ canal: "instagram", contacto: `@${IG3}`, nombre: "Sonda Compra", texto: "Hola, quiero comprar un departamento en Chauvín", subscriber_id: "999999996" });
+        let hCompra = null;
+        for (let i = 0; i < 12 && !hCompra?.borrador; i++) { await espera(2000); hCompra = (await leerConv(IG3))[0] ?? null; }
+        const bCompra = String(hCompra?.borrador ?? "");
+        chequear("🏠 Una consulta de COMPRA deriva a la WEB", /potentepropiedades\.com\/propiedad/.test(bCompra), bCompra.match(/https?:\/\/\S+/)?.[0] ?? "sin link");
+        chequear("…y NO manda ningún WhatsApp", !/wa\.me/.test(bCompra), bCompra.match(/wa\.me\/\d+/)?.[0] ?? "ninguno ✓");
+      } finally {
+        for (const f of await leerConv(IG3)) await sb.from("potente_conversaciones").delete().eq("id", f.id);
+      }
+
       chequear("🚫 …y el mensaje no nombra ninguna propiedad ni precio",
         !/\/propiedad\//.test(borrador) && !/\$\s?\d{3}|U\$S\s?\d/.test(borrador), borrador.slice(0, 80));
       const recomienda = /\/propiedad\//.test(borrador);

@@ -129,20 +129,29 @@ const PALABRAS_TEMPORADA = /\b(temporada|temporario|verano|veraneo|vacacion\w*|v
 const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
 
 export function derivacionDe(textoDelCliente: string, catalogo: CampoLite[]): { titulo: string; link: string } {
-  // 1 · Temporada: va derecho a la oficina que la maneja (config/temporada.js).
+  /* ── DOS SALIDAS, NADA MÁS (Juani, 28-ago) ─────────────────────────────────
+   * «para comprar/alquilar, WEB; para temporada, WPP DE MOGOTES».
+   * Tener menos caminos es lo que hace que el filtro sea confiable: cada rama
+   * que se agrega es una rama que puede elegir mal. */
+
+  // 1 · TEMPORADA → el WhatsApp de Punta Mogotes, siempre. La oficina sale de
+  //     `config/temporada.js`, la misma fuente que usa la web: si algún día
+  //     temporada la maneja otra oficina, cambia en un solo lugar.
   if (PALABRAS_TEMPORADA.test(textoDelCliente)) {
     return { titulo: "Para alquileres de temporada te atienden por WhatsApp:", link: waUrl(OFICINA_TEMPORADA) };
   }
-  // 2 · Una propiedad puntual: la oficina QUE LA ATIENDE, no otra.
+
+  // 2 · COMPRAR O ALQUILAR → LA WEB. Si nombró una propiedad, su ficha; si no,
+  //     el catálogo. En los dos casos la página YA muestra el WhatsApp de la
+  //     oficina que la atiende — el mismo dato que rutea la ficha pública, así
+  //     que no pueden contradecirse. Por eso acá no se manda ningún número: un
+  //     número elegido de este lado es un número que se puede equivocar.
   const m = CODIGO_PROPIEDAD.exec(textoDelCliente);
   const id = m ? (m[2] ?? `POT-${m[1]}`).toUpperCase() : "";
   const ficha = id ? catalogo.find((c) => c.id.toUpperCase() === id) : undefined;
-  if (ficha?.oficina) {
-    return { titulo: `Por ${ficha.titulo} te atienden por WhatsApp:`, link: waUrl(ficha.oficina) };
+  if (ficha) {
+    return { titulo: "Acá está la ficha completa, con fotos y el contacto de la oficina:", link: `${SITIO}/propiedad/${ficha.id}` };
   }
-  if (ficha) return { titulo: "La ficha completa, con el contacto de la oficina:", link: `${SITIO}/propiedad/${ficha.id}` };
-  // 3 · Consulta general: la web. Cada ficha ya lleva el WhatsApp correcto, así
-  //     que nadie termina escribiéndole a la oficina que no es.
   return { titulo: "Podés verlas todas acá, con fotos y el contacto de cada una:", link: `${SITIO}/propiedades` };
 }
 
