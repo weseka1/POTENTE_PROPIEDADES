@@ -371,7 +371,16 @@ export default function CargarPropiedad() {
       zona: f.zona,
       provincia: f.provincia,
       direccion: f.direccion || undefined,
-      fotos: fotos.length ? fotos : [esCampo ? "/img/campos/u1.jpg" : "/img/props/depto1.jpg"],
+      /* 🔴 28-ago · SIN FOTOS SE GUARDA SIN FOTOS.
+       * Acá se rellenaba con una imagen de stock del enlatado. Resultado: una
+       * ficha cargada el 26-ago quedó publicada con un edificio nórdico a
+       * pantalla completa, con el `alt` del título, primera en el catálogo de
+       * departamentos — y esa MISMA imagen es el mosaico de "Departamentos" en la
+       * home, así que quien entra la ve dos veces. Le pone a Mateo una propiedad
+       * que no es suya en la cara del visitante.
+       * El placeholder gris ya existe en `PropiedadCard`: mostrar "sin foto" es
+       * honesto, mostrar la foto de otro edificio no. */
+      fotos,
       descripcion: f.descripcion,
       estado: f.estado as Propiedad["estado"],
       destacado: f.destacado,

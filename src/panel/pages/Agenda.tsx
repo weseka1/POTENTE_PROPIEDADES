@@ -157,7 +157,15 @@ export default function Agenda() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+      {/* 🔴 28-ago · `1fr` NO baja de su contenido mínimo: la tabla de la semana
+          empujaba la grilla y toda la página scrolleaba de costado — 252 px a
+          1280, 166 a 1366, 92 a 1440. La columna derecha quedaba cortada: del
+          calendario se veían tres letras y del RESUMEN los rótulos SIN los
+          números. Recién cerraba en 0 a 1600, así que en cualquier notebook
+          estaba roto. Vivía en verde porque las suites solo miden 320 y 390.
+          `minmax(0,1fr)` la deja encogerse y el scroll queda donde corresponde:
+          adentro del `overflow-x-auto` de la tabla. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
           {view === "semana" ? (
             <div className="overflow-x-auto pb-1">

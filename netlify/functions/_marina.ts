@@ -28,7 +28,7 @@ import { guardarMensajes } from "./_ingesta";
 import { enviarTextoPorManychat } from "./_enviar";
 import type { CampoLite } from "./_prompt";
 import { SITIO, waUrl } from "../../src/config/marca";
-import { OFICINA_TEMPORADA } from "../../src/config/temporada.js";
+import { OFICINA_TEMPORADA, esConsultaDeTemporada } from "../../src/config/temporada.js";
 
 type MensajeHilo = { id: string; de: "cliente" | "ia" | "humano"; texto: string; horaISO: string };
 type Hilo = {
@@ -100,30 +100,12 @@ export const registrarLead = (l: { id: string; nombre: string; contacto: string;
     p_id: l.id, p_nombre: l.nombre, p_contacto: l.contacto, p_canal: l.canal, p_campo_id: l.campoId ?? null, p_notas: l.notas,
   });
 
-/* Se busca en TODA la charla, no en el último mensaje: en la conversación real
- * que lo destapó, "temporada" estaba en el primero y el segundo era "somos 4 en
- * familia en Mogotes" — mirando solo el último, una consulta de temporada
- * terminaba derivada al catálogo general. Una vez que alguien dijo temporada, la
- * consulta es de temporada hasta el final.
- * (El `\b` va sobre el grupo entero: suelto al principio solo ancla la primera
- * alternativa, y deja media lista sin anclar.) */
-/** Dicen temporada por sí solas: con una alcanza. */
-const TEMPORADA_SEGURA = /\b(temporada|temporario|veraneo|vacacion\w*|vacación\w*|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
-
-/* 🔴 28-ago · UN MES NO ES UNA TEMPORADA.
- * "enero" y "febrero" estaban en la lista dura, así que «me mudo a Mar del Plata
- * en febrero y busco alquiler ANUAL de 3 ambientes» derivaba a Mogotes con el
- * rótulo "Para alquileres de temporada te atienden por WhatsApp" — un cartel que
- * afirma algo que la persona no pidió, y la manda a la oficina que no lleva
- * alquileres anuales. Igual «el contrato vence en febrero».
- * Peor por la acumulación: como se lee el hilo entero, desde que aparecía el mes
- * los mensajes siguientes seguían yendo a Mogotes aunque hablaran de otra cosa.
- * Ahora el mes solo INSINÚA, y una palabra de alquiler largo lo desactiva. */
-const TEMPORADA_INSINUADA = /\b(verano|enero|febrero)\b/i;
-const ALQUILER_LARGO = /\b(anual|anuales|permanente|todo el a[nñ]o|largo plazo|contrato|dos a[nñ]os|2 a[nñ]os|tres a[nñ]os|3 a[nñ]os|vivienda|me mudo|mudarme|residir|vivir)\b/i;
-
-const esTemporada = (texto: string): boolean =>
-  TEMPORADA_SEGURA.test(texto) || (TEMPORADA_INSINUADA.test(texto) && !ALQUILER_LARGO.test(texto));
+/* 🔴 28-ago · LA DEFINICIÓN DE "ESTO ES TEMPORADA" VIVE EN UN SOLO LUGAR.
+ * Estaba escrita acá Y en el widget de la web, con listas distintas: 6 de 10
+ * frases reales se clasificaban diferente según por dónde entrara la consulta.
+ * Ahora las dos importan `esConsultaDeTemporada` de `config/temporada.js`, que
+ * ya es la fuente de verdad de la temporada (barrios y oficina) y la comparten
+ * el navegador, el server y los scripts de build. */
 
 /* 🔴 28-ago · LO QUE NO SE CONTESTA CON LA CARTERA LO ATIENDE UNA PERSONA.
  * Medido en producción: 9 de 12 DMs terminaban con un pie incoherente. Alguien
@@ -171,7 +153,7 @@ export function derivacionDe(
   // 1 · TEMPORADA → el WhatsApp de Punta Mogotes, siempre. La oficina sale de
   //     `config/temporada.js`, la misma fuente que usa la web: si algún día
   //     temporada la maneja otra oficina, cambia en un solo lugar.
-  if (esTemporada(dicho.hilo)) {
+  if (esConsultaDeTemporada(dicho.hilo)) {
     return { titulo: "Para alquileres de temporada te atienden por WhatsApp:", link: waUrl(OFICINA_TEMPORADA) };
   }
 

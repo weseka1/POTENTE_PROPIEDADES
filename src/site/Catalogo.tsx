@@ -52,7 +52,18 @@ export default function Catalogo() {
      desplegable, el tope del slider de precio y los chips de características.
      Filtrando solo abajo quedaba el pecado clásico de contador mentiroso — la
      pestaña "Departamentos (12)" abriendo una lista de 9. */
-  const propiedades = useMemo(() => cartera.filter((p) => p.operacion !== "temporada"), [cartera]);
+  /* 🔴 28-ago · Y LO MISMO CON LAS VENDIDAS/ALQUILADAS, que entraron después.
+   * El filtro de `ESTADOS_CERRADOS` vivía abajo, adentro de `resultados`: la
+   * regla de arriba se cumplía para temporada y se violaba para el estado. Se
+   * medía en pantalla: "Todas (103)" abría 97 · "Departamentos (36)" abría 33 ·
+   * "Chalets (15)" abría 13. Las categorías que coincidían eran justo las que no
+   * tienen ninguna ficha vendida.
+   * Subirlo acá arregla de una los contadores, las zonas del desplegable, el tope
+   * del slider y los chips: todos salen de esta lista. */
+  const propiedades = useMemo(
+    () => cartera.filter((p) => p.operacion !== "temporada" && !ESTADOS_CERRADOS.includes(p.estado)),
+    [cartera]
+  );
 
   const zonas = [...new Set(propiedades.map((p) => p.zona))].sort();
   const cuenta = (cat: string) => propiedades.filter((p) => p.categoria === cat).length;
@@ -225,7 +236,8 @@ export default function Catalogo() {
         // WhatsApp": confunde al comprador, quema consultas y le hace parecer a
         // Potente que tiene stock que no tiene. La ficha sigue accesible por su
         // link (sirve de prueba social y no rompe lo que ya se compartió).
-        !ESTADOS_CERRADOS.includes(p.estado) &&
+        // (el filtro de estados cerrados subió al memo `propiedades`, arriba:
+        //  acá abajo hacía mentir a los contadores de las pestañas)
         (!f.cat || p.categoria === f.cat) &&
         (!f.operacion || p.operacion === f.operacion) &&
         (!f.zona || p.zona === f.zona) &&

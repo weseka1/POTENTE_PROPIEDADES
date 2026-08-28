@@ -31,6 +31,7 @@ import ChannelIcon from "../components/ChannelIcon";
 import { PageHeader } from "../components/PageShell";
 import { estadoLead, estadoVisita } from "../ui/estados";
 import { COLORS, SERIE, tooltipStyle } from "../ui/chartTheme";
+import { useProfiles } from "../profiles";
 
 export default function Dashboard() {
   const {
@@ -57,6 +58,18 @@ export default function Dashboard() {
   // Superficie total de la cartera en m² (metros totales o cubiertos de cada propiedad).
   const m2Cartera = propiedades.reduce((a, p) => a + (p.m2totales ?? p.m2cubiertos ?? 0), 0);
   const hoyLargo = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  /* 🔴 28-ago · ESTA PANTALLA LE DECÍA "Buen día, Mateo" A LAS DOS OFICINAS.
+   * El titular estaba escrito a mano. Entrando con la cuenta de Chauvín o de
+   * Mogotes, la barra de arriba decía bien "Oficina 1 / Oficina 2" y el titular
+   * de la pantalla las saludaba como si fueran el dueño. Y decía "Buen día" a
+   * las 22. El renglón de abajo sí sabía qué día era: esa mezcla es lo que
+   * delataba que el saludo era de cartón.
+   * El nombre sale del mismo lugar que ya usa el Topbar, así que no pueden
+   * volver a contradecirse. */
+  const { activo } = useProfiles();
+  const hora = new Date().getHours();
+  const saludo = hora < 13 ? "Buen día" : hora < 20 ? "Buenas tardes" : "Buenas noches";
+  const primerNombre = (activo?.nombre ?? "").trim().split(" ")[0];
 
   // Único delta calculable con datos reales: el ingreso de consultas de este mes vs. el mes
   // anterior, contando por la fecha de cada consulta. Solo se muestra si el mes pasado tiene
@@ -77,7 +90,7 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader
-        title="Buen día, Mateo 👋"
+        title={`${saludo}${primerNombre ? `, ${primerNombre}` : ""} 👋`}
         subtitle={`Resumen operativo de Potente Propiedades · ${hoyLargo}`}
       />
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Menu, Search, Bell, ChevronDown, Sparkles, Users, KeyRound, LogOut, RotateCcw } from "lucide-react";
 import { useData, resetDemoData } from "@/lib/DataProvider";
@@ -20,6 +20,33 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const [reset, setReset] = useState(false);
   const [pw, setPw] = useState(false);
   const nuevas = leads.filter((l) => l.estado === "nueva");
+
+  /* 🔴 28-ago · ESTE CHIP DECÍA "IA activa" SIEMPRE, ESCRITO A MANO.
+   * Se mostraba en las 15 pantallas aunque Marina estuviera en pausa, y justo al
+   * lado del chip "Datos en vivo", que sí es real: puestos juntos, uno mentía.
+   * Ahora lee la misma fila que manda de verdad (`potente_ia_config`, la que usa
+   * el server), así que además sirve para algo: si alguien deja a Marina en pausa
+   * y se olvida, se ve desde cualquier pantalla. Si la base no contesta, el chip
+   * no se muestra — antes que arriesgar decir algo que no sabemos. */
+  const [ia, setIA] = useState<{ activa: boolean; supervisada: boolean } | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    let vivo = true;
+    supabase
+      .from("potente_ia_config")
+      .select("cfg")
+      .eq("id", true)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!vivo || error || !data) return;
+        const cfg = (data.cfg ?? {}) as { activa?: boolean; modo?: string };
+        setIA({
+          activa: cfg.activa !== false,
+          supervisada: String(cfg.modo ?? "").toLowerCase().startsWith("super"),
+        });
+      });
+    return () => { vivo = false; };
+  }, []);
   const salir = async () => { setMenu(false); await signOut(); navigate("/ingresar"); };
   const irAConsultas = () => { setNoti(false); navigate("/panel/leads"); };
   // Volver al dataset de ejemplo. Recargamos para que todo el panel lo relea.
@@ -51,9 +78,19 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 md:gap-3">
-        <span className="hidden items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand/20 lg:inline-flex">
-          <Sparkles size={12} /> IA activa
-        </span>
+        {ia && (
+          <button
+            onClick={() => navigate("/panel/asistente")}
+            title="Ir a Asistente IA"
+            className={`hidden items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ring-1 ring-inset transition lg:inline-flex ${
+              !ia.activa
+                ? "bg-amber-500/10 text-amber-700 ring-amber-500/25 hover:bg-amber-500/15"
+                : "bg-brand/10 text-brand-700 ring-brand/20 hover:bg-brand/15"
+            }`}
+          >
+            <Sparkles size={12} /> {!ia.activa ? "IA en pausa" : ia.supervisada ? "IA supervisada" : "IA activa"}
+          </button>
+        )}
 
         {online ? (
           <span className="hidden items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand/20 sm:inline-flex">

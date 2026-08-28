@@ -109,6 +109,22 @@ export type Resultado = { ok: boolean; error?: string; codigo?: string };
 /** En modo demo (sin base) no hay nada que verificar: siempre salió bien. */
 const SIN_BASE: Resultado = { ok: true };
 
+/* 🔴 28-ago · LA BASE MANDA `null`, EL CÓDIGO PREGUNTA POR `undefined`.
+ *
+ * Un campo vacío en Postgres llega como `null`, y medio panel lo chequea con
+ * `!== undefined` — que para `null` da true. Resultado: en la Cartera se leía
+ * «Punta Mogotes · Null Dorm. · Null M²» y en el detalle «AMBIENTES: Null».
+ * Con 35 fichas sin dormitorios cargados, aparecía en una de cada tres, en la
+ * pantalla que Mateo abre todos los días. (La web pública no lo tenía: ahí el
+ * chequeo estaba bien escrito.)
+ *
+ * Se normaliza UNA vez, acá, donde las filas entran: arreglar los cinco guardas
+ * que hoy fallan deja el problema vivo para el sexto que alguien escriba
+ * mañana. Con `null` convertido en "no vino", todo `?? `, `!== undefined` y
+ * `if (x)` del resto del código dicen la verdad. */
+const sinNulos = <T extends object>(fila: T): T =>
+  Object.fromEntries(Object.entries(fila).map(([k, v]) => [k, v === null ? undefined : v])) as T;
+
 /** Corre una operación contra la base, avisa por consola si falla y devuelve el resultado. */
 async function aviso(que: string, op: PromiseLike<{ error: unknown }>): Promise<Resultado> {
   try {
@@ -380,7 +396,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           supabase.from("potente_unidades_temporada").select(columnasTemporada),
         ]);
         if (cancel) return;
-        if (p.data?.length) setPropiedades(p.data as Propiedad[]);
+        if (p.data?.length) setPropiedades(p.data.map(sinNulos) as Propiedad[]);
         // Temporada: si la tabla existe y responde, manda la base (aunque esté vacía).
         // El doble cast es por la lista de columnas variable: supabase-js deduce
         // la forma del resultado leyendo el string del `select` en tiempo de

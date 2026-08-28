@@ -3,6 +3,7 @@
 // (pico 2ª de enero, cae hacia fin de febrero, hombro en dic/marzo).
 
 import { waDigits } from "@/config/marca";
+import { OFICINA_TEMPORADA } from "@/config/temporada.js";
 import type {
   TemporadaTramo,
   TemporadaTramoId,
@@ -120,12 +121,25 @@ export function tarifaDesde(u: UnidadTemporada): number {
  * la oficina que la administra (pedido de Mateo, 4-ago: la división por oficina
  * no puede fallar). Sin oficina cae al central.
  */
+/* 🔴 28-ago · SIN OFICINA, TEMPORADA VA A MOGOTES. NUNCA AL CENTRAL.
+ *
+ * El default de `waDigits` es el WhatsApp central, que es el CELULAR PERSONAL de
+ * Mateo. Y `/temporada/punta-mogotes` le pasaba la oficina de `unidades[0]`, que
+ * es `undefined` siempre — porque temporada no publica unidades, a propósito.
+ * Resultado: los dos botones de esa landing abrían el celular de Mateo. Es el
+ * mismo reclamo que ya hizo el 17-ago («cuando toco consultar por WhatsApp manda
+ * a mi WhatsApp personal… que mande al de Mogotes»), y la página está en el
+ * sitemap con prioridad 0.8: es puerta de entrada desde Google.
+ *
+ * El default se arregla ACÁ y no en el llamador: temporada la maneja Punta
+ * Mogotes por decisión del negocio (`OFICINA_TEMPORADA`), así que ningún
+ * llamador debería poder mandarla a otro lado por olvidarse un parámetro. */
 export function waTemporada(titulo: string, quincenaLabel?: string, oficina?: "chauvin" | "puntamogotes"): string {
   const txt =
     `Hola Potente Propiedades, me interesa alquilar para la temporada "${titulo}"` +
     (quincenaLabel ? ` en la ${quincenaLabel.toLowerCase()}` : "") +
     `. ¿Tienen disponibilidad?`;
-  return `https://wa.me/${waDigits(oficina)}?text=${encodeURIComponent(txt)}`;
+  return `https://wa.me/${waDigits(oficina ?? OFICINA_TEMPORADA)}?text=${encodeURIComponent(txt)}`;
 }
 
 export function tarifaDe(unidad: UnidadTemporada, tramoId: TemporadaTramoId): number | undefined {

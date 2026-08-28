@@ -10,6 +10,10 @@ import { supabase } from "@/lib/supabase";
 import { consultarAsistente, type ChatMsg } from "@/lib/asistente";
 import { catalogoParaMarina } from "@/lib/catalogoLite";
 import { TOPE_FICHA, TOPE_CONOCIMIENTO } from "@/lib/cerebro";
+/* 🔴 El dominio NUNCA se escribe a mano: esta tarjeta decía "potenteprop.com.ar",
+ * que es el dominio del MAIL y redirige al WordPress viejo, donde Marina no
+ * existe. Era el único dominio en toda la pantalla, y estaba mal. */
+import { SITIO_LEGIBLE } from "@/config/marca";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
 import { canalLabel } from "../ui/estados";
@@ -103,7 +107,7 @@ type Canal = {
 };
 
 const CANALES: Canal[] = [
-  { key: "web", nombre: "Chat en tu web", via: "Widget", desc: "Marina atiende en potenteprop.com.ar las 24 horas: responde, ordena y te deja la consulta cargada.", Icon: Globe, color: "#0C4DA2", andando: true, destacado: true },
+  { key: "web", nombre: "Chat en tu web", via: "Widget", desc: `Marina atiende en ${SITIO_LEGIBLE} las 24 horas: responde, ordena y te deja la consulta cargada.`, Icon: Globe, color: "#0C4DA2", andando: true, destacado: true },
   { key: "whatsapp", nombre: "WhatsApp", via: "Meta", desc: "Los WhatsApp de Chauvín y Punta Mogotes se ven acá, con lo que responde cada oficina desde su celular. Nada se contesta solo: vos ves qué quedó colgado.", Icon: MessageCircle, color: "#25D366", meta: true, espejo: true, requisitos: ["Que Meta apruebe la verificación de la empresa (ya enviada)", "Escanear un QR con el celular de cada oficina desde potentepropiedades.com/conectar — el número sigue en la app como siempre", "Nosotros confirmamos la conexión y traemos el historial"] },
   /* 🔴 28-ago · La descripción de Instagram decía «Marina los responde CON TU
    * CARTERA, derivando al WhatsApp de la oficina que atiende esa propiedad», y
@@ -147,6 +151,15 @@ function sanearIA(saved: unknown): IAConfig {
     );
   }
   const cfg: IAConfig = { ...DEFAULT_IA, ...(s as Partial<IAConfig>) };
+  /* 🔴 28-ago · EL SELECTOR DE MODO NO MARCABA NINGUNA DE LAS DOS.
+   * En la base el modo está guardado como "auto" (así lo escribió el panel desde
+   * el día uno) y acá se compara contra "automatico": las dos tarjetas quedaban
+   * iguales, sin una seleccionada. Para saber en qué modo estaba, Mateo tenía que
+   * hacer clic — y hacer clic CAMBIA el comportamiento de Marina.
+   * El server ya normalizaba esto (`normalizarCerebro`), así que lo que estaba
+   * roto no era el comportamiento sino lo que él veía. Misma regla que allá:
+   * cualquier cosa que no empiece con "super" es automático. */
+  cfg.modo = String(cfg.modo ?? "").toLowerCase().startsWith("super") ? "supervisado" : "automatico";
   // 🔴 Saneamiento (12-ago): los botones viejos marcaban canales como
   // conectados sin integración detrás. Cualquier canal que no esté ANDANDO
   // vuelve a false, así el panel no arrastra una mentira guardada.
@@ -349,7 +362,13 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
   // Se cuenta sobre los mensajes reales: último mensaje del cliente sin respuesta
   // hace más de COLGADO_MIN. Reemplaza a "resueltas sin que intervengas", que en
   // un canal espejo (WhatsApp) no significaba nada.
-  const colgadas = conversaciones.filter((c) => (esperaSinRespuestaMin(c) ?? -1) >= COLGADO_MIN).length;
+  const estaColgada = (c: Conversacion) => (esperaSinRespuestaMin(c) ?? -1) >= COLGADO_MIN;
+  const colgadas = conversaciones.filter(estaColgada).length;
+  /* 🔴 Para el titular hace falta la UNIÓN, no la suma: un hilo derivado a una
+   * persona que además lleva horas colgado está en las dos listas, y sumarlas lo
+   * contaría dos veces. Un número inflado en una alerta es exactamente el bug que
+   * el titular vino a arreglar. */
+  const necesitanAtencion = conversaciones.filter((c) => c.estado === "vos" || estaColgada(c)).length;
   // 🔴 Solo cuenta lo que ANDA de verdad: un canal sin integración no suma al
   // contador aunque haya quedado en `true` de antes (ver la nota en CANALES).
   const canalAndando = (key: string) => {
@@ -447,8 +466,17 @@ Escribí SOLO el próximo mensaje que le mandaría el asesor, listo para copiar 
           <div className="pcard flex flex-wrap items-center justify-between gap-3 p-5">
             <div>
               <h2 className="font-display text-lg font-semibold text-graph">
-                {teEsperan
-                  ? `${teEsperan} ${teEsperan === 1 ? "conversación te espera" : "conversaciones te esperan"}`
+                {/* 🔴 28-ago · EL TITULAR DESARMABA LA ALERTA QUE ESTÁ ABAJO.
+                    Contaba solo los hilos derivados a una persona (`estado==='vos'`) e
+                    ignoraba los COLGADOS. En la misma pantalla se leía: la métrica
+                    "2 · Sin responder — atendé ya", el titular grande "Ninguna
+                    conversación te espera", y debajo dos tarjetas rojas "SIN
+                    RESPONDER · AYER". En celular, uno pegado al otro.
+                    La bandeja se rediseñó el 27-ago para ser una alerta: el titular
+                    tiene que sumar las dos cosas, y el "ninguna" solo puede aparecer
+                    cuando los DOS contadores están en cero. */}
+                {necesitanAtencion
+                  ? `${necesitanAtencion} ${necesitanAtencion === 1 ? "conversación necesita" : "conversaciones necesitan"} tu atención`
                   : "Ninguna conversación te espera"}
               </h2>
               <p className="mt-0.5 max-w-2xl text-sm text-graph-500">

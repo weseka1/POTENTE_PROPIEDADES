@@ -74,3 +74,40 @@ export function esBarrioTemporada(zona) {
   const z = norm(zona);
   return BARRIOS_TEMPORADA.some((b) => norm(b) === z);
 }
+
+/**
+ * ¿ESTO ES UNA CONSULTA DE TEMPORADA? — una sola definición.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 🔴 Nace de un drift del 28-ago: la misma regla estaba escrita DOS veces con
+ * listas distintas —el widget de la web y el server de Marina— y 6 de 10 frases
+ * reales se clasificaban distinto según por dónde entraran. El server conocía
+ * "semana santa", "finde largo" y "por días"; el widget no. Y como el widget usa
+ * esto para decidir a qué WhatsApp manda el botón, una consulta de temporada que
+ * entraba por la web podía terminar eligiendo Chauvín.
+ * Lo peor: la copia MÁS NUEVA era la más pobre — se re-tipeó en vez de reusar la
+ * que ya existía.
+ *
+ * Vive acá porque este archivo ya es la fuente de verdad de la temporada y lo
+ * importan los dos lados (y los scripts de build, que son JS plano).
+ */
+
+/** Dicen temporada por sí solas: con una alcanza. */
+const TEMPORADA_SEGURA = /\b(temporada|temporario|veraneo|vacacion\w*|vacación\w*|quincena|semana santa|finde largo|fin de semana largo|por d[ií]as?)\b/i;
+
+/* 🔴 Un mes NO es una temporada. "enero" y "febrero" estaban en la lista dura, y
+ * «me mudo a Mar del Plata en febrero y busco alquiler ANUAL» terminaba derivado
+ * al WhatsApp de temporada, con un cartel que afirmaba algo que la persona no
+ * pidió. Igual «el contrato vence en febrero». Ahora el mes solo INSINÚA, y
+ * cualquier palabra de alquiler largo lo desactiva. */
+const TEMPORADA_INSINUADA = /\b(verano|enero|febrero)\b/i;
+const ALQUILER_LARGO = /\b(anual|anuales|permanente|todo el a[nñ]o|largo plazo|contrato|dos a[nñ]os|2 a[nñ]os|tres a[nñ]os|3 a[nñ]os|vivienda|me mudo|mudarme|residir|vivir)\b/i;
+
+/**
+ * @param {string} texto Lo que escribió la persona (conviene pasar el hilo entero:
+ *   quien dijo "temporada" hace tres mensajes sigue siendo de temporada).
+ * @returns {boolean}
+ */
+export function esConsultaDeTemporada(texto) {
+  const t = String(texto || "");
+  return TEMPORADA_SEGURA.test(t) || (TEMPORADA_INSINUADA.test(t) && !ALQUILER_LARGO.test(t));
+}

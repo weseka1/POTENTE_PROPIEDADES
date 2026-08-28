@@ -6,7 +6,7 @@ import { catalogoParaMarina } from "@/lib/catalogoLite";
 import { hoyISO } from "@/lib/fechas";
 import { fmtHa, precioPublico } from "@/lib/format";
 import { waUrl } from "@/config/marca";
-import { OFICINA_TEMPORADA } from "@/config/temporada";
+import { OFICINA_TEMPORADA, esConsultaDeTemporada } from "@/config/temporada";
 import WhatsAppCTA from "./WhatsAppCTA";
 import { consultarAsistente, type ChatMsg, type CampoLite } from "@/lib/asistente";
 import type { Lead } from "@/data/types";
@@ -240,7 +240,7 @@ export default function ChatAsistente() {
              * el número central. Se mira todo lo que escribió la persona: pudo
              * haber dicho "temporada" tres mensajes atrás. */
             const loQueDijo = msgs.filter((m) => m.rol === "cliente").map((m) => m.texto).join(" ");
-            const esTemporada = /\b(temporada|temporario|verano|veraneo|vacacion\w*|enero|febrero|quincena)\b/i.test(loQueDijo);
+            const esTemporada = esConsultaDeTemporada(loQueDijo);   // una sola definicion: config/temporada.js
             // División perfecta (Mateo): propiedades de UNA oficina → directo a esa oficina.
             const oficinas = esTemporada
               ? [OFICINA_TEMPORADA]
