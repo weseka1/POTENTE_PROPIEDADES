@@ -168,7 +168,7 @@ export async function responderEnInstagram(convId: string): Promise<void> {
   }
 
   const catalogo = await catalogoDesdeLaBase();
-  const r = await atenderAsistente({ mensaje: ultimo.texto, historial: historialDe(hilo.mensajes), catalogo });
+  const r = await atenderAsistente({ mensaje: ultimo.texto, historial: historialDe(hilo.mensajes), catalogo, canal: "instagram" });
   const data = r.data as { respuesta?: string; camposIds?: string[]; lead?: { nombre: string; contacto: string } | null; degradado?: boolean };
   if (r.status !== 200 || data.degradado || !data.respuesta) {
     await actualizarHilo(convId, { estado: "vos", motivo: "Marina no pudo responder este mensaje. Te toca a vos." });

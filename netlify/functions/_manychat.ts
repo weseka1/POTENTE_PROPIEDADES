@@ -30,6 +30,7 @@ import { createHash } from "node:crypto";
 import type { MensajeEntrante } from "./_meta";
 import { guardarMensajes, type ResultadoIngesta } from "./_ingesta";
 import { responderEnInstagram } from "./_marina";
+import { identidadesDelSubscriber } from "./_enviar";
 
 export type EntradaManychat = {
   canal?: unknown;        // "instagram" | "whatsapp"
@@ -108,6 +109,16 @@ export async function ingresarDesdeManychat(entrada: EntradaManychat, tokenDado:
 
   const n = normalizarManychat(entrada);
   if (!n.ok) return { status: 400, ok: false, mensaje: n.error };
+
+  /* 024 · Antes de guardar, se le pregunta a ManyChat cómo se llama esta persona
+   * del lado de Meta (`ig_id`). Con eso, el mensaje que después llegue por el
+   * webhook de Meta —que usa ese id— cae en el MISMO hilo en vez de abrir uno
+   * nuevo. Es una llamada por contacto, cacheada 6 h. */
+  const subscriber = String(n.mensaje.externo?.manychat_subscriber_id ?? "");
+  if (subscriber) {
+    const otras = await identidadesDelSubscriber(subscriber);
+    if (Object.keys(otras).length) n.mensaje.externo = { ...(n.mensaje.externo ?? {}), ...otras };
+  }
 
   const resultado = await guardarMensajes([n.mensaje]);
   if (resultado.fallados) return { status: 502, ok: false, mensaje: "La base rechazó el mensaje.", resultado };

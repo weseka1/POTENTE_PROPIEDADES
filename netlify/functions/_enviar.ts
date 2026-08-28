@@ -125,6 +125,40 @@ export async function buscarSubscriber(igUsername: string, nombre: string): Prom
   return null;
 }
 
+/* ── LAS IDENTIDADES DE UN CONTACTO (024) ────────────────────────────────────
+ * Una misma persona llega con dos nombres distintos: ManyChat la manda por su
+ * usuario de Instagram y el webhook de Meta por su id interno. Si no sabemos que
+ * son la misma, se abren dos hilos y la charla se parte al medio — que fue
+ * exactamente lo que pasó el 28-ago en la primera prueba real.
+ * ManyChat conoce las dos: se le pregunta una vez por contacto y se cachea.
+ * Si no contesta, no se rompe nada: simplemente no se agrega esa identidad. */
+const cacheIdentidades = new Map<string, { ids: Record<string, string>; hasta: number }>();
+const TTL_IDENTIDAD = 6 * 60 * 60 * 1000;   // 6 h: el usuario de IG casi no cambia
+
+export async function identidadesDelSubscriber(subscriberId: string): Promise<Record<string, string>> {
+  const apiKey = process.env.MANYCHAT_API_KEY;
+  if (!apiKey || !/^\d+$/.test(subscriberId)) return {};
+  const cacheado = cacheIdentidades.get(subscriberId);
+  if (cacheado && cacheado.hasta > Date.now()) return cacheado.ids;
+  try {
+    const r = await fetch(`${MANYCHAT}/fb/subscriber/getInfo?subscriber_id=${encodeURIComponent(subscriberId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!r.ok) return {};
+    const j: any = await r.json().catch(() => ({}));
+    const d = j?.data ?? {};
+    const ids: Record<string, string> = {};
+    if (d.ig_id) ids.ig_id = String(d.ig_id);
+    if (d.ig_username) ids.ig_username = String(d.ig_username).toLowerCase();
+    cacheIdentidades.set(subscriberId, { ids, hasta: Date.now() + TTL_IDENTIDAD });
+    return ids;
+  } catch (e: any) {
+    console.error("Identidades · no se pudo preguntarle a ManyChat:", e?.message ?? e);
+    return {};
+  }
+}
+
 /** Lee la conversación CON EL TOKEN DEL USUARIO: si el RLS no lo deja, no existe. */
 async function leerConversacion(convId: string, jwt: string): Promise<Conv | null> {
   const base = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;

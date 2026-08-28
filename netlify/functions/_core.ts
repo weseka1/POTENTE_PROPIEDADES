@@ -102,6 +102,8 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
   // modelo (una línea por propiedad) y el tope sigue existiendo como fusible
   // contra un body malicioso gigante, no como límite del negocio.
   const catalogo: CampoLite[] = Array.isArray(body?.catalogo) ? body.catalogo.slice(0, 160) : [];
+  // 024 · El canal cambia CÓMO responde (en un DM hay que encaminar, ver _prompt).
+  const canal: "web" | "instagram" = body?.canal === "instagram" ? "instagram" : "web";
 
   const messages = [
     ...historial
@@ -127,7 +129,7 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
       const resp = await client.messages.create({
         model: "claude-haiku-4-5",
         max_tokens: 1024,
-        system: buildSystem(CONFIG, catalogo, cerebro),
+        system: buildSystem(CONFIG, catalogo, cerebro, "json", canal),
         messages,
         // structured outputs (cuando aplica) + el formato JSON también va explícito en el prompt
         output_config: { format: { type: "json_schema", schema: SCHEMA } },

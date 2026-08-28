@@ -48,7 +48,19 @@ Respondé SOLO con el texto del mensaje, en texto plano: sin JSON, sin encabezad
  * @param salida   "json" para atender (el widget y los canales parsean); "texto"
  *                 para redactar borradores desde el panel.
  */
-export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro?: Cerebro, salida: "json" | "texto" = "json"): string {
+/* ── EN INSTAGRAM SE ENCAMINA, NO SE CHARLA ──────────────────────────────────
+ * 28-ago, Juani probando en vivo: «no respondió como queríamos, que derive a la
+ * web o al WhatsApp de la oficina de la propiedad que consultan».
+ * En la web el visitante YA está en el sitio y puede seguir mirando solo. En un
+ * DM no: si Marina no le pone el link de la ficha y el WhatsApp de la oficina,
+ * la charla se muere ahí. Por eso el DM tiene su propia instrucción. */
+const EN_INSTAGRAM = `
+ESTÁS RESPONDIENDO UN MENSAJE DIRECTO DE INSTAGRAM. Tres cosas cambian:
+- Apenas entiendas qué busca, RECOMENDÁ del catálogo (poné los IDs en campos_ids). El sistema le adjunta solo el link a cada ficha de la web: no escribas vos ninguna dirección web ni ningún número de teléfono.
+- Encaminá SIEMPRE a seguir por WhatsApp con la oficina: el sistema adjunta el número de la que atiende esa propiedad. Alcanza con que lo invites («si querés seguimos por WhatsApp y coordinamos»), sin escribir el número.
+- Sé más breve que en un chat web (2 o 3 oraciones): es un DM, y del otro lado se lee en el celular.`;
+
+export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro?: Cerebro, salida: "json" | "texto" = "json", canal?: "web" | "instagram"): string {
   const nombre = cerebro?.nombre?.trim() || cfg.asistente;
   const ensenado = cerebro
     ? [cerebro.contexto.trim(), ...cerebro.conocimiento.map((k) => `- ${k.tema ? `[${k.tema}] ` : ""}${k.texto.trim()}`)].filter(Boolean).join("\n")
@@ -109,7 +121,7 @@ Reglas:
 - Cuando tengas 1 a 3 buenas opciones, recomendalas (poné sus IDs en campos_ids).
 - OBJETIVO FINAL: que la persona siga la conversación por WhatsApp con un asesor. Apenas haya interés real (le gustó una propiedad o pidió más info), invitala de forma natural a seguir por WhatsApp para coordinar y pasarle el detalle. No fuerces WhatsApp en el primer mensaje.
 - Pedí nombre + un contacto (teléfono o email) de forma natural cuando haya interés, así el asesor lo puede seguir. Si te lo da, devolvelo en lead_nombre y lead_contacto (si no, dejá cadena vacía).
-${bloqueReglas}
+${bloqueReglas}${canal === "instagram" ? EN_INSTAGRAM + "\n" : ""}
 Catálogo disponible (ID | título | zona | tipo | detalle | operación | precio):
 ${lista || "(no hay propiedades cargadas en este momento)"}
 
