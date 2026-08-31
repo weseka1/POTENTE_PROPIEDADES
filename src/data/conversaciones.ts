@@ -100,7 +100,15 @@ export const canalDe = (canal: string) =>
  */
 export function esperaSinRespuestaMin(c: Conversacion, ahora: number = Date.now()): number | null {
   if (c.estado === "cerrada") return null;
-  const ultimo = c.mensajes[c.mensajes.length - 1];
+  /* 🔴 31-ago · DEFENSIVO A PROPÓSITO, no por las dudas: un payload de realtime
+   * puede dejar una conversación sin `mensajes` en memoria (Postgres omite del
+   * WAL las columnas TOASTeadas que el update no tocó). La raíz se arregló en el
+   * handler (DataProvider fusiona en vez de reemplazar), pero este helper corre
+   * dentro de los `filter` de la bandeja: si le llega un dato roto, tiraba abajo
+   * LA PANTALLA ENTERA con el error boundary. Un helper compartido de camino
+   * caliente degrada ("no sé cuánto espera"), no revienta. */
+  const mensajes = c.mensajes ?? [];
+  const ultimo = mensajes[mensajes.length - 1];
   if (!ultimo || ultimo.de !== "cliente") return null;
   const t = new Date(ultimo.horaISO).getTime();
   if (!Number.isFinite(t)) return null;

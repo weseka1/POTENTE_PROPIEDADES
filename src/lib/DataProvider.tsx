@@ -506,11 +506,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
               return;
             }
             if (!fila?.id) return;
+            /* 🔴 31-ago · EL PAYLOAD DE REALTIME PUEDE VENIR SIN `mensajes`.
+             *
+             * Postgres NO mete en el WAL las columnas TOASTeadas (los jsonb que
+             * pasan ~2 KB) que el UPDATE no tocó, con replica identity DEFAULT.
+             * O sea: marcar leída, cambiar el estado o guardar el borrador de un
+             * hilo LARGO dispara un evento cuyo `payload.new` trae la fila
+             * entera... MENOS los mensajes. Medido contra esta base con una
+             * sonda de 5,4 KB: llegaron 15 claves de 16.
+             *
+             * Este handler hacía `copia[i] = fila` —reemplazo total— y dejaba en
+             * memoria una conversación SIN `mensajes`: el siguiente render
+             * llamaba a `esperaSinRespuestaMin` y reventaba la pantalla entera
+             * ("Se rompió esta sección", lo vio Juani en el panel de Mateo).
+             * Intermitente a propósito: hacía falta un hilo de +2 KB y un
+             * update de columnas con la pestaña abierta — los hilos reales
+             * recién ahora llegaron a ese tamaño.
+             *
+             * La regla: **una clave AUSENTE en el payload no borra lo que el
+             * navegador ya tiene**. Fusionar, jamás reemplazar. (Una clave en
+             * null sí pisa: null es un valor que la base mandó a propósito —
+             * salvo `mensajes`, que jamás puede quedar sin lista.) */
             setConversaciones((prev) => {
               const i = prev.findIndex((c) => c.id === fila.id);
-              if (i === -1) return [fila, ...prev];      // conversación nueva: arriba
+              if (i === -1) return [{ ...fila, mensajes: fila.mensajes ?? [] }, ...prev]; // nueva: arriba
               const copia = [...prev];
-              copia[i] = fila;
+              copia[i] = { ...copia[i], ...fila, mensajes: fila.mensajes ?? copia[i].mensajes ?? [] };
               return copia;
             });
           },
