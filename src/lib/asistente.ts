@@ -1,5 +1,7 @@
 // Cliente fino del asistente web: habla con POST /api/asistente
 // (en Render lo sirve server/index.ts; en Netlify redirige a la function).
+import { corteEn } from "./corte";
+
 export type ChatMsg = { rol: "cliente" | "asistente"; texto: string };
 
 export type CampoLite = {
@@ -53,7 +55,7 @@ export async function consultarAsistente(
 
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      const corte = AbortSignal.timeout(30_000);
+      const corte = corteEn(30_000);   // compat: AbortSignal.timeout no existe en iOS 15 (ver lib/corte.ts)
       const r = await fetch("/api/asistente", {
         method: "POST",
         headers: { "content-type": "application/json" },

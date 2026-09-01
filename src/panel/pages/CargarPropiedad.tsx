@@ -370,7 +370,15 @@ export default function CargarPropiedad() {
       precioPorHa: esCampo ? num(f.precioPorHa) ?? null : null,
       zona: f.zona,
       provincia: f.provincia,
-      direccion: f.direccion || undefined,
+      /* 🔴 31-ago · VACIAR UN CAMPO TIENE QUE VIAJAR: va null, no undefined.
+       * `direccion: f.direccion || undefined` (y video, aptitud, oficina) era la
+       * cicatriz del PATCH del 27-ago viva en propiedades: JSON.stringify BORRA
+       * las claves undefined, así que borrar la dirección equivocada daba tilde
+       * verde, la pantalla la mostraba borrada… y al recargar resucitaba. Con
+       * oficina era peor: "devolver a Central" no devolvía nada — la cartera de
+       * la oficina vieja y el WhatsApp de la web seguían usando el valor viejo.
+       * Para borrar va null: null SÍ viaja. */
+      direccion: f.direccion || null,
       /* 🔴 28-ago · SIN FOTOS SE GUARDA SIN FOTOS.
        * Acá se rellenaba con una imagen de stock del enlatado. Resultado: una
        * ficha cargada el 26-ago quedó publicada con un edificio nórdico a
@@ -390,7 +398,7 @@ export default function CargarPropiedad() {
       publicado: Boolean(f.publicado),
       esNuevo: f.esNuevo,
       esOportunidad: f.esOportunidad,
-      aptitud: esCampo ? f.aptitud : undefined,
+      aptitud: esCampo ? f.aptitud || null : null,
       // Los 15 campos declarados: los que esta categoría usa van con su valor;
       // los que NO usa van en null a propósito. Si alguien carga un depto (con
       // piso y expensas), después cambia el tipo a "lote" y guarda, el piso tiene
@@ -405,7 +413,7 @@ export default function CargarPropiedad() {
       lat: num(f.lat) ?? null,
       lng: num(f.lng) ?? null,
       caracteristicas: f.caracteristicas ? f.caracteristicas.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
-      video: f.video?.trim() || undefined,
+      video: f.video?.trim() || null,
       /* 🔴 17-ago · UNA FICHA DE TEMPORADA NACE DE LA OFICINA DE MOGOTES.
        * Mateo cargó sus primeras fichas de temporada dejando el selector en
        * "Central (Mateo)" → oficina null → tres síntomas de una: no aparecía
@@ -416,7 +424,7 @@ export default function CargarPropiedad() {
        * La temporada la administra Mogotes (misma decisión que
        * BARRIOS_TEMPORADA), así que el default sale de config/temporada.js.
        * Si la dirección elige otra oficina a propósito, se respeta. */
-      oficina: f.oficina || (f.operacion === "temporada" ? OFICINA_TEMPORADA : undefined),
+      oficina: f.oficina || (f.operacion === "temporada" ? OFICINA_TEMPORADA : null),
       ficha,
     };
     // ⚠️ Se ESPERA y se MIRA el resultado antes de decir que se guardó.

@@ -110,8 +110,28 @@ export default function ChatAsistente() {
         // 27-ago · Si el server ya registró la consulta (vinculada a la charla
         // de la bandeja), no se duplica desde acá. Si no pudo, el camino de
         // siempre: el visitante la deja él mismo (rol anon, solo insertar).
-        if (!r.leadId) addLead(lead);
-        setLeadEnviado(true);
+        /* 🔴 31-ago · NO SE FESTEJA ANTES DE QUE LA BASE DIGA QUE SÍ — acá también.
+         * Esto era fire-and-forget: `addLead(lead)` sin await ni mirar el
+         * Resultado, y el tilde «Tus datos llegaron a Potente» se pintaba
+         * incondicional. Con la base rechazando (el 42501 del 6/7-ago, o la red
+         * caída), el visitante se iba convencido de que lo llamaban y su
+         * contacto no existía en ningún lado. Es EL MISMO modo de falla que se
+         * arregló el 28-ago en el formulario de contacto de la home — había
+         * quedado vivo en el widget. */
+        if (r.leadId) {
+          setLeadEnviado(true);
+        } else {
+          const guardado = await addLead(lead);
+          if (guardado.ok) {
+            setLeadEnviado(true);
+          } else {
+            setMsgs((m) => [...m, {
+              rol: "asistente" as const,
+              texto: "Uy, no pude guardar tu contacto recién — ¿me lo confirmás de nuevo? Y si preferís, el botón de WhatsApp de acá abajo te comunica directo con la oficina.",
+              fallo: true,
+            }]);
+          }
+        }
         if (r.lead.nombre) setLeadNombre(r.lead.nombre);
       }
     } catch {

@@ -11,6 +11,8 @@
  *
  * No recarga sola: alguien puede estar escribiendo. Avisa, y la persona decide.
  */
+import { corteEn } from "./corte";
+
 declare const __BUILD__: string;
 
 /** La versión con la que se compiló ESTE JavaScript. */
@@ -23,7 +25,7 @@ export const BUILD_ACTUAL: string = typeof __BUILD__ === "string" ? __BUILD__ : 
 export async function hayVersionNueva(): Promise<boolean> {
   if (!BUILD_ACTUAL) return false;
   try {
-    const r = await fetch("/version.json", { cache: "no-store", signal: AbortSignal.timeout(8000) });
+    const r = await fetch("/version.json", { cache: "no-store", signal: corteEn(8000) });
     if (!r.ok) return false;
     const j = (await r.json()) as { build?: string };
     return typeof j?.build === "string" && Boolean(j.build) && j.build !== BUILD_ACTUAL;

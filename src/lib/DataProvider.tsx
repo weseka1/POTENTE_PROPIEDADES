@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { supabase } from "./supabase";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { ESTADOS_CERRADOS } from "@/data/propiedadTypes";
@@ -124,6 +124,32 @@ const SIN_BASE: Resultado = { ok: true };
  * `if (x)` del resto del código dicen la verdad. */
 const sinNulos = <T extends object>(fila: T): T =>
   Object.fromEntries(Object.entries(fila).map(([k, v]) => [k, v === null ? undefined : v])) as T;
+
+/* 🔴 31-ago · UN SNAPSHOT NUNCA PISA LO MÁS FRESCO.
+ *
+ * La bandeja tiene DOS fuentes escribiendo el mismo estado: el SELECT (al entrar
+ * y al re-suscribirse el socket) y los eventos de realtime. El SELECT es una
+ * foto tomada ANTES de viajar a São Paulo (~500 ms): si un mensaje entró
+ * mientras la foto venía en camino, el reemplazo total `setConversaciones(data)`
+ * lo hacía desaparecer de la pantalla hasta el próximo evento.
+ *
+ * Regla: por fila gana la más fresca (`updated_at`). Las locales que la foto no
+ * trae fueron borradas en el server — se van — salvo que sean MÁS nuevas que
+ * toda la foto: esas nacieron mientras la foto viajaba, y se quedan. */
+type ConFecha = Conversacion & { updated_at?: string };
+const marca = (c?: { updated_at?: string }) => new Date(c?.updated_at ?? 0).getTime();
+function fusionarBandeja(prev: Conversacion[], filas: Conversacion[]): Conversacion[] {
+  if (!prev.length) return filas;
+  const locales = new Map(prev.map((c) => [c.id, c as ConFecha]));
+  const resultado: Conversacion[] = filas.map((f) => {
+    const local = locales.get(f.id);
+    locales.delete(f.id);
+    return local && marca(local) > marca(f as ConFecha) ? local : f;
+  });
+  const topeFoto = Math.max(0, ...filas.map((f) => marca(f as ConFecha)));
+  for (const local of locales.values()) if (marca(local) > topeFoto) resultado.unshift(local);
+  return resultado;
+}
 
 /** Corre una operación contra la base, avisa por consola si falla y devuelve el resultado. */
 async function aviso(que: string, op: PromiseLike<{ error: unknown }>): Promise<Resultado> {
@@ -333,6 +359,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // panel del cliente — Mateo vio a "Nicolás Peralta" como si fuera un lead
   // real, 19-ago). La semilla queda solo para el modo demo sin Supabase.
   const [conversaciones, setConversaciones] = useState<Conversacion[]>(() => (supabase ? [] : loadLocal("conversaciones", seedConversaciones)));
+  /* Espejo de lectura para el handler de realtime: un updater de setState corre
+   * recién al renderizar (React 18), así que adentro no se pueden tomar
+   * decisiones con efectos (pedir una fila a la base). El ref se lee al momento. */
+  const conversacionesRef = useRef<Conversacion[]>([]);
+  useEffect(() => { conversacionesRef.current = conversaciones; }, [conversaciones]);
   // Registro de llaves (audios de Mateo 12-ago). Tablas del PANEL: se cargan
   // solo con sesión, nunca en el pedido del visitante.
   const [llaves, setLlaves] = useState<Llave[]>(() => loadLocal("llaves", seedLlaves));
@@ -427,7 +458,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           if (t.data) setTasaciones(t.data as Tasacion[]);
           if (a.data) setArrendamientos(a.data as Arrendamiento[]);
           if (!rt.error && rt.data) setReservasTemporada(rt.data as ReservaTemporada[]);
-          if (!cv.error && cv.data) setConversaciones(cv.data as Conversacion[]);
+          // Fusión, no reemplazo: un evento que llegó mientras esta foto viajaba
+          // a São Paulo no puede desaparecer de la bandeja (ver fusionarBandeja).
+          if (!cv.error && cv.data) setConversaciones((prev) => fusionarBandeja(prev, cv.data as Conversacion[]));
           // ⚠️ `!error && data` (no `data?.length`): con el llavero vacío la base
           // tiene que ganarle al seed, si no aparecen llaves inventadas.
           if (!lv.error && lv.data) setLlaves(lv.data as Llave[]);
@@ -479,6 +512,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let vivo = true;
     let n = 0;
 
+    /** Trae UNA conversación completa de la base y la fusiona (ver arriba). */
+    const traerHilo = async (id: string) => {
+      const { data, error } = await supabase!.from("potente_conversaciones").select("*").eq("id", id).maybeSingle();
+      if (!vivo || error || !data) return;
+      const f = data as Conversacion;
+      setConversaciones((prev) => {
+        const i = prev.findIndex((c) => c.id === f.id);
+        if (i === -1) return [{ ...f, mensajes: f.mensajes ?? [] }, ...prev];
+        const copia = [...prev];
+        copia[i] = { ...copia[i], ...f, mensajes: f.mensajes ?? copia[i].mensajes ?? [] };
+        return copia;
+      });
+    };
+
+    /* 🔴 31-ago · LO QUE EL SOCKET SE PERDIÓ NO SE RECUPERA SOLO — HAY QUE IR A BUSCARLO.
+     * postgres_changes no repone eventos perdidos: notebook dormida, wifi cortado
+     * o la re-suscripción del refresh de token (~cada hora) son huecos en los que
+     * entran DMs que la pestaña nunca ve. La bandeja quedaba silenciosamente
+     * vieja — exactamente lo que la suscripción vino a matar ("una bandeja que
+     * hay que refrescar a mano no se mira"). Por eso, CADA vez que el canal
+     * reporta SUBSCRIBED (la primera vez y cada reconexión), se trae la foto
+     * completa y se fusiona por frescura. */
+    const resincronizar = async () => {
+      const { data, error } = await supabase!.from("potente_conversaciones").select("*");
+      if (!vivo || error || !data) return;
+      setConversaciones((prev) => fusionarBandeja(prev, data as Conversacion[]));
+    };
+
     const prender = async () => {
       /* 🔴 Cicatriz del 21-ago, la MISMA de arriba y la volví a pisar: el
        * `onAuthStateChange` de abajo dispara solo al suscribirse
@@ -506,6 +567,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
               return;
             }
             if (!fila?.id) return;
+            /* 🔴 31-ago (2ª pasada) · UN HILO DESCONOCIDO SIN MENSAJES NO SE INVENTA.
+             * Si el UPDATE es de un id que la memoria no tiene (el INSERT se
+             * perdió con el socket caído) y el payload viene sin `mensajes`
+             * (TOAST), insertarlo con lista vacía fabrica un hilo mudo: sin
+             * preview, al fondo del orden, y la alerta de "Sin responder" jamás
+             * se enciende para él. Se pide la fila ENTERA y entra completa. */
+            const conocido = conversacionesRef.current.some((c) => c.id === fila.id);
+            if (!conocido && fila.mensajes === undefined) { void traerHilo(fila.id); return; }
             /* 🔴 31-ago · EL PAYLOAD DE REALTIME PUEDE VENIR SIN `mensajes`.
              *
              * Postgres NO mete en el WAL las columnas TOASTeadas (los jsonb que
@@ -536,7 +605,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
             });
           },
         )
-        .subscribe();
+        /* Con callback de estado, no ciego: SUBSCRIBED llega en la suscripción
+         * inicial Y en cada reconexión — y en los dos casos se re-sincroniza.
+         * Los errores del canal quedan al menos en consola. */
+        .subscribe((estado) => {
+          if (!vivo) return;
+          if (estado === "SUBSCRIBED") void resincronizar();
+          else if (estado === "CHANNEL_ERROR" || estado === "TIMED_OUT")
+            console.error(`Bandeja · canal de realtime en ${estado} (reconecta solo; al volver, re-sincroniza)`);
+        });
     };
 
     // Una sola puerta: este callback dispara al suscribirse (INITIAL_SESSION) y
@@ -556,12 +633,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Las de propiedades DEVUELVEN el resultado: el panel necesita saber si la base
   // aceptó para no mostrar un tilde verde sobre un guardado que no ocurrió.
   const addPropiedad = async (p: Propiedad): Promise<Resultado> => {
-    setPropiedades((prev) => [p, ...prev]);
+    setPropiedades((prev) => [sinNulos(p), ...prev]);
     if (!supabase) return SIN_BASE;
     return aviso("upsert en potente_propiedades", supabase.from("potente_propiedades").upsert(p));
   };
   const updatePropiedad = async (id: string, patch: Partial<Propiedad>): Promise<Resultado> => {
-    setPropiedades((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    /* El null viaja a la base (borra de verdad); en MEMORIA la convención es
+     * undefined (sinNulos), así los consumidores no vuelven a ver "Null". */
+    setPropiedades((prev) => prev.map((x) => (x.id === id ? { ...x, ...sinNulos(patch) } : x)));
     if (!supabase) return SIN_BASE;
     return aviso("update en potente_propiedades", supabase.from("potente_propiedades").update(patch).eq("id", id));
   };
