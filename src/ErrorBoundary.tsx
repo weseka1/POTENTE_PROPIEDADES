@@ -1,7 +1,23 @@
 import React from "react";
+import { hayVersionNueva } from "@/lib/version";
 
 // Red de seguridad: si una sección tira un error de render, en vez de pantalla en blanco
 // muestra el mensaje real (para poder diagnosticar) + un botón para recargar.
+//
+// 🔴 31-ago · LA PESTAÑA VIEJA SE CURA SOLA — pero SOLO acá adentro.
+// El centinela de versión avisa y nunca recarga por su cuenta: alguien puede
+// estar escribiendo. Esa regla tiene UNA excepción legítima, y es esta pantalla:
+// si el render ya reventó, la sección está muerta y no hay borrador que perder.
+// Pasó dos veces el mismo día: arreglamos un crash, deployamos, y Juani lo
+// "volvió a ver" — era su pestaña corriendo el bundle de ANTES del arreglo
+// (los hashes de la captura lo probaron). Un cliente no distingue "tu pestaña
+// es vieja" de "el sistema está roto": ve el cartel y pierde la confianza.
+// Así que al capturar un error se consulta /version.json: si hay una versión
+// más nueva publicada, se recarga UNA vez (candado en sessionStorage para no
+// ciclar si el crash persiste en la versión nueva). Si la versión es la misma,
+// el error es real y se muestra como siempre — taparlo sería peor.
+const CANDADO_RECARGA = "potente_boundary_recargo";
+
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
@@ -14,6 +30,30 @@ export class ErrorBoundary extends React.Component<
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // queda en consola también
     console.error("ErrorBoundary capturó:", error, info);
+    void this.recargarSiLaPestanaEsVieja();
+  }
+
+  async recargarSiLaPestanaEsVieja() {
+    try {
+      if (sessionStorage.getItem(CANDADO_RECARGA)) return; // ya lo intentamos: el error es de verdad
+      if (!(await hayVersionNueva())) return;              // misma versión: bug real, que se vea
+      sessionStorage.setItem(CANDADO_RECARGA, "1");
+      window.location.reload();
+    } catch {
+      /* sin sessionStorage o sin red: se muestra el cartel, como siempre */
+    }
+  }
+
+  componentDidMount() {
+    /* El candado se libera recién cuando la app anduvo SANA un rato después de
+     * la recarga. Si se limpiara al toque, un crash persistente ciclaría; si no
+     * se limpiara nunca, cada pestaña podría curarse UNA sola vez en su vida y
+     * el deploy del mes que viene volvería a mostrar el cartel. */
+    setTimeout(() => {
+      try {
+        if (!this.state.error) sessionStorage.removeItem(CANDADO_RECARGA);
+      } catch { /* sin sessionStorage: nada que liberar */ }
+    }, 15_000);
   }
 
   render() {

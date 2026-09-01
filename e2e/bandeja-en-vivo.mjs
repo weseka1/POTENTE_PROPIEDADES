@@ -75,11 +75,36 @@ try {
   chequear("🔑 La pantalla SIGUE VIVA tras el update del hilo gordo (el crash del 31-ago)", !e.rota, e.rota ? "SE ROMPIÓ: payload sin mensajes reemplazó la fila" : "");
   chequear("…y la bandeja sigue en pantalla", e.bandeja, "");
 
-  // 3 · y otro toque más, sobre la MISMA fila ya "vieja" en memoria
+  // 3 · RÁFAGA: tres updates de columnas seguidos, sin respiro — como cuando
+  //     la oficina marca leída, deriva y anota el motivo en el mismo minuto.
+  await sb.from("potente_conversaciones").update({ motivo: "sonda: rafaga 1" }).eq("id", ID);
+  await sb.from("potente_conversaciones").update({ noLeida: true }).eq("id", ID);
+  await sb.from("potente_conversaciones").update({ motivo: "sonda: rafaga 2", noLeida: false }).eq("id", ID);
+  await new Promise((r) => setTimeout(r, 5000));
+  const vivaRafaga = await evaluar(`return !/Se rompió esta sección/i.test(document.body.innerText || "")`);
+  chequear("Aguanta una RÁFAGA de tres updates seguidos", Boolean(vivaRafaga), "se rompió en la ráfaga");
+
+  // 4 · update del hilo gordo mientras la pestaña NAVEGA a otra pantalla del panel
+  //     (el provider vive arriba de todas: el evento llega igual, con otra vista montada)
+  await ir(URL_APP + "/panel/cartera", 4000);
+  await sb.from("potente_conversaciones").update({ motivo: "sonda: en otra pantalla" }).eq("id", ID);
+  await new Promise((r) => setTimeout(r, 4000));
+  await ir(URL_APP + "/panel/asistente", 7000);
+  const vivaNav = await evaluar(`return !/Se rompió esta sección/i.test(document.body.innerText || "")`);
+  chequear("Aguanta el evento llegando con OTRA pantalla montada (y volver)", Boolean(vivaNav), "se rompió al volver");
+
+  // 5 · DELETE del hilo gordo con la pestaña mirando la bandeja
+  await sb.from("potente_conversaciones").delete().eq("id", ID);
+  await new Promise((r) => setTimeout(r, 4000));
+  const vivaDel = await evaluar(`return !/Se rompió esta sección/i.test(document.body.innerText || "")`);
+  chequear("Aguanta el BORRADO del hilo en vivo", Boolean(vivaDel), "se rompió con el DELETE");
+
+  // 6 · y el último toque de siempre, sobre una fila que YA NO existe (update sin filas)
+  // (bis) · y otro toque más, sobre la MISMA fila ya "vieja" en memoria
   await sb.from("potente_conversaciones").update({ noLeida: false }).eq("id", ID);
   await new Promise((r) => setTimeout(r, 4000));
   const viva2 = await evaluar(`return !/Se rompió esta sección/i.test(document.body.innerText || "")`);
-  chequear("Aguanta también el segundo update", Boolean(viva2), "se rompió al segundo toque");
+  chequear("Aguanta un update sobre una fila que YA NO existe (0 filas, sin evento)", Boolean(viva2), "se rompió con el update huérfano");
 } finally {
   // En el FINALLY: si una aserción explota, la sonda no queda en la bandeja de Mateo.
   await sb.from("potente_conversaciones").delete().eq("id", ID);
