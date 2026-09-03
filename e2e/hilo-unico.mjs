@@ -15,6 +15,9 @@
  *   2. Meta primero, ManyChat después → UN hilo (y el número feo se cambia por
  *      el usuario legible: el panel muestra personas, no ids).
  *   3. Dos personas distintas NO se fusionan (el arreglo no une de más).
+ *   3b. 027 · Las dos puertas disparadas EN PARALELO tampoco duplican. Es el
+ *      caso real (ManyChat y Meta llegan juntos) y el que se comía la 025: el
+ *      chequeo de gemelos miraba una foto vieja. Medido: 1 de cada 6 rondas.
  *   4. La idempotencia sigue viva — 🔴 se rompió al escribir la 024: al meter el
  *      select del hilo entre el insert y el `if not found`, `found` dejaba de ser
  *      el del insert. Los repetidos habrían entrado y los nuevos se habrían
@@ -136,6 +139,60 @@ try {
       Boolean(m5.convId) && Boolean(m6.convId) && hC[0]?.mensajes.length === 4, `${hC[0]?.mensajes?.length} msgs`);
   } finally {
     for (const c of [C_USER, C_IGID]) for (const h of await hilosDe(c)) await sb.from("potente_conversaciones").delete().eq("id", h.id);
+  }
+
+  // ── 027 · Las dos puertas AL MISMO TIEMPO ─────────────────────────────────
+  // 🔴 Lo de arriba entra una puerta después de la otra, y así la 025 siempre
+  // ganaba. En la vida real llegan juntas: ManyChat dispara su "Solicitud
+  // externa" en el mismo instante en que Meta manda el webhook. Sin candado,
+  // las dos preguntan "¿ya está este texto?" antes de que la otra confirme, las
+  // dos ven que no, y las dos escriben. Medido antes de la 027 contra la base
+  // viva: 1 de cada 6 rondas duplicaba, y Marina contestaba DOS VECES con dos
+  // textos distintos (lo vio Juani en su propio Instagram el 2-sep).
+  //
+  // Se llama con `fetch` crudo y la clave anon a propósito: es exactamente cómo
+  // pega el server (`_ingesta.ts`). Con el cliente de supabase-js las dos
+  // llamadas salían lo bastante separadas como para NO reproducir la carrera —
+  // o sea que una prueba "más limpia" habría dado verde sobre el bug.
+  const D_USER = `sonda_d_${SELLO}`, D_IGID = `90${SELLO}04`;
+  const ingresarCrudo = async (contacto, texto, fuente, externo, hora) => {
+    const r = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/rpc/potente_ingresar_mensaje`, {
+      method: "POST",
+      headers: { apikey: env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${env.VITE_SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        p_token: TOKEN, p_canal: "instagram", p_contacto: contacto, p_nombre: "",
+        p_mensaje_id: `carrera-${SELLO}-${Math.random().toString(36).slice(2, 10)}`,
+        p_texto: texto, p_hora: hora, p_de: "cliente", p_historico: false,
+        ...(externo ? { p_externo: externo } : {}),
+        ...(fuente ? { p_fuente: fuente } : {}),
+      }),
+    });
+    return r.ok ? { convId: await r.json().catch(() => null) } : { error: `HTTP ${r.status}` };
+  };
+  try {
+    await ingresarCrudo(D_USER, "arranca la charla", "manychat",
+      { ig_username: D_USER, ig_id: D_IGID, manychat_subscriber_id: "444" }, new Date().toISOString());
+
+    let rondasDuplicadas = 0, hilosDeMas = 0;
+    for (let ronda = 1; ronda <= 6; ronda++) {
+      const texto = `mensaje simultaneo ${ronda}`;
+      const ahora = Date.now();
+      // Como en producción: Meta trae la marca del mensaje (unos segundos antes)
+      // y ManyChat la de ahora. Las dos salen en el mismo tick.
+      await Promise.all([
+        ingresarCrudo(D_IGID, texto, "meta", null, new Date(ahora - 3000).toISOString()),
+        ingresarCrudo(D_USER, texto, "manychat", null, new Date(ahora).toISOString()),
+      ]);
+      const h = await hilosDe(D_USER, D_IGID);
+      if (h.length > 1) hilosDeMas++;
+      if ((h[0]?.mensajes ?? []).filter((m) => m.texto === texto).length > 1) rondasDuplicadas++;
+    }
+    chequear("⚡ Las dos puertas a la vez, 6 veces: ni una sola copia de más",
+      rondasDuplicadas === 0, `${rondasDuplicadas}/6 rondas duplicadas`);
+    chequear("…y sigue habiendo UN hilo (dos puertas simultáneas no lo parten)",
+      hilosDeMas === 0, `${hilosDeMas}/6 rondas abrieron un hilo de más`);
+  } finally {
+    for (const c of [D_USER, D_IGID]) for (const h of await hilosDe(c)) await sb.from("potente_conversaciones").delete().eq("id", h.id);
   }
 
   // ── 4 · No une de más: dos personas distintas siguen separadas ────────────
