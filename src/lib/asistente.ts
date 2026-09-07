@@ -23,6 +23,16 @@ export type CampoLite = {
   dormitorios?: number;
   banos?: number;
   m2?: number;
+  /* 🔴 7-sep — LA DIRECCIÓN. Un visitante escribió "me interesa visitar la casa
+   * en venta sobre la calle Puán 2560" —la dirección que estaba leyendo en la
+   * ficha, en la web— y Marina contestó que no encontraba nada en esa dirección
+   * y le preguntó si no recordaría mal la calle. La propiedad existía
+   * (POT-166519, activa, en venta): lo que no existía era el dato. La dirección
+   * es pública —figura en la ficha— y es una de las formas más naturales de
+   * preguntar por una propiedad. Sin ella, Marina solo podía leer la calle si el
+   * título la nombraba de casualidad. Es la MISMA cicatriz del 21-ago con los
+   * dormitorios, en otro campo. */
+  direccion?: string;
 };
 
 export type RespuestaAsistente = {

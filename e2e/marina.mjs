@@ -72,6 +72,15 @@ CATALOGO.push(
   { id: "SONDA-VTA-SJ", titulo: "PH de 2 dormitorios en Barrio San Sonda", zona: "San Sonda",
     categoria: "ph", operacion: "venta", dormitorios: 2,
     precio: "U$S 78.000" },
+  /* 🔴 EL CASO DEL 7-sep: alguien mirando la ficha en la web escribe la calle
+   * que está leyendo y Marina le contesta que esa propiedad no existe y que
+   * capaz recuerda mal. La dirección real de esa ficha está cargada a mano y
+   * PEGADA ("Puan2560"), y el visitante la escribe separada y con tilde. Acá va
+   * igual de fea a propósito: si la prueba usara una dirección prolija, pasaría
+   * sin probar lo que importa. Calle inventada para no rozar la cartera. */
+  { id: "SONDA-VTA-DIR", titulo: "RETASADO Casa de 3 dormitorios con cochera en Sonda Mogotes",
+    zona: "Sonda Mogotes", direccion: "Sondan 2560", categoria: "casa", operacion: "venta",
+    dormitorios: 3, banos: 2, ambientes: 4, precio: "U$S 145.000" },
 );
 
 const ES_VENTA = new Set(CATALOGO.filter((c) => c.operacion === "venta").map((c) => c.id));
@@ -169,6 +178,32 @@ chequear("🔴 …y NO ofrece el de venta con '2 dormitorios' en el título",
 chequear("…ni niega tener disponibilidad teniéndola",
   !/no (tengo|hay|contamos|dispongo)/i.test(String(sj.respuesta ?? "").slice(0, 120)),
   String(sj.respuesta ?? "").slice(0, 90));
+
+/* 6c · 🔴 EL CASO DEL 7-sep: LA DIRECCIÓN QUE "NO EXISTÍA".
+ * Un visitante escribió «Me interesa visitar la casa en venta sobre la calle
+ * Puán 2560» —la dirección que estaba leyendo en la ficha— y Marina contestó
+ * que no encontraba esa propiedad y le preguntó si no recordaría mal la calle.
+ * La casa existía, activa y en venta. Dos fallas en una respuesta: el dato no
+ * viajaba, y encima ella convirtió su propia ceguera en una negación y en una
+ * duda sobre la memoria del visitante. El tipo respondió "No gracias".
+ * Se prueban las dos mitades: que AHORA la encuentre, y que cuando NO pueda
+ * encontrarla igual no niegue ni acuse. */
+const NIEGA = /no (la |lo )?(encuentro|existe|figura|tengo registrada|aparece)|no hay (ninguna|una) propiedad|record(ás|as|es) mal|recuerdes mal|te est(ás|as) confundiendo|confundiendo la direcci/i;
+
+const dir = await preguntar("Me interesa visitar la casa en venta sobre la calle Sondán 2560");
+const idsDir = Array.isArray(dir.camposIds) ? dir.camposIds : [];
+const txtDir = String(dir.respuesta ?? "");
+chequear("🔴 Preguntan por la CALLE y la encuentra (aunque esté cargada pegada y sin tilde)",
+  idsDir.includes("SONDA-VTA-DIR") || /sonda ?mogotes|sondan/i.test(txtDir),
+  `devolvió [${idsDir.join(", ")}] · ${txtDir.slice(0, 110)}`);
+chequear("🔴 …y JAMÁS dice que no existe ni que el visitante recuerda mal",
+  !NIEGA.test(txtDir), txtDir.slice(0, 140));
+
+/* La otra mitad: una dirección que NO está en la cartera. Puede no saberla —
+ * lo que no puede es negar su existencia ni echarle la culpa al que pregunta. */
+const dirNo = await preguntar("Hola, me interesa la casa de la calle Inexistencia 9999, ¿me la mostrás?");
+chequear("🔴 Una dirección que NO tiene tampoco se niega: dice que no la puede confirmar",
+  !NIEGA.test(String(dirNo.respuesta ?? "")), String(dirNo.respuesta ?? "").slice(0, 140));
 
 /* 7 · Sin catálogo (base lenta) contesta igual, no explota */
 const f = await fetch(APP + "/api/asistente", {

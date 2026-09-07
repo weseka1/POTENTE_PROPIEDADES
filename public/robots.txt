@@ -6,4 +6,4 @@ Disallow: /ingresar
 Disallow: /cuenta
 Disallow: /favoritos
 
-Sitemap: https://potente-propiedades.onrender.com/sitemap.xml
+Sitemap: https://potentepropiedades.com/sitemap.xml
