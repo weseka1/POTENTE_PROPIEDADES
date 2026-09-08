@@ -21,7 +21,8 @@
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=server/index.mjs",
     "server:dev": "tsx server/index.ts",
     "deploy:hostinger": "node scripts/deploy-hostinger.mjs",
-    "verificar-derivacion": "tsx scripts/verificar-derivacion.ts"
+    "verificar-derivacion": "tsx scripts/verificar-derivacion.ts",
+    "verificar-composicion": "tsx scripts/verificar-composicion.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",

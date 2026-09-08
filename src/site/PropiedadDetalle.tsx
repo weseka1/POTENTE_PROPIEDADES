@@ -16,6 +16,8 @@ import { useSEO, jsonLdPropiedad } from "./lib/seo";
 import { useData } from "@/lib/DataProvider";
 import { precioPublico, fmtARS } from "@/lib/format";
 import { datosPublicos } from "@/data/esquemaPropiedad";
+import { describirComposicion } from "@/lib/composicion";
+import { Building2 } from "lucide-react";
 import { ESTADO_LABEL, type EstadoPropiedad, type OperacionProp } from "@/data/propiedadTypes";
 import { useFavorites } from "./context/FavoritesContext";
 import { esVideoArchivo, useVideoUrl } from "@/lib/videoStore";
@@ -150,6 +152,7 @@ export default function PropiedadDetalle() {
     v: valor,
   }));
   if (p.categoria === "campo" && p.aptitud) datos.push({ icon: Sprout, l: "Aptitud", v: p.aptitud });
+  const composicion = describirComposicion(p.composicion);
   datos.push({ icon: Tag, l: "Operación", v: opLabel[p.operacion] });
   datos.push({ icon: MapPin, l: "Ubicación", v: p.direccion || `${p.zona}, ${p.provincia}` });
 
@@ -223,6 +226,19 @@ export default function PropiedadDetalle() {
               </div>
             ))}
           </div>
+
+          {/* 🏢 Edificio en block (028): la composición en su propio bloque,
+              fuera de la grilla — la frase es larga y la grilla capitaliza
+              palabra por palabra. Solo si hay dato: sin composición, nada. */}
+          {composicion && (
+            <div className="mt-10" data-composicion="edificio">
+              <h2 className="font-display text-2xl text-graph">Unidades</h2>
+              <p className="mt-3 flex items-start gap-2.5 text-base leading-relaxed text-graph-600">
+                <Building2 size={18} className="mt-1 shrink-0 text-brand" />
+                <span>{composicion}</span>
+              </p>
+            </div>
+          )}
 
           <div className="mt-10">
             <h2 className="font-display text-2xl text-graph">Descripción</h2>

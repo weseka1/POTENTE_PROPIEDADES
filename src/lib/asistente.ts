@@ -33,6 +33,10 @@ export type CampoLite = {
    * título la nombraba de casualidad. Es la MISMA cicatriz del 21-ago con los
    * dormitorios, en otro campo. */
   direccion?: string;
+  /* 🏢 8-sep — la composición de un edificio, YA DESCRIPTA ("6 unidades: 2 de
+   * 3 amb., 3 de 2 amb., 1 monoambiente"). Viaja como frase y no como lista a
+   * propósito (cicatriz: texto, no JSON), y la frase la arma un solo lugar. */
+  composicion?: string;
 };
 
 export type RespuestaAsistente = {

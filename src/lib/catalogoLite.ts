@@ -16,6 +16,7 @@
 import type { Propiedad } from "../data/propiedadTypes";
 import type { CampoLite } from "./asistente";
 import { precioPublico } from "./format";
+import { describirComposicion } from "./composicion";
 
 /**
  * La dirección tal como conviene que la LEA Marina.
@@ -53,6 +54,8 @@ export function aCampoLite(p: Propiedad): CampoLite {
     dormitorios: p.dormitorios,
     banos: p.banos,
     m2: p.m2totales ?? p.m2cubiertos,
+    // Edificios (028): la frase, o nada. `describirComposicion` es total.
+    composicion: describirComposicion(p.composicion),
   };
 }
 

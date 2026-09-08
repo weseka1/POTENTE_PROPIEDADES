@@ -49,7 +49,10 @@ const { error: errAlta } = await sb.from("potente_propiedades").insert([
     m2cubiertos: 95, m2semicubiertos: 14, m2descubiertos: 22, m2totales: 131,
     piso: "7", depto: "B", disposicion: "frente", orientacion: "NE",
     accesoEdificio: "ascensor", cocheras: 1, tipoCochera: "cubierta",
-    antiguedadAnios: 12, expensasARS: 85000, aptaCredito: true },
+    antiguedadAnios: 12, expensasARS: 85000, aptaCredito: true,
+    // 028: la composición de un edificio. Va en la llena para probar que se
+    // muestra COMO FRASE en su bloque (y no "[object Object]" en la grilla).
+    composicion: [{ cantidad: 2, ambientes: 3 }, { cantidad: 1, ambientes: 1 }] },
   { ...base, id: PELADA, titulo: "Ficha pelada de prueba" },
   { ...base, id: VENDIDA, titulo: "Ficha vendida de prueba", estado: "vendida" },
 ]);
@@ -67,7 +70,8 @@ const chequear = (n, paso, extra = "") => {
 // aparezca) y la página entera. Sin separarlos, "baños" daba falso positivo:
 // aparece en las propiedades similares del pie.
 const LEER = 'const g = document.querySelector("[data-datos=propiedad]"); const t = document.body.innerText || ""; '
-  + 'return JSON.stringify({ datos: ((g && g.innerText) || "").toLowerCase(), t: t.toLowerCase(), largo: t.length });';
+  + 'const c = document.querySelector("[data-composicion]"); '
+  + 'return JSON.stringify({ datos: ((g && g.innerText) || "").toLowerCase(), t: t.toLowerCase(), largo: t.length, comp: c ? c.innerText.toLowerCase() : null });';
 const abrir = async (id) => {
   await ir(URL_APP + "/propiedad/" + id, 4200);
   return JSON.parse(await evaluar(LEER));
@@ -87,6 +91,12 @@ try {
     llena.t.includes("de expensas") && llena.t.includes("85.000"));
   chequear("Las expensas NO están en la grilla de datos",
     !llena.t.includes("expensas\n\n$") , "van abajo del precio, no como un dato más");
+  // 🏢 028 · la composición se lee como FRASE en su bloque, no como objeto.
+  chequear("028 · La composición tiene su bloque 'Unidades'", Boolean(llena.comp), llena.comp ?? "(sin bloque)");
+  chequear("028 · …con la frase entera (2 de 3 amb., 1 monoambiente)",
+    Boolean(llena.comp) && llena.comp.includes("3 unidades") && llena.comp.includes("2 de 3 amb") && llena.comp.includes("1 monoambiente"), llena.comp ?? "");
+  chequear("028 · …y NO como '[object Object]' en ningún lado", !llena.t.includes("[object"));
+  chequear("028 · …ni duplicada en la grilla de datos", !llena.datos.includes("unidades del edificio"));
 
   console.log("\n── La ficha SIN datos: NO pueden aparecer ──");
   const pelada = await abrir(PELADA);

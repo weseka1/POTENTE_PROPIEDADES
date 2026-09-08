@@ -27,6 +27,7 @@ import {
   Calendar, Receipt, Landmark, ArrowUpDown, Route, Trees,
 } from "lucide-react";
 import type { Categoria, OperacionProp, Propiedad } from "./propiedadTypes";
+import { describirComposicion } from "../lib/composicion";
 
 /** Cómo se pide y cómo se muestra un dato de la propiedad. */
 export interface CampoProp {
@@ -37,8 +38,14 @@ export interface CampoProp {
   /** Versión corta para la tarjeta del catálogo, donde no hay lugar. */
   corto?: string;
   /** En qué bloque del formulario va. */
-  grupo: "medidas" | "ambientes" | "unidad" | "lote" | "extra";
-  tipo: "entero" | "numero" | "texto" | "opcion" | "siNo";
+  grupo: "composicion" | "medidas" | "ambientes" | "unidad" | "lote" | "extra";
+  /* "composicion" (028): NO es un escalar — es una lista de filas
+   * {cantidad, ambientes}. Los cuatro caminos genéricos del formulario (valor
+   * vacío, hidratar, dibujar, guardar) y los lectores de acá tienen su rama
+   * explícita para este tipo; sin ella, un array pasa por `String()` y sale
+   * como "[object Object]" en la ficha, y por `Number()` como NaN → null al
+   * guardar (o sea: editar la propiedad por cualquier motivo borraría el dato). */
+  tipo: "entero" | "numero" | "texto" | "opcion" | "siNo" | "composicion";
   opciones?: readonly { v: string; l: string }[];
   /** Se muestra pegado al número: "m²", "años". */
   unidad?: string;
@@ -58,6 +65,9 @@ export interface CampoProp {
   ceroEsDato?: boolean;
   /** Cómo se lee el valor. Si no está, se usa el número + la unidad. */
   formato?: (v: number | string | boolean) => string;
+  /** Solo para `tipo: "composicion"`: cómo se lee la lista entera. Recibe lo
+   *  que haya (null, basura, filas) y devuelve la frase o nada — nunca tira. */
+  formatoCompuesto?: (v: unknown) => string | undefined;
   /**
    * 🔴 El campo aplica a TODAS las categorías: no describe al tipo de propiedad
    * sino a la operación. Se declara acá, una sola vez, y `camposDe()` lo suma a
@@ -145,6 +155,12 @@ export const CAMPOS = {
   disposicion:    { id: "disposicion",    label: "Disposición",       grupo: "unidad", tipo: "opcion", opciones: DISPOSICION,    icono: Compass,     publico: true },
   orientacion:    { id: "orientacion",    label: "Orientación",       grupo: "unidad", tipo: "opcion", opciones: ORIENTACION,    icono: Compass,     publico: true },
   accesoEdificio: { id: "accesoEdificio", label: "Acceso al edificio", grupo: "unidad", tipo: "opcion", opciones: ACCESO_EDIFICIO, icono: ArrowUpDown, publico: true },
+  /* 🏢 Edificio (028, Mateo 8-sep): en vez de "ambientes" en general, cuántas
+   * unidades y de cuántos ambientes cada una. Se lee SIEMPRE por
+   * `describirComposicion` — la misma frase en la ficha, la tarjeta, el drawer,
+   * el buscador y Marina. Va afuera de la grilla de datos de la ficha (bloque
+   * propio): la frase es larga y la grilla la capitaliza palabra por palabra. */
+  composicion: { id: "composicion", label: "Unidades del edificio", corto: "unidades", grupo: "composicion", tipo: "composicion", icono: Building2, publico: true, formatoCompuesto: describirComposicion },
 
   // ── Lotes y terrenos ───────────────────────────────────────────────────────
   metrosFrente:   { id: "metrosFrente",   label: "Metros de frente", grupo: "lote", tipo: "numero", unidad: "m",  icono: Ruler, publico: true, ph: "10" },
@@ -197,7 +213,14 @@ const FAMILIAS = {
   /** Departamento: el único que tiene piso, unidad y disposición en el edificio. */
   unidad: ["departamento"],
   /** Comerciales: metros y poco más; no tienen dormitorios. */
-  comercial: ["local", "oficina", "consultorio", "galpon", "deposito", "fondocomercio", "hotel", "edificio"],
+  comercial: ["local", "oficina", "consultorio", "galpon", "deposito", "fondocomercio", "hotel"],
+  /** Edificio entero (028): lo mismo que un comercial, pero en vez de
+   *  "ambientes" y "baños" en general lleva la COMPOSICIÓN (N unidades de X
+   *  ambientes). 🔴 Conserva TODO lo demás de comercial a propósito: el edificio
+   *  real de Mateo tiene frente/fondo, m² descubiertos, antigüedad y apta
+   *  crédito cargados, y `camposParaGuardar` pone en null lo que la familia no
+   *  declara. Recortar de más acá borra datos del cliente sin aviso. */
+  edificio: ["edificio"],
   /** Tierra: lo que pidió Mateo para lotes. */
   tierra: ["lote", "terreno", "chacra"],
   /** Rural. */
@@ -229,6 +252,13 @@ const CAMPOS_DE: Record<Familia, readonly IdCampo[]> = {
   ],
   comercial: [
     "ambientes", "banos", "cocheras", "tipoCochera",
+    "m2cubiertos", "m2semicubiertos", "m2descubiertos", "m2totales",
+    "metrosFrente", "metrosFondo", "orientacion",
+    "antiguedadAnios", "expensasARS",
+  ],
+  // = comercial − ambientes − banos + composicion. Ver la nota en FAMILIAS.
+  edificio: [
+    "composicion", "cocheras", "tipoCochera",
     "m2cubiertos", "m2semicubiertos", "m2descubiertos", "m2totales",
     "metrosFrente", "metrosFondo", "orientacion",
     "antiguedadAnios", "expensasARS",
@@ -304,6 +334,8 @@ export const camposDelGrupo = (cat: Categoria, grupo: CampoProp["grupo"], operac
 
 /** El valor legible, o null si no hay dato (y entonces no se muestra). */
 export function valorLegible(campo: CampoProp, p: Propiedad): string | null {
+  // Una lista no es un escalar: la lee su propio formateador, que es total.
+  if (campo.tipo === "composicion") return campo.formatoCompuesto?.(p[campo.id]) ?? null;
   const v = p[campo.id] as number | string | boolean | null | undefined;
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "boolean") return v ? "Sí" : null; // un "No" no aporta: se omite
@@ -329,7 +361,8 @@ export function valorLegible(campo: CampoProp, p: Propiedad): string | null {
  *  Las expensas quedan afuera porque van pegadas al precio, no en la grilla. */
 export function datosPublicos(p: Propiedad): { campo: CampoProp; valor: string }[] {
   return camposDe(p.categoria, p.operacion)
-    .filter((c) => c.publico && c.id !== "expensasARS")
+    // Las expensas van pegadas al precio; la composición, en su propio bloque.
+    .filter((c) => c.publico && c.id !== "expensasARS" && c.tipo !== "composicion")
     .map((campo) => ({ campo, valor: valorLegible(campo, p) }))
     .filter((d): d is { campo: CampoProp; valor: string } => d.valor !== null);
 }

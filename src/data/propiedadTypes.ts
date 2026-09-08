@@ -241,9 +241,17 @@ export interface Propiedad {
   video?: string;
   lat?: number;
   lng?: number;
+  /* 🏢 Edificios (migración 028, pedido de Mateo 8-sep): cuántas unidades y de
+   * cuántos ambientes — "2 de 3 amb., 3 de 2 amb., 1 monoambiente". Filas, no un
+   * total: el total se DERIVA (`src/lib/composicion.ts`) y nunca se escribe a
+   * mano, así no puede contradecir a las filas. null = sin dato. */
+  composicion?: UnidadComposicion[] | null;
   // ficha completa estilo papel (campo / urbano)
   ficha?: Ficha;
 }
+
+/** Una fila de la composición de un edificio: N unidades de X ambientes. */
+export type UnidadComposicion = { cantidad: number; ambientes: number };
 
 export const CATEGORIAS: { key: Categoria; label: string; plural: string }[] = [
   { key: "casa", label: "Casa", plural: "Casas" },

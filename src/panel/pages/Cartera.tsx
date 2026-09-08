@@ -6,6 +6,7 @@ import { useData } from "@/lib/DataProvider";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
+import { resumenComposicion } from "@/lib/composicion";
 import { PageHeader, EmptyState } from "../components/PageShell";
 import { SearchInput, FilterSelect, Btn } from "../components/Controls";
 import Badge from "../components/Badge";
@@ -27,6 +28,8 @@ function specMeta(c: Propiedad): string {
     return partes.join(" · ");
   }
   const partes: string[] = [];
+  const unidades = resumenComposicion(c.composicion);
+  if (unidades) partes.push(unidades);
   if (c.dormitorios !== undefined) partes.push(`${c.dormitorios} dorm.`);
   else if (c.ambientes !== undefined) partes.push(`${c.ambientes} amb.`);
   if (c.m2cubiertos !== undefined) partes.push(`${c.m2cubiertos} m²`);

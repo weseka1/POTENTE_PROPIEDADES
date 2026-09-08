@@ -81,6 +81,13 @@ CATALOGO.push(
   { id: "SONDA-VTA-DIR", titulo: "RETASADO Casa de 3 dormitorios con cochera en Sonda Mogotes",
     zona: "Sonda Mogotes", direccion: "Sondan 2560", categoria: "casa", operacion: "venta",
     dormitorios: 3, banos: 2, ambientes: 4, precio: "U$S 145.000" },
+  /* 🏢 8-sep · Un edificio en block en la MISMA zona que el PH de 2 dormitorios
+   * en venta (SONDA-VTA-SJ). Su composición dice "3 de 2 amb.": la regla de
+   * "filtrá por el N amb de la línea" lo tomaría como un depto de 2 ambientes.
+   * Se vende ENTERO: no puede aparecer para quien busca UN departamento. */
+  { id: "SONDA-VTA-EDIF", titulo: "6 Unidades en Block CON RENTA - San Sonda", zona: "San Sonda",
+    categoria: "edificio", operacion: "venta", m2: 480, precio: "U$S 390.000",
+    composicion: "6 unidades: 2 de 3 amb., 3 de 2 amb., 1 monoambiente" },
 );
 
 const ES_VENTA = new Set(CATALOGO.filter((c) => c.operacion === "venta").map((c) => c.id));
@@ -204,6 +211,25 @@ chequear("🔴 …y JAMÁS dice que no existe ni que el visitante recuerda mal",
 const dirNo = await preguntar("Hola, me interesa la casa de la calle Inexistencia 9999, ¿me la mostrás?");
 chequear("🔴 Una dirección que NO tiene tampoco se niega: dice que no la puede confirmar",
   !NIEGA.test(String(dirNo.respuesta ?? "")), String(dirNo.respuesta ?? "").slice(0, 140));
+
+/* 6d · 🏢 EL EDIFICIO EN BLOCK (8-sep). Dos mitades: no se lo ofrece a quien
+ * busca UN departamento aunque adentro tenga "3 de 2 amb."; y sí aparece para
+ * quien busca un edificio o una inversión con renta, con su composición y SIN
+ * inventar renta ni precio por unidad. */
+const dep2 = await preguntar("Quiero COMPRAR un PH o departamento de 2 dormitorios en San Sonda, ¿qué tenés?");
+const idsDep2 = Array.isArray(dep2.camposIds) ? dep2.camposIds : [];
+chequear("🏢 Quien busca UN depto de 2 dorm NO recibe el edificio en block",
+  !idsDep2.includes("SONDA-VTA-EDIF"), `devolvió [${idsDep2.join(", ")}]`);
+chequear("…y sí recibe el PH de 2 dormitorios que hay en esa zona",
+  idsDep2.includes("SONDA-VTA-SJ"), `devolvió [${idsDep2.join(", ")}]`);
+
+const inv = await preguntar("Busco un edificio en block con renta para invertir en San Sonda, ¿tenés algo?");
+const idsInv = Array.isArray(inv.camposIds) ? inv.camposIds : [];
+const txtInv = String(inv.respuesta ?? "");
+chequear("🏢 Quien busca un edificio con renta SÍ recibe el edificio en block",
+  idsInv.includes("SONDA-VTA-EDIF") || /6 unidades|edificio/i.test(txtInv), `devolvió [${idsInv.join(", ")}] · ${txtInv.slice(0, 100)}`);
+chequear("…y no inventa renta ni precio por unidad (no divide 390.000 entre 6)",
+  !/65\.000|65000|por unidad|rinde|rentabilidad del? \d|\d+ ?%/i.test(txtInv), txtInv.slice(0, 140));
 
 /* 7 · Sin catálogo (base lenta) contesta igual, no explota */
 const f = await fetch(APP + "/api/asistente", {

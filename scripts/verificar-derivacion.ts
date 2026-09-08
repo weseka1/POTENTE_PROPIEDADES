@@ -28,6 +28,8 @@ const WA_DIRECCION = waDigits(null);
 
 const CATALOGO = [
   { id: "POT-218380", titulo: "Semipiso en Playa Grande", zona: "Playa Grande", categoria: "departamento", operacion: "alquiler" as const },
+  // Lo que Mateo carga desde el panel nace PROP-<timestamp>, no POT-.
+  { id: "PROP-1788880265805", titulo: "12 Unidades en Block CON RENTA", zona: "Chauvín", categoria: "edificio", operacion: "venta" as const },
 ];
 
 type Destino = "temporada" | "direccion" | "web" | "ficha";
@@ -55,6 +57,10 @@ const CASOS: [string, Destino, string][] = [
   ["busco vivienda permanente, entro en enero", "web", "permanente no es temporada"],
   // …pero el mes solo, sin nada que lo contradiga, sí insinúa temporada.
   ["hola! tienen algo para enero?", "temporada", "el mes solo sigue insinuando temporada"],
+
+  // ── 🏢 8-sep: las fichas cargadas en el panel son PROP-, no POT- ──
+  ["me interesa la PROP-1788880265805, ¿se puede visitar?", "ficha", "el edificio de Chauvín nació PROP-: antes la derivación no lo veía"],
+  ["vi esto https://potentepropiedades.com/propiedad/PROP-1788880265805 y quiero más info", "ficha", "el link de una PROP- también"],
 
   // ── Lo que no se contesta con la cartera → la dirección ──
   ["Necesito el número de teléfono de ustedes", "direccion", "pedir el teléfono no es buscar una propiedad"],

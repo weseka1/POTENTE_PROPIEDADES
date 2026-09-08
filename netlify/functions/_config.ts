@@ -17,7 +17,7 @@ export type AsistenteConfig = {
 export const CONFIG: AsistenteConfig = {
   negocio: "Potente Propiedades",
   rubro:
-    "inmobiliaria de Mar del Plata con más de 50 años y tres generaciones de trayectoria: casas, departamentos, PH, locales, lotes y chacras, en venta y alquiler",
+    "inmobiliaria de Mar del Plata con más de 50 años y tres generaciones de trayectoria: casas, departamentos, PH, locales, edificios en block, lotes y chacras, en venta y alquiler",
   zona: "Mar del Plata y la costa atlántica",
   desde: "1968",
   asistente: "Marina",

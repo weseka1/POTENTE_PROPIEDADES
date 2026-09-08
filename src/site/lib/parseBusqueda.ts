@@ -26,6 +26,7 @@ const TIPOS: [RegExp, string][] = [
   [/\b(departamento|depto|dpto|depa|monoambiente|semipiso|piso)\b/, "departamento"],
   [/\b(casa|chalet|ph|duplex|vivienda)\b/, "casa"],
   [/\b(local|comercio|negocio|fondo de comercio)\b/, "local"],
+  [/\b(edificio|edificios|en block|block)\b/, "edificio"],
   [/\b(lote|terreno|parcela)\b/, "lote"],
   [/\b(campo|chacra|quinta|estancia)\b/, "campo"],
 ];

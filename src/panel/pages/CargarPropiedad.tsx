@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Home as HomeIcon, Sprout, FileText, User, Ruler, ClipboardCheck, Lock, ChevronLeft, ChevronRight } from "lucide-react";
+import { UploadCloud, ImagePlus, Video, X, Loader2, Check, Sparkles, MapPin, Home as HomeIcon, Sprout, FileText, User, Ruler, ClipboardCheck, Lock, ChevronLeft, ChevronRight, Plus, Building2 } from "lucide-react";
+import { normalizarComposicion, totalUnidades } from "@/lib/composicion";
 import { useData } from "@/lib/DataProvider";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageShell";
@@ -77,8 +78,9 @@ const VIDEO_MAX_MB = 50;
 /** Los campos declarados en el esquema arrancan todos vacíos. Se genera de la
  *  declaración para no tener que acordarse de sumarlos acá también. */
 const CAMPOS_VACIOS = Object.fromEntries(
-  Object.values(CAMPOS).map((c) => [c.id, c.tipo === "siNo" ? false : ""]),
-) as Record<string, string | boolean>;
+  // 🏢 La composición es una lista, no un escalar: arranca vacía como [].
+  Object.values(CAMPOS).map((c) => [c.id, c.tipo === "siNo" ? false : c.tipo === "composicion" ? [] : ""]),
+) as Record<string, string | boolean | FilaComposicion[]>;
 
 const FORM_VACIO = {
   ...CAMPOS_VACIOS,
@@ -107,7 +109,9 @@ function aFormulario(p: Propiedad) {
   const declarados = Object.fromEntries(
     Object.values(CAMPOS).map((c) => {
       const v = (p as any)[c.id];
-      return [c.id, c.tipo === "siNo" ? Boolean(v) : t(v)];
+      // 🏢 Un array NO pasa por `String()` (saldría "[object Object]"): se
+      // hidrata como filas, ya normalizadas.
+      return [c.id, c.tipo === "siNo" ? Boolean(v) : c.tipo === "composicion" ? normalizarComposicion(v) : t(v)];
     }),
   );
 
@@ -701,7 +705,7 @@ export default function CargarPropiedad() {
           <section className="pcard p-5">
             <h3 className="mb-1 flex items-center gap-2 font-display text-base font-semibold text-graph">
               {esCampo ? <Sprout size={16} className="text-brand" /> : <Ruler size={16} className="text-brand" />}
-              Medidas y ambientes
+              {f.categoria === "edificio" ? "Unidades y medidas" : "Medidas y ambientes"}
             </h3>
             <p className="mb-4 text-[12px] text-graph-400">
               Llená solo lo que tengas. <strong className="font-semibold text-graph-500">Lo que dejes vacío no se
@@ -1033,6 +1037,14 @@ function camposParaGuardar(f: Record<string, any>): Record<string, unknown> {
       continue;
     }
     const v = f[id];
+    if (c.tipo === "composicion") {
+      // 🏢 Filas → normalizadas (agrupadas, ordenadas, sin las inválidas); sin
+      // filas válidas va NULL, que es "sin dato" y es borrable (un [] no pasa
+      // el CHECK de la 028, y un `undefined` no viaja en el PATCH).
+      const filas = normalizarComposicion(v);
+      salida[id] = filas.length ? filas : null;
+      continue;
+    }
     if (c.tipo === "siNo") salida[id] = Boolean(v);
     else if (v === "" || v === null || v === undefined) salida[id] = null;
     else if (c.tipo === "texto") salida[id] = String(v).trim() || null;
@@ -1048,6 +1060,8 @@ function camposParaGuardar(f: Record<string, any>): Record<string, unknown> {
    Los campos de cada bloque salen de `camposDe(categoria)`: si la categoría no
    usa ninguno de un bloque, el bloque no se dibuja. */
 const GRUPOS: { grupo: CampoProp["grupo"]; titulo?: string }[] = [
+  // Edificio: la composición va donde en los demás van los ambientes.
+  { grupo: "composicion", titulo: "Unidades del edificio" },
   { grupo: "ambientes", titulo: "Ambientes" },
   { grupo: "medidas", titulo: "Superficies" },
   { grupo: "unidad", titulo: "Datos de la unidad" },
@@ -1069,14 +1083,23 @@ function CampoDinamico({
 }: {
   campo: CampoProp;
   valor: unknown;
-  onChange: (v: string | boolean) => void;
+  onChange: (v: string | boolean | FilaComposicion[]) => void;
 }) {
   const Icono = campo.icono;
+
+  // 🏢 Composición de un edificio: filas "N unidades de X ambientes".
+  if (campo.tipo === "composicion") {
+    return (
+      <div className="sm:col-span-full" data-campo={String(campo.id)}>
+        <EditorComposicion label={campo.label} valor={valor} onChange={onChange} />
+      </div>
+    );
+  }
 
   // Sí/No: un interruptor, no un desplegable de dos opciones.
   if (campo.tipo === "siNo") {
     return (
-      <div className="sm:col-span-full">
+      <div className="sm:col-span-full" data-campo={String(campo.id)}>
         <Toggle label={campo.label} v={Boolean(valor)} on={() => onChange(!valor)} />
       </div>
     );
@@ -1086,7 +1109,7 @@ function CampoDinamico({
   if (campo.tipo === "opcion") {
     const anchoCompleto = (campo.opciones?.length ?? 0) > 4;
     return (
-      <div className={anchoCompleto ? "sm:col-span-full" : "sm:col-span-1"}>
+      <div className={anchoCompleto ? "sm:col-span-full" : "sm:col-span-1"} data-campo={String(campo.id)}>
         <SubLabel>{campo.label}</SubLabel>
         <Seg
           opts={campo.opciones as { v: string; l: string }[]}
@@ -1100,7 +1123,7 @@ function CampoDinamico({
   // Número o texto. La unidad va DENTRO del campo, a la derecha: así se lee
   // "85 m²" de un vistazo y la etiqueta no tiene que repetir la unidad.
   return (
-    <label className="block">
+    <label className="block" data-campo={String(campo.id)}>
       <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-widest2 text-graph-400">
         <Icono size={12} className="text-brand/70" /> {campo.label}
       </span>
@@ -1122,6 +1145,86 @@ function CampoDinamico({
         )}
       </div>
     </label>
+  );
+}
+
+/** Una fila del editor mientras se escribe: los números viajan como texto
+ *  (igual que el resto del formulario) y una fila a medio llenar no se pierde. */
+type FilaComposicion = { cantidad: string | number; ambientes: string | number };
+
+/**
+ * 🏢 EL EDITOR DE LA COMPOSICIÓN DE UN EDIFICIO (028, Mateo 8-sep).
+ * Filas "Unidades × Ambientes" que se agregan y se quitan, y el total derivado
+ * a la vista — nunca se escribe a mano, así no puede contradecir a las filas.
+ * El estado son las filas CRUDAS; agrupar, ordenar y descartar lo inválido
+ * pasa al guardar (`camposParaGuardar`) y al leer (`describirComposicion`).
+ * Quitar una fila no pide confirmación: es reversible y no es un diálogo del
+ * navegador (regla de la casa).
+ */
+function EditorComposicion({ label, valor, onChange }: { label: string; valor: unknown; onChange: (v: FilaComposicion[]) => void }) {
+  const filas: FilaComposicion[] = Array.isArray(valor) ? (valor as FilaComposicion[]) : [];
+  const total = totalUnidades(filas);
+  const setFila = (i: number, k: keyof FilaComposicion, v: string) =>
+    onChange(filas.map((fila, j) => (j === i ? { ...fila, [k]: v } : fila)));
+  const agregar = () => onChange([...filas, { cantidad: "", ambientes: "" }]);
+  const quitar = (i: number) => onChange(filas.filter((_, j) => j !== i));
+
+  const input = "h-10 w-full rounded-xl border border-graph/10 bg-graph/[0.04] px-3 text-sm text-graph placeholder:text-graph-400 outline-none transition focus:border-brand/60";
+
+  return (
+    <div data-editor="composicion">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-widest2 text-graph-400">
+          <Building2 size={12} className="text-brand/70" /> {label}
+        </span>
+        {total > 0 && (
+          <span className="text-[12px] font-semibold text-graph" data-total-unidades={total}>
+            {total} unidad{total === 1 ? "" : "es"} en total
+          </span>
+        )}
+      </div>
+
+      {filas.length === 0 && (
+        <p className="mb-3 text-[12px] text-graph-400">
+          Cargá cuántas unidades tiene el edificio y de cuántos ambientes es cada una. Ej.: 2 unidades de 3 ambientes, 3 de 2, 1 de 1.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {filas.map((fila, i) => (
+          <div key={i} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2" data-fila-composicion={i}>
+            <input
+              type="number" inputMode="numeric" min={1} step={1}
+              value={fila.cantidad === null || fila.cantidad === undefined ? "" : String(fila.cantidad)}
+              onChange={(e) => setFila(i, "cantidad", e.target.value)}
+              placeholder="Unidades" aria-label="Cantidad de unidades"
+              className={input}
+            />
+            <span className="text-[12px] text-graph-400">de</span>
+            <input
+              type="number" inputMode="numeric" min={1} step={1}
+              value={fila.ambientes === null || fila.ambientes === undefined ? "" : String(fila.ambientes)}
+              onChange={(e) => setFila(i, "ambientes", e.target.value)}
+              placeholder="Ambientes" aria-label="Ambientes por unidad"
+              className={input}
+            />
+            <button
+              type="button" onClick={() => quitar(i)} aria-label="Quitar esta fila"
+              className="grid h-10 w-10 place-items-center rounded-xl text-graph-400 transition hover:bg-graph/[0.06] hover:text-graph"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button" onClick={agregar}
+        className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-xl border border-graph/15 px-3 text-[12px] font-medium text-graph transition hover:border-brand/50 hover:text-brand"
+      >
+        <Plus size={14} /> Agregar unidades
+      </button>
+    </div>
   );
 }
 

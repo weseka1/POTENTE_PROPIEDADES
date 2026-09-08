@@ -121,7 +121,11 @@ const PARA_UNA_PERSONA =
   /\b(vender|vendo|tasar|tasaci[oó]n|cu[aá]nto vale|(poner|ofrecer|alquilar|dar)\b[^.!?]{0,30}\ben (venta|alquiler)|administrar|administraci[oó]n|comisi[oó]n|comisiones|honorarios|requisitos?|garant[ií]a|documentaci[oó]n|escritur\w*|tel[eé]fono|whatsapp|n[uú]mero de|contacto|hablar con|asesor|reclamo|queja)\b/i;
 
 /** Los códigos de la casa, como los escribe la gente al copiar una ficha. */
-const CODIGO_PROPIEDAD = /\bPOT[-\s]?(\d{4,8})\b|\/propiedad\/(POT-\d+)/i;
+// 🔴 8-sep: las fichas importadas del WordPress son POT-xxxxxx, pero TODO lo que
+// Mateo carga desde el panel nace como PROP-<timestamp> (CargarPropiedad.tsx).
+// Solo reconocer POT- dejaba afuera cada propiedad nueva — el edificio de
+// Chauvín entre ellas: alguien pegaba su link y la derivación no lo veía.
+const CODIGO_PROPIEDAD = /\b(POT|PROP)[-\s]?(\d{4,14})\b|\/propiedad\/((?:POT|PROP)-\d+)/i;
 
 /**
  * ── A DÓNDE SE DERIVA UN DM: LO DECIDE EL CÓDIGO, NO LA IA ──────────────────
@@ -161,7 +165,10 @@ export function derivacionDe(
   //     "quiero el teléfono por la POT-123456" se resuelve mejor con la ficha,
   //     que ya trae el WhatsApp de la oficina que atiende justo esa propiedad.
   const m = CODIGO_PROPIEDAD.exec(dicho.hilo);
-  const id = m ? (m[2] ?? `POT-${m[1]}`).toUpperCase() : "";
+  // Grupos del regex: [1] prefijo (POT|PROP) · [2] dígitos · [3] el id entero
+  // cuando viene en un link. 🔴 Al sumar PROP- se corrió la numeración y el
+  // POT- que ya andaba dejó de resolverse: lo cazó `verificar-derivacion`.
+  const id = m ? (m[3] ?? `${m[1]}-${m[2]}`).toUpperCase() : "";
   const ficha = id ? catalogo.find((c) => c.id.toUpperCase() === id) : undefined;
   if (ficha) {
     return { titulo: "Acá está la ficha completa, con fotos y el contacto de la oficina:", link: `${SITIO}/propiedad/${ficha.id}` };

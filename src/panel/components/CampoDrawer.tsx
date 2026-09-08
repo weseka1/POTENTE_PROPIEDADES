@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home, PenTool, Pencil } from "lucide-react";
+import { MapPin, Maximize, Eye, Check, Globe, MessageSquare, Trash2, BedDouble, Bath, Car, Home, PenTool, Pencil, Building2 } from "lucide-react";
+import { resumenComposicion } from "@/lib/composicion";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { CATEGORIAS } from "@/data/propiedadTypes";
 import { fmtPrecio, fmtHa } from "@/lib/format";
@@ -150,6 +151,13 @@ export default function CampoDrawer({
               </div>
               {esCampo && prop.aptitud ? (
                 <Stat label="Aptitud" value={prop.aptitud} />
+              ) : prop.categoria === "edificio" ? (
+                // Un edificio no tiene "ambientes": tiene unidades.
+                <Stat
+                  icon={<Building2 size={15} />}
+                  label="Unidades"
+                  value={resumenComposicion(prop.composicion) ?? "—"}
+                />
               ) : (
                 <Stat
                   icon={<Home size={15} />}

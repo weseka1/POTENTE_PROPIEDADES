@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler, ChevronLeft, ChevronRight } from "lucide-react";
+import { MapPin, Maximize, ArrowUpRight, Heart, BedDouble, Bath, Car, Ruler, ChevronLeft, ChevronRight, Building2 } from "lucide-react";
+import { resumenComposicion } from "@/lib/composicion";
 import type { Propiedad } from "@/data/propiedadTypes";
 import { precioPublico, fmtHa, fmtARS } from "@/lib/format";
 import { useFavorites } from "../context/FavoritesContext";
@@ -49,6 +50,9 @@ export default function PropiedadCard({ p, prioritaria = false }: { p: Propiedad
     if (p.hectareas) specs.push({ icon: Maximize, label: fmtHa(p.hectareas) });
     if (p.aptitud) specs.push({ icon: Ruler, label: p.aptitud });
   } else {
+    // Edificio en block: "6 unidades" en el lugar de los dormitorios (que no tiene).
+    const unidades = resumenComposicion(p.composicion);
+    if (unidades) specs.push({ icon: Building2, label: unidades });
     if (p.dormitorios) specs.push({ icon: BedDouble, label: `${p.dormitorios} dorm.` });
     if (p.banos) specs.push({ icon: Bath, label: `${p.banos} baño${p.banos > 1 ? "s" : ""}` });
     if (p.cocheras) specs.push({ icon: Car, label: `${p.cocheras} coch.` });

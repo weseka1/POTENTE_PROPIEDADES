@@ -36,6 +36,9 @@ const CASOS = {
   lote: "POT-153220",
   casa: "POT-153864",
   ph: "POT-161465",
+  // El edificio REAL de Mateo ("12 Unidades en Block", Chauvín). Se abre y se
+  // mira: esta suite JAMÁS envía el formulario.
+  edificio: "PROP-1788880265805",
 };
 
 await ir(URL_APP + "/", 900);
@@ -95,6 +98,28 @@ console.log("\n── PH (la excepción: sí lleva expensas) ──");
 const ph = await abrir(CASOS.ph);
 chequear("PH pide expensas", pide(ph, "expensas"));
 chequear("PH pide dormitorios", pide(ph, "dormitorios"));
+
+// ── 🏢 EDIFICIO (028, Mateo 8-sep): composición en vez de ambientes ─────────
+// Se pregunta por atributo `data-campo`, no por texto en el body: "Medidas y
+// ambientes" y "Ambientes" aparecen como palabras en cualquier pantalla del
+// panel, así que buscarlas por texto daba verde con el bug puesto.
+console.log("\n── EDIFICIO ──");
+const edificio = await abrir(CASOS.edificio);
+const campos = await evaluar(`
+  return {
+    presentes: [...document.querySelectorAll("[data-campo]")].map(e => e.getAttribute("data-campo")),
+    editor: Boolean(document.querySelector('[data-editor="composicion"]')),
+    boton: (document.body.innerText || "").toLowerCase().includes("agregar unidades"),
+  };
+`);
+chequear("Edificio muestra el editor de composición (unidades × ambientes)", campos.editor && campos.boton);
+chequear("Edificio NO pide ambientes en general", !campos.presentes.includes("ambientes"), campos.presentes.join(", "));
+chequear("Edificio NO pide baños ni dormitorios", !campos.presentes.includes("banos") && !campos.presentes.includes("dormitorios"));
+// 🔴 Lo que un edificio SÍ conserva de comercial: si falta uno acá, el guardado lo pone en null.
+for (const c of ["m2cubiertos", "m2totales", "m2descubiertos", "metrosFrente", "metrosFondo", "orientacion", "antiguedadAnios", "expensasARS", "cocheras"])
+  chequear(`Edificio conserva "${c}" (no se borra al guardar)`, campos.presentes.includes(c));
+chequear("Edificio: el bloque se llama 'Unidades y medidas'", pide(edificio, "unidades y medidas"));
+chequear("Al editar el edificio real, sus datos vienen cargados", edificio.conValor >= 4, `${edificio.conValor} campos con valor`);
 
 // ── Publicar / bajar de la web + los 5 estados ───────────────────────────────
 console.log("\n── PUBLICAR Y ESTADOS ──");

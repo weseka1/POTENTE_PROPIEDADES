@@ -585,7 +585,7 @@ async function main() {
     (enTabla.data?.length ?? 0) === 0 ? "bloqueado por la política" : "🔴 SE FILTRÓ",
   );
 
-  // ── Los 15 campos nuevos: ¿los acepta la base y los expone la vista? ────────
+  // ── Los 15 campos de la 005 + la composición de la 028: ¿los acepta la base y los expone la vista? ──
   const idCampos = `PROP-VERIF-CAMPOS-${Date.now()}`;
   const nuevos = {
     m2semicubiertos: 12.5, m2descubiertos: 30, m2construibles: 240,
@@ -593,13 +593,16 @@ async function main() {
     piso: "PB", depto: "B", disposicion: "contrafrente", orientacion: "SO",
     accesoEdificio: "ascensor", tipoCochera: "cubierta",
     antiguedadAnios: 15, expensasARS: 85000, aptaCredito: true,
+    // 028 (8-sep): la composición de un edificio. Va en la misma sonda para que
+    // "la vista la expone" y "anon la lee" se prueben con el mismo molde.
+    composicion: [{ cantidad: 2, ambientes: 3 }, { cantidad: 1, ambientes: 1 }],
   };
   const { error: errNuevos } = await mateo.from("potente_propiedades").insert({
     id: idCampos, categoria: "departamento", titulo: "Verificación de campos",
     operacion: "venta", zona: "Verificación", provincia: "Mar del Plata",
     publicado: true, ...nuevos,
   });
-  chequear("La base acepta los 15 campos nuevos", !errNuevos, errNuevos?.message ?? "");
+  chequear("La base acepta los 15 campos nuevos + la composición (028)", !errNuevos, errNuevos?.message ?? "");
 
   // Este es el modo de falla que ya nos pasó con `ficha`: el dato está guardado y
   // la web queda muda porque la vista no lo expone.
@@ -607,9 +610,9 @@ async function main() {
     .from("potente_propiedades_web").select("*").eq("id", idCampos).maybeSingle();
   const faltan = Object.keys(nuevos).filter((k) => !(k in (filaVista ?? {})));
   chequear(
-    "La vista pública EXPONE los 15 campos nuevos",
+    "La vista pública EXPONE los 15 campos nuevos + la composición (028)",
     Boolean(filaVista) && faltan.length === 0,
-    faltan.length ? `🔴 faltan: ${faltan.join(", ")}` : "los 15",
+    faltan.length ? `🔴 faltan: ${faltan.join(", ")}` : "los 16",
   );
   chequear(
     "…y los devuelve con el valor que se guardó",
@@ -617,6 +620,29 @@ async function main() {
     `expensas ${filaVista?.expensasARS} · piso ${filaVista?.piso}`,
   );
   chequear("La vista sigue SIN exponer la ficha interna", !("ficha" in (filaVista ?? { ficha: 1 })));
+
+  /* 🏢 028 · La composición: el CHECK, y las dos garantías que importan.
+   * "Un upsert SIN la clave no la borra" es la guarda contra el Render viejo
+   * (build anterior, escribe la fila entera sin conocer la columna) y contra el
+   * seed. "Un update con null SÍ la borra" es que el campo sigue siendo
+   * borrable desde el formulario. */
+  chequear(
+    "028 · la vista devuelve la composición tal cual se guardó",
+    JSON.stringify(filaVista?.composicion) === JSON.stringify(nuevos.composicion),
+    JSON.stringify(filaVista?.composicion),
+  );
+  for (const [nombre, feo] of [["[]", []], ["{}", {}], ["0", 0], ["decimal", [{ cantidad: 1.5, ambientes: 2 }]], ["negativo", [{ cantidad: -1, ambientes: 2 }]], ["texto", [{ cantidad: "dos", ambientes: 2 }]]] as const) {
+    const { error } = await mateo.from("potente_propiedades").update({ composicion: feo as any }).eq("id", idCampos);
+    chequear(`028 · el CHECK rechaza una composición ${nombre}`, Boolean(error), error?.code ?? "🔴 ENTRÓ");
+  }
+  await mateo.from("potente_propiedades").upsert({ id: idCampos, categoria: "departamento", titulo: "Verificación de campos (upsert sin composicion)", operacion: "venta", zona: "Verificación", provincia: "Mar del Plata", publicado: true });
+  const trasUpsert = await mateo.from("potente_propiedades").select("composicion").eq("id", idCampos).maybeSingle();
+  chequear("028 · un upsert SIN la clave NO borra la composición (Render viejo / seed)", JSON.stringify(trasUpsert.data?.composicion) === JSON.stringify(nuevos.composicion));
+  await mateo.from("potente_propiedades").update({ composicion: null }).eq("id", idCampos);
+  const trasNull = await mateo.from("potente_propiedades").select("composicion").eq("id", idCampos).maybeSingle();
+  chequear("028 · un update con null SÍ la borra (campo borrable)", trasNull.data?.composicion === null);
+  const anonComp = await anon.from("potente_propiedades_web").select("id,composicion").limit(1);
+  chequear("028 · anon lee `composicion` por la vista (sin 42501)", !anonComp.error, anonComp.error?.code ?? "ok");
 
   /* 🔴 …Y TAMPOCO PIDIÉNDOLA DIRECTO EN LA TABLA CRUDA.
    * Hasta el 13-ago esto no se probaba, y ahí estaba el agujero: la vista

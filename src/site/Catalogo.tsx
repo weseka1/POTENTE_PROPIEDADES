@@ -10,6 +10,7 @@ import RielHorizontal from "./components/RielHorizontal";
 import { useSEO } from "./lib/seo";
 import UISelect from "@/components/Select";
 import { fmtUSD, fmtARS } from "@/lib/format";
+import { describirComposicion } from "@/lib/composicion";
 
 import WhatsAppCTA from "./components/WhatsAppCTA";
 import { useReveal } from "@/lib/hooks";
@@ -140,6 +141,8 @@ export default function Catalogo() {
           norm(
             [
               p.titulo, p.zona, p.direccion || "", p.descripcion, p.categoria, p.id,
+              // Edificios: "6 unidades: 2 de 3 amb., …" entra al texto buscable.
+              describirComposicion(p.composicion) || "",
               ...(p.caracteristicas || []),
               ...(p.ficha?.mejorasUrbanas || []),
               ...(p.ficha?.servicios || []),

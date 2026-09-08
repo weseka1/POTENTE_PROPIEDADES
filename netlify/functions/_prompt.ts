@@ -99,6 +99,10 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro
       // ("la casa de Puán 2560") tanto como por la zona, y sin esto Marina solo
       // la veía si el título la nombraba de casualidad.
       if (c.direccion) partes.push(`dir: ${c.direccion}`);
+      // 🏢 8-sep · Un edificio en block. Rotulado sin ambigüedad: "3 de 2 amb."
+      // adentro de la composición NO es un departamento de 2 ambientes, y la
+      // regla de filtrar por "N amb" de la línea lo tomaría como tal.
+      if (c.composicion) partes.push(`EDIFICIO EN BLOCK · ${c.composicion}`);
       // Los datos por los que la gente busca. Solo si están cargados: una línea
       // sin "dorm" significa "sin dato", y el prompt le dice a Marina qué hacer
       // con eso (no descartar).
@@ -148,6 +152,7 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro
 - 🔴 LA OPERACIÓN ES UN FILTRO DURO, NUNCA LA CONFUNDAS. Cada propiedad del catálogo abre con su operación entre corchetes: [VENTA], [ALQUILER] o [TEMPORADA]. Si la persona busca ALQUILER, mostrale SOLO propiedades [ALQUILER]; si busca comprar, SOLO [VENTA]; si busca alquiler de verano/vacaciones, SOLO [TEMPORADA]. Ofrecer algo de otra operación es un ERROR GRAVE: le hace perder el tiempo y queda mal con el cliente.
 - 🔴 LOS DORMITORIOS/AMBIENTES DE CADA LÍNEA SON EL DATO REAL: si la persona pide "2 dormitorios", filtrá por el "2 dorm" de la línea, no por lo que diga el título. Y si una línea NO trae dormitorios, significa "sin dato cargado", NO "no tiene": jamás uses la falta del dato para descartar o para afirmar que "no hay" — decí lo que SÍ tenés de esa operación y zona, y ofrecé confirmar el detalle por WhatsApp.
 - 🔴 SI TE NOMBRAN UNA DIRECCIÓN, JAMÁS DIGAS QUE NO EXISTE NI PONGAS EN DUDA LO QUE LA PERSONA VIO. Las líneas traen la calle como "dir: ...", y en la cartera están cargadas a mano: pueden estar sin tilde, sin espacio o abreviadas. Compará IGNORANDO tildes, espacios y mayúsculas — "Puán 2560" y "Puan2560" son LA MISMA dirección. Si la ubicás, hablá de esa propiedad. Si NO la ubicás, decí que no la podés confirmar desde acá (nunca que no existe), pedile el dato que falte y ofrecé pasarlo con un asesor. Está mirando la ficha en la web: contestarle "no encuentro esa propiedad, ¿será que recordás mal la dirección?" es el peor error posible — lo perdimos.
+- 🏢 UN "EDIFICIO EN BLOCK" SE VENDE ENTERO. Su línea trae la composición ("6 unidades: 2 de 3 amb., 3 de 2 amb., 1 monoambiente"): eso describe lo que hay ADENTRO, no departamentos sueltos. Jamás se lo ofrezcas a quien busca UN departamento de N ambientes; ofrecelo solo a quien busca un edificio, una inversión o "algo con renta". La composición de la línea manda sobre el título. Y NUNCA dividas el precio por las unidades ni estimes una renta: si preguntan renta, ocupación o precio por unidad y no figura, decí que no lo tenés cargado y pasalo con un asesor.
 - Antes de nombrar una propiedad, verificá que su corchete coincida con lo que la persona pidió. Si NO hay ninguna de esa operación que sirva, decilo con honestidad ("hoy no tengo alquileres en esa zona") y ofrecé avisarle o pasarle otra zona — NUNCA rellenes con una propiedad de otra operación.
 - Si la persona cambia de idea (venía por alquiler y pregunta por comprar), cambiá el filtro y confirmalo en una frase corta ("dale, te paso las de venta entonces").
 - Precios: los CAMPOS son "A consultar" (nunca inventes ni prometas un monto para un campo). Las propiedades urbanas (casas, deptos, lotes, terrenos, locales) SÍ tienen precio: usá el que figura en la lista, no lo inventes.
@@ -156,7 +161,7 @@ export function buildSystem(cfg: AsistenteConfig, catalogo: CampoLite[], cerebro
   const bloqueCatalogo = esInstagram
     ? ""
     : `
-Catálogo disponible (ID | título | zona | tipo | dirección | detalle | operación | precio):
+Catálogo disponible (ID | título | zona | tipo | dirección | detalle | composición si es edificio | operación | precio):
 ${lista || SIN_LISTA}
 `;
 
