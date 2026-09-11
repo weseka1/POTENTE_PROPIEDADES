@@ -108,18 +108,38 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
       for (const c of Array.isArray(valor?.contacts) ? valor.contacts : []) {
         if (c?.wa_id) perfiles.set(String(c.wa_id), String(c?.profile?.name ?? ""));
       }
+      /* 🔴 11-sep · EL HISTORIAL ENTRA POR LA PUERTA DE LAS NOVEDADES.
+       * Los mensajes viejos CON ADJUNTO no vienen en `value.history`: vienen
+       * acá, en `value.messages`, pero con `field: "history"` y el MISMO wamid
+       * que su `media_placeholder` del hilo. Leer `messages` sin mirar el
+       * `field` los mete como mensajes NUEVOS sin responder, y la bandeja de
+       * Mateo se llena de rojo "Sin responder · hace 200.000 min" con chats de
+       * hace meses.
+       * 🔴 Y el historial llega UNA SOLA VEZ: si entra mal no hay segunda
+       * oportunidad sin desconectar el número y rehacer el flujo entero. Por eso
+       * esto se arregla ANTES del QR, no después. */
+      const esHistorial = String(cambio?.field ?? "") === "history";
+      const propio = soloDigitos(valor?.metadata?.display_phone_number);
       for (const m of Array.isArray(valor?.messages) ? valor.messages : []) {
-        const de = String(m?.from ?? "");
-        if (!m?.id || !de) continue;
+        const quien = String(m?.from ?? "");
+        if (!m?.id || !quien) continue;
+        /* En el historial el que escribe puede ser LA OFICINA, y entonces el hilo
+         * NO es de ella. Si Meta no dice a quién le escribió, se descarta: un hilo
+         * cuyo contacto es el propio número de Potente es basura en la bandeja, y
+         * ese mismo mensaje ya entró por `history.threads` con su hilo correcto. */
+        const deLaOficina = esHistorial && !!propio && soloDigitos(quien) === propio;
+        const contraparte = deLaOficina ? String(m?.to ?? "") : quien;
+        if (!contraparte) continue;
         salida.push({
           canal: "whatsapp",
           mensajeId: String(m.id),
-          contacto: de,
-          nombre: perfiles.get(de) ?? "",
+          contacto: contraparte,
+          nombre: perfiles.get(contraparte) ?? "",
           texto: textoDeWhatsApp(m),
           hora: horaDe(m?.timestamp),
-          de: "cliente",
+          de: deLaOficina ? "humano" : "cliente",
           fuente: "meta",
+          ...(esHistorial ? { historico: true } : {}),
         });
       }
 
@@ -147,6 +167,13 @@ export function parsearEntrada(cuerpo: any): MensajeEntrante[] {
        * que viene `from` ese teléfono es del cliente, el resto es de la oficina.
        * Se marcan históricos: entran con su fecha real y no cuentan como novedad. */
       for (const trozo of Array.isArray(valor?.history) ? valor.history : []) {
+        /* 🔴 Los errores del historial NO son mudos. El 2593109 ("History sync is
+         * turned off by the business") significa que el historial no va a llegar
+         * NUNCA; sin este log lo descubriríamos por ausencia, mirando una bandeja
+         * vacía sin saber por qué, y con la ventana de 24 h ya vencida. */
+        for (const err of Array.isArray(trozo?.errors) ? trozo.errors : []) {
+          console.error("Webhook Meta · historial con error:", JSON.stringify(err));
+        }
         for (const hilo of Array.isArray(trozo?.threads) ? trozo.threads : []) {
           const cliente = String(hilo?.id ?? "");
           if (!cliente) continue;
@@ -238,6 +265,15 @@ export function descripcionDeAdjunto(tipo: unknown, canal: "whatsapp" | "instagr
     document: `📄 documento — abrilo en ${donde}`,
     file: `📄 archivo — abrilo en ${donde}`,
     sticker: "🙂 sticker",
+    /* Estos solo aparecen con Coexistence. Sin ellos la fila quedaba como
+     * "(media_placeholder) — miralo en WhatsApp": legible para mí, basura
+     * para Mateo. */
+    media_placeholder: `📎 adjunto del historial — miralo en ${donde}`,
+    revoke: "🚫 mensaje eliminado",
+    revoked: "🚫 mensaje eliminado",
+    edit: "✏️ mensaje editado",
+    edited: "✏️ mensaje editado",
+    unsupported: `(mensaje que ${donde} no pudo mostrar)`,
     contacts: "👤 contacto compartido",
     share: "🔗 contenido compartido",
     reel: "🔗 compartió un reel",
@@ -245,6 +281,18 @@ export function descripcionDeAdjunto(tipo: unknown, canal: "whatsapp" | "instagr
     story_reply: "📲 respondió a una historia",
   };
   return dic[t] ?? (t ? `(${t}) — miralo en ${donde}` : "(mensaje sin texto)");
+}
+
+/**
+ * Dos teléfonos son el mismo si tienen los mismos dígitos.
+ *
+ * 🔴 Meta NO es consistente consigo misma: en `metadata.display_phone_number`
+ * manda "+54 9 223 512-9032" y en `messages[].from` manda "5492235129032".
+ * Compararlos con `===` da false SIEMPRE, y entonces todo el historial escrito
+ * por la oficina se guardaría como si lo hubiera escrito el cliente.
+ */
+function soloDigitos(v: unknown): string {
+  return String(v ?? "").replace(/\D+/g, "");
 }
 
 /** Meta manda epoch en SEGUNDOS (WhatsApp) o milisegundos (Instagram). */

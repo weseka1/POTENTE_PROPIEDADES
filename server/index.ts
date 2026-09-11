@@ -78,8 +78,14 @@ app.get("/api/meta/webhook", (req, res) => {
   res.status(status).type("text/plain").send(texto);
 });
 
-app.post("/api/meta/webhook", express.raw({ type: "application/json", limit: "1mb" }), (req, res) => {
+/* 🔴 8mb, no 1mb. Lo único gordo que manda Meta son los trozos del historial
+ * de Coexistence, y un trozo que pase el techo devuelve 413 con HTML: Meta
+ * reintenta unas pocas veces y después ese pedazo del historial se pierde
+ * PARA SIEMPRE, porque el historial se manda una sola vez. */
+app.post("/api/meta/webhook", express.raw({ type: "application/json", limit: "8mb" }), (req, res) => {
   const crudo = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+  // Si algún día vuelve a rebotar por tamaño, queremos el número, no la sospecha.
+  if (crudo.length > 512 * 1024) console.log(`Webhook Meta · cuerpo grande: ${crudo.length} bytes`);
   if (!firmaValida(crudo, req.header("x-hub-signature-256"), process.env.META_APP_SECRET)) {
     // Sin firma válida no se mira siquiera el contenido.
     return res.status(401).type("text/plain").send("firma invalida");
