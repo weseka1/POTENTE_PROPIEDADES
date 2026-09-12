@@ -262,7 +262,14 @@ const AVISO_PRUEBA =
   'Llegá hasta la lista de negocios, sacá la captura y cerrá la ventana. ' +
   '<b>No avances hasta el código QR</b> — el teléfono de la oficina todavía no se toca.</div>';
 
-const paginaConectar = (appId: string, configId: string, aviso: string) => (_req: Request, res: Response) => {
+/* 🔴 En /conectar2 el id de configuración se puede pisar por la URL (?config=<digitos>).
+ * Armar una configuración de registro integrado en la consola de Meta es prueba y error
+ * —un producto de más arrastra permisos que la app no tiene y el diálogo muere con
+ * "necesita al menos un supported permission"— y sin esto cada intento costaba un deploy
+ * de dos minutos. Solo dígitos, y solo en la página de prueba. */
+const paginaConectar = (appId: string, configId: string, aviso: string) => (req: Request, res: Response) => {
+  const pedido = String((req.query?.config ?? "") as string);
+  if (aviso && /^d{5,25}$/.test(pedido)) configId = pedido;
   let html: string;
   try { html = readFileSync(CONECTAR_HTML, "utf8"); }
   catch { return res.status(404).type("text/plain").send("no disponible"); }
@@ -281,7 +288,7 @@ app.get("/conectar", paginaConectar(process.env.META_APP_ID ?? "", process.env.M
  * en `META_APP_SECRET_2`. */
 app.get("/conectar2", paginaConectar(
   process.env.META_APP_ID_2 ?? "1367744218766294",
-  process.env.META_ES_CONFIG_ID_2 ?? "1482454067353019",
+  process.env.META_ES_CONFIG_ID_2 ?? "1100424646328614",
   AVISO_PRUEBA,
 ));
 
