@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
 import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -244,16 +244,46 @@ app.get("/eliminacion-de-datos", (_req, res) => {
 });
 
 const CONECTAR_HTML = path.resolve(__dirname, "conectar.html");
-app.get("/conectar", (_req, res) => {
+
+/* 🔴 12-sep · DOS PÁGINAS, UNA SOLA PLANTILLA.
+ * Meta no deja que el portfolio DUEÑO de la app sea el cliente del registro
+ * integrado: el de Potente sale en gris ("This Meta Business Account owns the
+ * app", medido con captura el 11-sep). La app de siempre vive justamente ahí,
+ * así que con ella ese muro no se cae nunca.
+ * Por eso existe una app NUEVA bajo un portfolio de WESEKA, y `/conectar2` es
+ * su página. Sirve para UNA sola medición —ver si el portfolio dejó de estar
+ * gris— y por eso lleva un aviso rojo arriba: el riesgo real es llegar sin
+ * querer hasta el QR, que es el único paso irreversible de todo esto.
+ * 🔴 `/conectar` NO se toca: es la que está en producción y la que sigue
+ * documentada en OPERATIVO_META_25-ago.md. */
+const AVISO_PRUEBA =
+  '<div class="prueba"><b>Modo prueba.</b> Esta página usa la app nueva de WESEKA y sirve ' +
+  'para una sola cosa: ver si el negocio de Potente Propiedades ya se puede elegir. ' +
+  'Llegá hasta la lista de negocios, sacá la captura y cerrá la ventana. ' +
+  '<b>No avances hasta el código QR</b> — el teléfono de la oficina todavía no se toca.</div>';
+
+const paginaConectar = (appId: string, configId: string, aviso: string) => (_req: Request, res: Response) => {
   let html: string;
   try { html = readFileSync(CONECTAR_HTML, "utf8"); }
   catch { return res.status(404).type("text/plain").send("no disponible"); }
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   res.type("html").send(
-    html.replace(/__APP_ID__/g, process.env.META_APP_ID ?? "").replace(/__CONFIG_ID__/g, process.env.META_ES_CONFIG_ID ?? ""),
+    html.replace(/__APP_ID__/g, appId).replace(/__CONFIG_ID__/g, configId).replace(/__AVISO__/g, aviso),
   );
-});
+};
+
+app.get("/conectar", paginaConectar(process.env.META_APP_ID ?? "", process.env.META_ES_CONFIG_ID ?? "", ""));
+
+/* El id de app y el de configuración NO son secretos: viajan en el HTML que ve
+ * cualquier visitante. Van por entorno igual, con el valor conocido de respaldo,
+ * para poder cambiarlos sin deployar. La clave secreta sí es secreta y vive solo
+ * en `META_APP_SECRET_2`. */
+app.get("/conectar2", paginaConectar(
+  process.env.META_APP_ID_2 ?? "1367744218766294",
+  process.env.META_ES_CONFIG_ID_2 ?? "1482454067353019",
+  AVISO_PRUEBA,
+));
 
 app.post("/api/meta/conectar", async (req, res) => {
   const cupo = pasaElCupo(ipDe(req.headers), "conectar");
