@@ -22,8 +22,18 @@ try {
   }
 } catch { /* sin .env.local */ }
 const TOKEN = process.env.META_ACCESS_TOKEN_POTENTE || env.META_ACCESS_TOKEN_POTENTE;
-const APP_ID = "1760442511651410";
-const BUSINESS = "2973278776393967";
+/* 🔴 12-sep · NADA DE ESTO VA ESCRITO A MANO.
+ * El día que el número se conecte, la cuenta de WhatsApp puede nacer en un
+ * portfolio que hoy ni existe: Meta NO deja que el portfolio dueño de la app sea
+ * el cliente del registro integrado (medido con captura el 11-sep), así que el
+ * flujo real va a venir desde otro. Con el portfolio clavado acá, este comando
+ * —que es nuestra única forma de mirar— habría impreso exactamente lo mismo que
+ * hoy y habría dicho "⏳ falta el QR" con el QR ya escaneado. */
+const APP_ID = process.env.META_APP_ID || env.META_APP_ID || "1760442511651410";
+const NEGOCIOS = (process.env.META_BUSINESS_ID || env.META_BUSINESS_ID || "2973278776393967")
+  .split(/[,;\s]+/).filter(Boolean);
+const BUSINESS = NEGOCIOS[0];
+const WABA_PRINCIPAL = process.env.META_WABA_ID || env.META_WABA_ID || "295097261637590";
 const SECRET = process.env.META_APP_SECRET || env.META_APP_SECRET;
 const G = "https://graph.facebook.com/v21.0";
 if (!TOKEN) { console.error("Falta META_ACCESS_TOKEN_POTENTE en .env.local"); process.exit(1); }
@@ -43,19 +53,36 @@ async function api(path, { method = "GET", body, token = TOKEN } = {}) {
 async function estado() {
   const yo = await api("me?fields=id,name");
   console.log(`\n🔑 token: ${yo.name} (${yo.id})`);
-  const wabas = await api(`${BUSINESS}/owned_whatsapp_business_accounts?fields=id,name,account_review_status`);
-  for (const w of wabas.data ?? []) {
-    console.log(`\n📱 ${w.name}  [${w.id}]  ${w.account_review_status}`);
-    const nums = await api(`${w.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,platform_type,is_on_biz_app,status,code_verification_status`);
-    for (const n of nums.data ?? []) {
-      const ok = n.platform_type === "CLOUD_API" && n.is_on_biz_app === true;
-      console.log(`   ${ok ? "✅" : "⏳"} ${n.display_phone_number}  id=${n.id}  platform=${n.platform_type}  en_app=${n.is_on_biz_app}  calidad=${n.quality_rating}${n.status ? "  estado=" + n.status : ""}`);
+  /* 🔴 LAS DOS PUNTAS. `owned` son las cuentas del portfolio; `client` las que un
+   * portfolio ajeno le compartió a nuestra app. Una cuenta creada por el registro
+   * integrado desde el portfolio del cliente aparece SOLO en la segunda: mirar
+   * únicamente `owned` es quedarse ciego justo el día que funcione. */
+  const vistas = new Set();
+  for (const negocio of NEGOCIOS) {
+    for (const rel of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+      let wabas;
+      try { wabas = await api(`${negocio}/${rel}?fields=id,name,account_review_status`); }
+      catch (e) { console.log(`   (no se pudo leer ${rel} de ${negocio}: ${e.message})`); continue; }
+      for (const w of wabas.data ?? []) {
+        if (vistas.has(w.id)) continue;
+        vistas.add(w.id);
+        const donde = rel.startsWith("client") ? " · compartida por el cliente" : "";
+        console.log(`\n📱 ${w.name}  [${w.id}]  ${w.account_review_status}${donde}`);
+        const nums = await api(`${w.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,platform_type,is_on_biz_app,status,code_verification_status`);
+        for (const n of nums.data ?? []) {
+          /* ⚠️ `status` OSCILA (medido: 5 lecturas en 24 s dieron DISCONNECTED y luego
+           * CONNECTED cuatro veces). El semáforo es platform_type + is_on_biz_app. */
+          const ok = n.platform_type === "CLOUD_API" && n.is_on_biz_app === true;
+          console.log(`   ${ok ? "✅" : "⏳"} ${n.display_phone_number}  id=${n.id}  platform=${n.platform_type}  en_app=${n.is_on_biz_app}  calidad=${n.quality_rating}${n.status ? "  estado=" + n.status : ""}`);
+        }
+        if (!(nums.data ?? []).length) console.log("   (sin números todavía)");
+        const apps = await api(`${w.id}/subscribed_apps`);
+        const nombres = (apps.data ?? []).map((a) => a.whatsapp_business_api_data?.name).filter(Boolean);
+        console.log(`   apps suscriptas: ${nombres.length ? nombres.join(", ") : "🔴 NINGUNA (los webhooks no llegan)"}`);
+      }
     }
-    if (!(nums.data ?? []).length) console.log("   (sin números todavía)");
-    const apps = await api(`${w.id}/subscribed_apps`);
-    const nombres = (apps.data ?? []).map((a) => a.whatsapp_business_api_data?.name).filter(Boolean);
-    console.log(`   apps suscriptas: ${nombres.length ? nombres.join(", ") : "🔴 NINGUNA (los webhooks no llegan)"}`);
   }
+  if (!vistas.size) console.log("\n🔴 ninguna cuenta de WhatsApp visible con este token");
   if (SECRET) {
     const subs = await api(`${APP_ID}/subscriptions`, { token: `${APP_ID}|${SECRET}` });
     console.log("\n🪝 webhook de la app:");
@@ -91,7 +118,7 @@ async function sync(id) {
  */
 async function verificacion() {
   const neg = await api(`${BUSINESS}?fields=name,verification_status`);
-  const waba = await api(`295097261637590?fields=name,business_verification_status,account_review_status,health_status`);
+  const waba = await api(`${WABA_PRINCIPAL}?fields=name,business_verification_status,account_review_status,health_status`);
   const listo = neg.verification_status === "verified";
   console.log(`\n🏢 ${neg.name}: verificacion = ${neg.verification_status} ${listo ? "✅" : "⏳"}`);
   console.log(`📱 cuenta de WhatsApp: ${waba.business_verification_status} · revision ${waba.account_review_status}`);

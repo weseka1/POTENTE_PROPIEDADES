@@ -23,7 +23,8 @@
     "deploy:hostinger": "node scripts/deploy-hostinger.mjs",
     "verificar-derivacion": "tsx scripts/verificar-derivacion.ts",
     "verificar-composicion": "tsx scripts/verificar-composicion.ts",
-    "verificar-coexistence": "tsx scripts/verificar-coexistence.ts"
+    "verificar-coexistence": "tsx scripts/verificar-coexistence.ts",
+    "verificar-conectar": "tsx scripts/verificar-conectar.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
