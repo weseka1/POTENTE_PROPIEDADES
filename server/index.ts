@@ -269,7 +269,7 @@ const AVISO_PRUEBA =
  * de dos minutos. Solo dígitos, y solo en la página de prueba. */
 const paginaConectar = (appId: string, configId: string, aviso: string) => (req: Request, res: Response) => {
   const pedido = String((req.query?.config ?? "") as string);
-  if (aviso && /^d{5,25}$/.test(pedido)) configId = pedido;
+  if (aviso && /^\d{5,25}$/.test(pedido)) configId = pedido;
   let html: string;
   try { html = readFileSync(CONECTAR_HTML, "utf8"); }
   catch { return res.status(404).type("text/plain").send("no disponible"); }
