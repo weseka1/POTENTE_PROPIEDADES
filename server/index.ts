@@ -268,15 +268,19 @@ const AVISO_PRUEBA =
  * "necesita al menos un supported permission"— y sin esto cada intento costaba un deploy
  * de dos minutos. Solo dígitos, y solo en la página de prueba. */
 const paginaConectar = (appId: string, configId: string, aviso: string) => (req: Request, res: Response) => {
+  /* 🔴 Va en una variable LOCAL, no se pisa `configId`: el parámetro vive en el
+   * closure y es el MISMO objeto para todas las visitas. Reasignarlo dejaba el
+   * `?config=` de una persona pegado para la siguiente — lo cazó la propia
+   * prueba de que "basura no pasa", que devolvió el valor del pedido anterior. */
   const pedido = String((req.query?.config ?? "") as string);
-  if (aviso && /^\d{5,25}$/.test(pedido)) configId = pedido;
+  const usar = aviso && /^\d{5,25}$/.test(pedido) ? pedido : configId;
   let html: string;
   try { html = readFileSync(CONECTAR_HTML, "utf8"); }
   catch { return res.status(404).type("text/plain").send("no disponible"); }
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   res.type("html").send(
-    html.replace(/__APP_ID__/g, appId).replace(/__CONFIG_ID__/g, configId).replace(/__AVISO__/g, aviso),
+    html.replace(/__APP_ID__/g, appId).replace(/__CONFIG_ID__/g, usar).replace(/__AVISO__/g, aviso),
   );
 };
 
