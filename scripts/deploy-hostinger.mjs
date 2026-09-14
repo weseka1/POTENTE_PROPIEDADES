@@ -41,23 +41,25 @@ const leerEnv = (ruta) => {
   return m;
 };
 const envLocal = leerEnv(path.join(RAIZ, ".env.local"));
-// 🔴 14-sep-2026 · POR QUE HAY DOS NOMBRES DE VARIABLE
-// WESEKA y POTENTE tienen **cuentas de Hostinger distintas**, y las dos usaban
-// `HOSTINGER_API_TOKEN`. Cuando se cargo el token de WESEKA (para wsk.com.ar),
-// piso el de Potente — y el deploy de Potente quedo apuntando a la cuenta
-// equivocada sin que nadie se enterara: la API contestaba 200 y listaba
-// wsk.com.ar como si fuera todo lo que hay.
+// 🔴 14-sep-2026 · POR QUE HAY DOS NOMBRES (y la correccion de la premisa)
+// Se llego a escribir aca que el token de Potente "se habia perdido" porque el
+// `.env.local` de WESEKA_SALES_MACHINE tiene el de WESEKA (ve solo wsk.com.ar).
+// **Era falso.** Juani: *"estabas conectado al de mateo, tenes todo en el .env
+// local, esta todo guardado justamente por la migracion"* — y tenia razon: el
+// token de Mateo vive en el `.env.local` DE ESTA CARPETA, que es donde
+// corresponde, y ve potentepropiedades.com + .com.ar (usuario u773691759).
 //
-// Se vio el 14-sep buscando por que un fix pusheado no llegaba a produccion:
-// Render decia "live" (y era cierto), pero potentepropiedades.com lo sirve
-// Hostinger (Server: hcdn), no Render.
+// 👉 LA LECCION: **cada cliente tiene su propio .env.local.** Antes de declarar
+//    perdida una credencial, buscarla en la carpeta DEL CLIENTE, no solo en la
+//    de WESEKA. El deploy nunca estuvo roto.
 //
-// 👉 Un token por cuenta, con nombre propio. El generico queda de reserva.
+// El nombre POTENTE_* queda igual como preferido: es gratis y deja explicito de
+// que cuenta es el token, para que nadie vuelva a confundirse leyendo el otro.
 const token = process.env.POTENTE_HOSTINGER_API_TOKEN
   || envLocal.POTENTE_HOSTINGER_API_TOKEN
   || process.env.HOSTINGER_API_TOKEN
   || envLocal.HOSTINGER_API_TOKEN;
-if (!token) { console.error("🔴 Falta POTENTE_HOSTINGER_API_TOKEN (el de la cuenta de Potente, NO el de WESEKA) en .env.local."); process.exit(1); }
+if (!token) { console.error("🔴 Falta el token de Hostinger de POTENTE. Vive en el .env.local DE ESTA CARPETA (no en el de WESEKA_SALES_MACHINE)."); process.exit(1); }
 
 const api = async (metodo, ruta, body, extraHeaders = {}) => {
   const r = await fetch(`${API}${ruta}`, {
