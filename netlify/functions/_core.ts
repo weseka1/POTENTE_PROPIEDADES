@@ -205,7 +205,7 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
         // literales en pantalla. Se usan comillas angulares.
         "Ahora mismo no te puedo atender por acá. Tocá el botón verde " +
         "«Seguir por WhatsApp» " +
-        "acá abajo y un asesor de la oficina te responde al toque — le llega lo " +
+        "acá abajo y un asesor de la oficina te responde enseguida — le llega lo " +
         "que veníamos hablando, no tenés que repetir nada.",
       camposIds: [],
       lead: null,

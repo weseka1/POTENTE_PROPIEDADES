@@ -142,7 +142,7 @@ export default function ChatAsistente() {
           // Habla como una persona a la que se le cortó la línea, no como un
           // sistema caído: la charla sigue viva y el visitante puede reintentar.
           texto:
-            "Uy, se me cortó la conexión y no me llegó tu mensaje. ¿Me lo escribís de nuevo? Si preferís, seguimos por WhatsApp y un asesor te atiende al toque.",
+            "Uy, se me cortó la conexión y no me llegó tu mensaje. ¿Me lo escribís de nuevo? Si preferís, tocá el botón verde «Seguir por WhatsApp» acá abajo y un asesor te atiende enseguida.",
           fallo: true,
         },
       ]);
@@ -183,7 +183,7 @@ export default function ChatAsistente() {
               </span>
               <div className="leading-tight">
                 <p className="text-sm font-semibold">Marina · Potente Propiedades</p>
-                <p className="text-[11px] text-white/80">Te respondo al toque</p>
+                <p className="text-[11px] text-white/80">Te respondo enseguida</p>
               </div>
             </div>
             <button onClick={() => setOpen(false)} aria-label="Cerrar" className="rounded-full p-1 transition hover:bg-white/15">
