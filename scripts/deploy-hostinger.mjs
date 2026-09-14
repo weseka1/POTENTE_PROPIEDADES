@@ -41,8 +41,23 @@ const leerEnv = (ruta) => {
   return m;
 };
 const envLocal = leerEnv(path.join(RAIZ, ".env.local"));
-const token = process.env.HOSTINGER_API_TOKEN || envLocal.HOSTINGER_API_TOKEN;
-if (!token) { console.error("🔴 Falta HOSTINGER_API_TOKEN (entorno o .env.local)."); process.exit(1); }
+// 🔴 14-sep-2026 · POR QUE HAY DOS NOMBRES DE VARIABLE
+// WESEKA y POTENTE tienen **cuentas de Hostinger distintas**, y las dos usaban
+// `HOSTINGER_API_TOKEN`. Cuando se cargo el token de WESEKA (para wsk.com.ar),
+// piso el de Potente — y el deploy de Potente quedo apuntando a la cuenta
+// equivocada sin que nadie se enterara: la API contestaba 200 y listaba
+// wsk.com.ar como si fuera todo lo que hay.
+//
+// Se vio el 14-sep buscando por que un fix pusheado no llegaba a produccion:
+// Render decia "live" (y era cierto), pero potentepropiedades.com lo sirve
+// Hostinger (Server: hcdn), no Render.
+//
+// 👉 Un token por cuenta, con nombre propio. El generico queda de reserva.
+const token = process.env.POTENTE_HOSTINGER_API_TOKEN
+  || envLocal.POTENTE_HOSTINGER_API_TOKEN
+  || process.env.HOSTINGER_API_TOKEN
+  || envLocal.HOSTINGER_API_TOKEN;
+if (!token) { console.error("🔴 Falta POTENTE_HOSTINGER_API_TOKEN (el de la cuenta de Potente, NO el de WESEKA) en .env.local."); process.exit(1); }
 
 const api = async (metodo, ruta, body, extraHeaders = {}) => {
   const r = await fetch(`${API}${ruta}`, {
