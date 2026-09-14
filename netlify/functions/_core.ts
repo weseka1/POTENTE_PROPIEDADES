@@ -86,7 +86,7 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
     return {
       status: 200,
       data: {
-        respuesta: "Ahora mismo no estoy atendiendo por acá. Escribinos por WhatsApp y un asesor de la oficina te responde enseguida.",
+        respuesta: "Ahora mismo no estoy atendiendo por acá. Tocá el botón verde «Seguir por WhatsApp» acá abajo y un asesor de la oficina te responde enseguida.",
         camposIds: [],
         lead: null,
         degradado: true,
@@ -190,7 +190,23 @@ export async function atenderAsistente(body: any): Promise<ResultadoAsistente> {
     status: 200,
     data: {
       respuesta:
-        "Uy, se me cortó la conexión un segundo y no llegué a procesar eso. ¿Me lo repetís? Si preferís, seguimos por WhatsApp y un asesor te atiende al toque.",
+        // 🔴 13-sep-2026 · ANTES DECIA "se me cortó la conexión un segundo".
+        // Estuvo asi durante horas con la cuenta de Anthropic SIN CREDITO, o sea
+        // que a CADA visitante de Mateo le contestaba un cartel de error. Y el
+        // texto mentia dos veces: no fue "un segundo" (no volvia nunca) y pedirle
+        // "¿me lo repetís?" lo mandaba a chocar contra la misma pared.
+        //
+        // 👉 Cuando la IA no esta, el widget no tiene que disimular: **deriva**.
+        // El boton "Seguir por WhatsApp" ya esta en pantalla (aparece apenas la
+        // persona escribe) y ya lleva el contexto de la charla pre-armado, asi
+        // que el mensaje solo tiene que señalarlo. Orden de Juani, 13-sep:
+        // *"Dale, que derive a whatsapp directamente"*.
+        // 🔴 Y sin markdown: la burbuja dibuja {m.texto} PLANO, unos ** saldrian
+        // literales en pantalla. Se usan comillas angulares.
+        "Ahora mismo no te puedo atender por acá. Tocá el botón verde " +
+        "«Seguir por WhatsApp» " +
+        "acá abajo y un asesor de la oficina te responde al toque — le llega lo " +
+        "que veníamos hablando, no tenés que repetir nada.",
       camposIds: [],
       lead: null,
       degradado: true,
